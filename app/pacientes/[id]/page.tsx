@@ -1,0 +1,1570 @@
+'use client'
+
+import React, { useState, useEffect, useCallback } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/client'
+import { canUseFeature } from '@/lib/planLimits'
+import { FeatureLock } from '@/components/feature-lock'
+import { useToast } from "@/hooks/use-toast"
+import { 
+  User, MapPin, Heart, Target, Info, 
+  Save, Trash2, Loader2, ArrowLeft, Plus,
+  DollarSign, CheckCircle, Clock, Calendar as CalendarIcon, XCircle,
+  Activity, Frown, Meh, Smile, ThumbsDown, ThumbsUp, CreditCard,
+  FileText, Smartphone, MessageSquarePlus, Printer, Upload, Download, CheckCircle2, PlayCircle, PauseCircle,
+  Video, Link as LinkIcon
+} from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+// Garante que o import está correto
+import PatientCreditLog from '@/components/PatientCreditLog'
+
+export default function FichaClinicaDigital() {
+  const { id } = useParams()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
+  const supabase = createClient()
+  
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false) 
+  const [isMounted, setIsMounted] = useState(false)
+  const [activeTab, setActiveTab] = useState('pessoal')
+  const [metaFilter, setMetaFilter] = useState('ATIVAS')
+  
+  const [sessaoFilter, setSessaoFilter] = useState('Agendado')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  
+  const [stats, setStats] = useState({ debt: 0, paid: 0, credit: 0, done: 0, scheduled: 0, cancelled: 0 })
+  const [emotions, setEmotions] = useState<any[]>([])
+  const [documents, setDocuments] = useState<any[]>([])
+  const [appointments, setAppointments] = useState<any[]>([])
+  const [viewDoc, setViewDoc] = useState<any>(null)
+  const [metas, setMetas] = useState<any[]>([])
+  const [newGoalOpen, setNewGoalOpen] = useState(false)
+  const [newGoal, setNewGoal] = useState({ title: '', description: '', deadline: '' })
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
+  const [professional, setProfessional] = useState<any>(null)
+
+  const [evolutions, setEvolutions] = useState<any[]>([])
+  const [newEvolution, setNewEvolution] = useState("")
+
+  const [lgpdModalOpen, setLgpdModalOpen] = useState(false);
+  const [lgpdContent, setLgpdContent] = useState("");
+
+  const handleOpenLgpdEditor = async () => {
+    const { data: prof } = await supabase.from('professional_profile').select('*').eq('id', paciente.psychologist_id).single();
+    const defaultContent = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE PSICOLOGIA E TERMO DE CONSENTIMENTO (LGPD)
+
+IDENTIFICAÇÃO DAS PARTES:
+CONTRATANTE (PACIENTE): ${paciente.full_name}, CPF: ${paciente.cpf || 'Não informado'}.
+CONTRATADO (PSICÓLOGO): ${prof?.full_name || 'Profissional'}, CRP: ${prof?.crp || '...'}, estabelecido em ${prof?.city || 'Cidade'}.
+
+DO OBJETO:
+O presente contrato tem por objeto a prestação de serviços de psicologia clínica, realizados em sessões de aproximadamente 50 minutos.
+
+DOS HONORÁRIOS E PAGAMENTO:
+O valor acordado por sessão é de R$ ${paciente.session_value ? Number(paciente.session_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : 'A combinar'}. O pagamento deverá ser efetuado conforme combinado entre as partes (por sessão ou pacote mensal).
+
+DO CANCELAMENTO E FALTAS:
+O cancelamento ou reagendamento de sessões deve ser comunicado com antecedência mínima de 24 horas. O não comparecimento sem aviso prévio ou cancelamento fora do prazo implicará na cobrança integral da sessão, visto que o horário estava reservado exclusivamente para o paciente.
+
+DO SIGILO E PROTEÇÃO DE DADOS (LGPD):
+Em conformidade com o Código de Ética Profissional do Psicólogo e a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), o profissional compromete-se a manter o sigilo absoluto de todas as informações tratadas em sessão.
+
+AUTORIZAÇÃO DE TRATAMENTO DE DADOS:
+Eu, ${paciente.full_name}, autorizo o tratamento dos meus dados pessoais sensíveis (saúde) para fins exclusivos de prestação de serviços psicológicos, evolução de prontuário e cumprimento de obrigações legais.
+
+DO FORO:
+As partes elegem o foro da comarca de ${prof?.city || 'desta cidade'} para dirimir quaisquer dúvidas oriundas deste contrato.
+
+${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
+    
+    setLgpdContent(defaultContent);
+    setLgpdModalOpen(true);
+  };
+
+  // 🎭 MÁSCARAS DE INPUT (Sem bibliotecas externas)
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '')
+    value = value.replace(/^(\d{2})(\d)/g, '($1) $2')
+    value = value.replace(/(\d)(\d{4})$/, '$1-$2')
+    setPaciente((prev: any) => ({ ...prev, phone: value.slice(0, 15) }))
+  }
+
+  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '')
+    value = value.replace(/(\d{3})(\d)/, '$1.$2')
+    value = value.replace(/(\d{3})(\d)/, '$1.$2')
+    value = value.replace(/(\d{3})(\d{1,2})/, '$1-$2')
+    setPaciente((prev: any) => ({ ...prev, cpf: value.slice(0, 14) }))
+  }
+
+  const handleSaveLGPD = async () => {
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.from('patient_documents').insert({
+        patient_id: id, 
+        psychologist_id: paciente.psychologist_id, 
+        title: 'Termo de Consentimento e Contrato', 
+        content: lgpdContent, 
+        status: 'Pendente'
+      }).select().single();
+      
+      if (!error) { 
+        setDocuments(prev => [data, ...prev]); 
+        toast({ title: "Contrato Gerado e Enviado!" });
+        setLgpdModalOpen(false);
+      } else throw error;
+    } catch (e) { 
+      toast({ variant: "destructive", title: "Erro ao gerar termo" });
+    } finally { 
+      setSaving(false); 
+    }
+  };
+
+  const [sessionAgenda, setSessionAgenda] = useState("")
+  const [materials, setMaterials] = useState<any[]>([])
+  const [materialTitle, setMaterialTitle] = useState("")
+  const [materialUrl, setMaterialUrl] = useState("")
+  const [portalSettings, setPortalSettings] = useState({
+    active: false,
+    financials: false,
+    materials: false
+  })
+
+  const [paciente, setPaciente] = useState<any>({
+    full_name: '', cpf: '', rg: '', birth_date: '', gender: '', marital_status: '', profession: '', education: '', nationality: '', session_value: '', status: 'Ativo',
+    phone: '', email: '', cep: '', city: '', address: '', address_number: '', neighborhood: '', complement: '', state: '', emergency_name: '', emergency_phone: '', emergency_kinship: '',
+    country: 'Brasil', has_insurance: false, medical_history: '', psychiatric_history: '', medications: '', allergies: '', family_history: '',
+    therapy_goals: '', lead_source: '', lead_details: '', observations: '', previous_therapy: 'Não', previous_therapy_notes: '',
+    referred_by: '', general_observations: '', meeting_link: ''
+  })
+
+  // 🔒 ESTADO DE PERMISSÕES (FEATURE GATING)
+  const [permissions, setPermissions] = useState({
+    financial: true,
+    evolutions: true,
+    portal: true,
+    emotions: true,
+    docs: true,
+    goals: true,
+  })
+
+  // 💉 LOGICA DE CARGA CENTRALIZADA PARA ATUALIZAÇÃO INSTANTÂNEA
+  const loadAllData = useCallback(async () => {
+    // 🔄 Garante sessão ativa para evitar bloqueio de RLS silencioso
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
+    // 🔒 TRAVA DE SEGURANÇA: Filtra explicitamente pelo ID do psicólogo logado
+    const patientQuery = supabase.from('patients').select('*').eq('id', id).eq('psychologist_id', user.id).single()
+
+    const [patientRes, aptRes, journalRes, docsRes, settingsRes, matsRes, evolRes, transRes, goalsRes, reportsRes] = await Promise.all([
+      patientQuery,
+      supabase.from('appointments').select('*').eq('patient_id', id).order('start_time', { ascending: false }),
+      supabase.from('emotion_journal').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
+      supabase.from('patient_documents').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
+      supabase.from('portal_settings').select('*').eq('patient_id', id).maybeSingle(),
+      supabase.from('therapeutic_materials').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
+      supabase.from('clinical_evolutions').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
+      supabase.from('financial_transactions').select('*').eq('patient_id', id),
+      supabase.from('patient_goals').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
+      supabase.from('official_reports').select('*').eq('patient_id', id).order('created_at', { ascending: false })
+    ])
+
+    if (patientRes.error || !patientRes.data) {
+      toast({ variant: "destructive", title: "Acesso Negado", description: "Paciente não encontrado ou você não tem permissão." })
+      router.push('/pacientes')
+      return
+    }
+
+    if (patientRes.data) {
+      // 💉 MERGE SEGURO: Garante que campos novos não fiquem undefined se o banco retornar null
+      setPaciente(prev => ({ 
+        ...prev, 
+        ...patientRes.data,
+        address: patientRes.data.address_street || patientRes.data.address // Sincroniza logradouro
+      }))
+      // ESTE É O SEGREDO: Pega o valor real do banco de dados (os 600,00 ou 30,00)
+      setStats(prev => ({ ...prev, credit: Number(patientRes.data.credit_balance) || 0 }))
+      setSessionAgenda(patientRes.data.next_session_agenda || "Nenhuma pauta enviada para a próxima sessão.")
+
+      const { data: prof } = await supabase.from('professional_profile').select('*').eq('id', patientRes.data.psychologist_id).single()
+      setProfessional(prof)
+
+      // 🔒 BUSCA DADOS DE PLANO PARA TRAVAR ABAS
+      const { data: profileData } = await supabase.from('profiles').select('plan_type, subscription_status').eq('id', patientRes.data.psychologist_id).single()
+      const planType = profileData?.plan_type || 'starter'
+      const subStatus = profileData?.subscription_status || 'trialing'
+
+      setPermissions({
+        financial: canUseFeature(planType, subStatus, 'hasFinancialTab'),
+        evolutions: canUseFeature(planType, subStatus, 'hasEvolutionsTab'),
+        portal: canUseFeature(planType, subStatus, 'hasPortalTab'),
+        emotions: canUseFeature(planType, subStatus, 'hasEmotionsTab'),
+        docs: canUseFeature(planType, subStatus, 'hasDocsTab'),
+        goals: canUseFeature(planType, subStatus, 'hasGoalsTab'),
+      })
+    }
+
+    if (settingsRes.data) setPortalSettings(settingsRes.data)
+    if (matsRes.data) setMaterials(matsRes.data)
+    if (evolRes.data) setEvolutions(evolRes.data)
+    if (goalsRes.data) setMetas(goalsRes.data)
+    if (transRes.data) setTransactions(transRes.data)
+
+    if (aptRes.data) {
+      const apts = aptRes.data
+      setAppointments(apts)
+      setStats(prev => ({ 
+        ...prev, 
+        // 💉 CORREÇÃO: Matemática de Centavos para Dívida
+        debt: apts.filter((a: any) => {
+          const isPast = new Date(a.start_time) < new Date();
+          const effectiveStatus = (a.status === 'Agendado' && isPast) ? 'Realizada' : a.status;
+          return effectiveStatus === 'Realizada' && a.payment_status !== 'Pago' && a.payment_status !== 'paid';
+        }).reduce((acc: number, curr: any) => {
+          const price = Math.round(Number(curr.price) * 100)
+          const paid = Math.round(Number(curr.amount_paid || 0) * 100)
+          return acc + (price - paid)
+        }, 0) / 100,
+        
+        // 💉 CORREÇÃO: Matemática de Centavos para Total Pago
+        paid: (transRes.data || [])
+          .filter((t: any) => t.type === 'income')
+          .reduce((acc: number, curr: any) => acc + Math.round(Number(curr.amount) * 100), 0) / 100,
+        
+        done: apts.filter((a: any) => a.status === 'Realizada').length,
+        scheduled: apts.filter((a: any) => a.status === 'Agendado').length,
+        cancelled: apts.filter((a: any) => a.status === 'Cancelado' || a.status === 'Desmarcada').length
+      }))
+    }
+    if (journalRes.data) setEmotions(journalRes.data)
+    if (docsRes.data) {
+      // 📂 SEPARAÇÃO DE LISTAS: Exibe apenas documentos anexados/assinados (patient_documents)
+      setDocuments(docsRes.data.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+    }
+    setLoading(false)
+  }, [id, supabase, router, toast])
+
+  useEffect(() => { loadAllData() }, [loadAllData])
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // 🔔 EFEITO: Navegação Inteligente via URL
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (viewDoc?.title) document.title = `${viewDoc.title} - ${viewDoc.clinic_name || viewDoc.professional_name || 'Documento Oficial'}`
+    return () => { document.title = "MentePsi" }
+  }, [viewDoc])
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // 🔒 TRAVA DE PLANO: Materiais
+    const { data: profile } = await supabase.from('profiles').select('plan_type').eq('id', professional?.id).single()
+    const plan = profile?.plan_type?.toLowerCase() || 'iniciante'
+    
+    if (plan === 'iniciante') {
+      toast({ variant: "destructive", title: "Funcionalidade Bloqueada", description: "O envio de materiais é exclusivo do Plano Profissional." })
+      return
+    }
+
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${id}/${Date.now()}.${fileExt}`
+      const { error: uploadError } = await supabase.storage.from('patient-materials').upload(fileName, file)
+      if (uploadError) throw uploadError
+      const { data: { publicUrl } } = supabase.storage.from('patient-materials').getPublicUrl(fileName)
+      const { data, error: dbError } = await supabase.from('therapeutic_materials').insert({
+        patient_id: id, psychologist_id: paciente.psychologist_id, title: file.name, file_url: publicUrl
+      }).select().single()
+      if (!dbError && data) {
+        setMaterials(prev => [data, ...prev])
+        toast({ title: "Arquivo enviado!" })
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Erro no upload", description: err.message })
+    } finally { setUploading(false) }
+  }
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // 🔒 TRAVA DE PLANO: Documentos
+    const { data: profile } = await supabase.from('profiles').select('plan_type').eq('id', professional?.id).single()
+    const plan = profile?.plan_type?.toLowerCase() || 'iniciante'
+
+    if (plan === 'iniciante') {
+      toast({ variant: "destructive", title: "Funcionalidade Bloqueada", description: "O upload de documentos não está disponível no plano Iniciante." })
+      return
+    }
+
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${id}/docs/${Date.now()}.${fileExt}`
+      const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, file)
+      if (uploadError) throw uploadError
+      const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName)
+      
+      const { data, error: dbError } = await supabase.from('patient_documents').insert({
+        patient_id: id, 
+        psychologist_id: paciente.psychologist_id, 
+        title: file.name, 
+        file_url: publicUrl,
+        status: 'Enviado'
+      }).select().single()
+      
+      if (!dbError && data) {
+        setDocuments(prev => [data, ...prev])
+        toast({ title: "Documento anexado!" })
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Erro no upload", description: err.message })
+    } finally { setUploading(false) }
+  }
+
+  const handleDeleteMaterial = async (material: any) => {
+    try {
+      if (material.file_url.includes('patient-materials')) {
+        const filePath = material.file_url.split('patient-materials/')[1]
+        await supabase.storage.from('patient-materials').remove([filePath])
+      }
+      const { error } = await supabase.from('therapeutic_materials').delete().eq('id', material.id)
+      if (!error) {
+        setMaterials(prev => prev.filter(m => m.id !== material.id))
+        toast({ title: "Material removido" })
+      }
+    } catch (e) { toast({ variant: "destructive", title: "Erro ao excluir" }) }
+  }
+
+  const handleDeleteDocument = async (doc: any) => {
+    if (!window.confirm("Tem certeza que deseja excluir este arquivo?")) return;
+    try {
+      if (doc.file_url && doc.file_url.includes('patient-documents')) {
+        const filePath = doc.file_url.split('patient-documents/')[1];
+        await supabase.storage.from('patient-documents').remove([filePath]);
+      }
+      const { error } = await supabase.from('patient_documents').delete().eq('id', doc.id);
+      if (!error) {
+        setDocuments(prev => prev.filter(d => d.id !== doc.id));
+        toast({ title: "Arquivo excluído com sucesso!" });
+      } else throw error;
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao excluir arquivo" });
+    }
+  };
+
+  const handleDeleteArchivedAgenda = async (evoId: string) => {
+    if (!window.confirm("Tem certeza que deseja excluir esta pauta do histórico?")) return;
+    try {
+      const { error } = await supabase.from('clinical_evolutions').delete().eq('id', evoId);
+      if (!error) {
+        setEvolutions(prev => prev.filter(e => e.id !== evoId));
+        toast({ title: "Histórico excluído com sucesso!" });
+      } else throw error;
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao excluir histórico" });
+    }
+  };
+
+  const handleAddMaterial = async () => {
+    if (!materialTitle || !materialUrl) return
+    const { data, error } = await supabase.from('therapeutic_materials').insert({
+      patient_id: id, psychologist_id: paciente.psychologist_id, title: materialTitle, file_url: materialUrl
+    }).select().single()
+    if (!error && data) {
+      setMaterials(prev => [data, ...prev])
+      setMaterialTitle(""); setMaterialUrl("");
+      toast({ title: "Link compartilhado!" })
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      // 1. Preparação do Payload Explícito (Mapeamento 1:1 com o Banco)
+      const payload = {
+        full_name: paciente.full_name,
+        cpf: paciente.cpf,
+        rg: paciente.rg,
+        birth_date: paciente.birth_date,
+        gender: paciente.gender,
+        marital_status: paciente.marital_status,
+        profession: paciente.profession,
+        education: paciente.education,
+        nationality: paciente.nationality,
+        
+        // Financeiro e Status
+        session_value: paciente.session_value ? parseFloat(String(paciente.session_value)) : null,
+        status: paciente.status,
+        
+        // Contato
+        phone: paciente.phone,
+        email: paciente.email,
+        
+        // Endereço
+        cep: String(paciente.cep || ''), // Garante envio como texto
+        city: paciente.city,
+        state: paciente.state,
+        country: paciente.country,
+        address_street: paciente.address, // Mapeado para a coluna 'address_street'
+        address_number: paciente.address_number,
+        neighborhood: paciente.neighborhood,
+        complement: paciente.complement,
+        
+        // Saúde e Histórico
+        has_insurance: paciente.has_insurance,
+        medical_history: paciente.medical_history,
+        psychiatric_history: paciente.psychiatric_history,
+        family_history: paciente.family_history,
+        medications: paciente.medications,
+        allergies: paciente.allergies,
+        previous_therapy: paciente.previous_therapy,
+        previous_therapy_notes: paciente.previous_therapy_notes,
+        
+        // Info Adicional
+        lead_source: paciente.lead_source,
+        referred_by: paciente.referred_by,
+        general_observations: paciente.general_observations,
+        therapy_goals: paciente.therapy_goals,
+        meeting_link: paciente.meeting_link
+      }
+
+      // 2. Execução do Update
+      const { data, error } = await supabase
+        .from('patients')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) {
+        alert(JSON.stringify(error)) // 🚨 Alerta visual solicitado para depuração
+        throw error
+      }
+
+      // 3. Atualização do Estado Local
+      if (data) {
+        setPaciente(prev => ({ ...prev, ...data }))
+        toast({ title: "Sucesso!", description: "Dados salvos permanentemente." })
+        router.refresh() // 🔄 Força a atualização do cache do Next.js
+        await loadAllData()
+      }
+
+    } catch (error: any) {
+      console.error('Erro CRÍTICO ao salvar no Supabase:', error)
+      console.dir(error) // 🔍 Inspeção detalhada do objeto de erro
+      toast({ 
+        variant: "destructive", 
+        title: "Erro ao salvar", 
+        description: `Banco de Dados: ${error.message || error.details || "Erro desconhecido"}`
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const updateAppointmentStatus = async (appointmentId: string, newStatus: string) => {
+    setSaving(true);
+    
+    const { error: updateError } = await supabase
+      .from('appointments')
+      .update({ status: newStatus })
+      .eq('id', appointmentId);
+
+    if (updateError) {
+      toast({ variant: "destructive", title: "Erro ao atualizar status" });
+    } else {
+      toast({ title: "Status Atualizado com Sucesso!" });
+      await loadAllData(); // Recarrega os cards e a lista instantaneamente na tela
+    }
+    
+    setSaving(false);
+  }
+
+  const handleSaveEvolution = async () => {
+    if (!newEvolution.trim()) return
+    setSaving(true)
+    const { error } = await supabase.from('clinical_evolutions').insert({
+      patient_id: id,
+      psychologist_id: paciente.psychologist_id,
+      content: newEvolution
+    })
+    if (!error) {
+      toast({ title: "Evolução salva!" })
+      setNewEvolution("")
+      await loadAllData() // 🔥 Atualização instantânea no histórico
+    }
+    setSaving(false)
+  }
+
+  const handleSaveMeta = async () => {
+    if (!newGoal.title) return
+    setSaving(true)
+
+    try {
+      // 🔐 Garante que o ID do psicólogo vem da sessão autenticada (Segurança RLS)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error("Sessão expirada. Faça login novamente.")
+
+      const { data, error } = await supabase.from('patient_goals').insert({
+        patient_id: id,
+        psychologist_id: user.id,
+        title: newGoal.title,
+        description: newGoal.description,
+        deadline: newGoal.deadline || null,
+        status: 'Ativa'
+      }).select().single()
+
+      if (error) throw error
+
+      if (data) {
+        toast({ title: "Meta criada com sucesso!" })
+        setMetas(prev => [data, ...prev])
+        setNewGoal({ title: '', description: '', deadline: '' })
+        setNewGoalOpen(false)
+      }
+    } catch (error: any) {
+      console.error("Erro ao salvar meta:", error)
+      toast({ 
+        variant: "destructive", 
+        title: "Erro ao salvar", 
+        description: error.message || "Verifique se a tabela 'patient_goals' existe no Supabase." 
+      })
+    }
+    setSaving(false)
+  }
+
+  const handleUpdateMetaStatus = async (goalId: string, newStatus: string) => {
+    setMetas(prev => prev.map(g => g.id === goalId ? { ...g, status: newStatus } : g))
+    const { error } = await supabase.from('patient_goals').update({ status: newStatus }).eq('id', goalId)
+    if (error) toast({ variant: "destructive", title: "Erro ao atualizar status" })
+  }
+
+  const handleDeletePatient = async () => {
+    const confirmMessage = "⚠️ AVISO LEGAL E DEONTOLÓGICO (CFP e LGPD):\n\nSegundo as resoluções do Conselho Federal de Psicologia (CFP), é obrigatória a guarda do prontuário por, no mínimo, 5 anos.\n\nA exclusão permanente apagará IRREVERSIVELMENTE todas as evoluções clínicas, agendamentos, documentos e histórico financeiro deste paciente.\n\nVocê assume total responsabilidade legal por esta ação. Deseja EXCLUIR PERMANENTEMENTE este registro?";
+    
+    const confirmDelete = window.confirm(confirmMessage);
+    if (!confirmDelete) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('patients').delete().eq('id', id);
+
+      if (error) throw error;
+
+      toast({ title: "Registro Excluído", description: "O paciente e seus dados foram apagados permanentemente." });
+      router.push('/pacientes');
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro ao excluir", description: error.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const handleGenerateLGPD = async () => {
+    setLoading(true)
+    try {
+      const { data: prof } = await supabase.from('professional_profile').select('*').eq('id', paciente.psychologist_id).single();
+      
+      const content = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE PSICOLOGIA E TERMO DE CONSENTIMENTO (LGPD)
+
+IDENTIFICAÇÃO DAS PARTES:
+CONTRATANTE (PACIENTE): ${paciente.full_name}, CPF: ${paciente.cpf || 'Não informado'}.
+CONTRATADO (PSICÓLOGO): ${prof?.full_name || 'Profissional'}, CRP: ${prof?.crp || '...'}, estabelecido em ${prof?.city || 'Cidade'}.
+
+DO OBJETO:
+O presente contrato tem por objeto a prestação de serviços de psicologia clínica, realizados em sessões de aproximadamente 50 minutos.
+
+DOS HONORÁRIOS E PAGAMENTO:
+O valor acordado por sessão é de R$ ${paciente.session_value ? Number(paciente.session_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : 'A combinar'}. O pagamento deverá ser efetuado conforme combinado entre as partes (por sessão ou pacote mensal).
+
+DO CANCELAMENTO E FALTAS:
+O cancelamento ou reagendamento de sessões deve ser comunicado com antecedência mínima de 24 horas. O não comparecimento sem aviso prévio ou cancelamento fora do prazo implicará na cobrança integral da sessão, visto que o horário estava reservado exclusivamente para o paciente.
+
+DO SIGILO E PROTEÇÃO DE DADOS (LGPD):
+Em conformidade com o Código de Ética Profissional do Psicólogo e a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), o profissional compromete-se a manter o sigilo absoluto de todas as informações tratadas em sessão.
+
+AUTORIZAÇÃO DE TRATAMENTO DE DADOS:
+Eu, ${paciente.full_name}, autorizo o tratamento dos meus dados pessoais sensíveis (saúde) para fins exclusivos de prestação de serviços psicológicos, evolução de prontuário e cumprimento de obrigações legais.
+
+DO FORO:
+As partes elegem o foro da comarca de ${prof?.city || 'desta cidade'} para dirimir quaisquer dúvidas oriundas deste contrato.
+
+${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
+`;
+
+      const { data, error } = await supabase.from('patient_documents').insert({
+        patient_id: id, psychologist_id: paciente.psychologist_id, title: 'Termo de Consentimento e Contrato', content, status: 'Pendente'
+      }).select().single()
+      if (!error) { setDocuments(prev => [data, ...prev]); toast({ title: "Contrato Gerado!" }) }
+    } catch (e) { toast({ variant: "destructive", title: "Erro ao gerar termo" }) } finally { setLoading(false) }
+  }
+
+  const handleOpenPaymentModal = (transaction: any) => {
+    setSelectedTransaction(transaction)
+    setPaymentAmount(Number(transaction.amount).toFixed(2).replace('.', ','))
+    setPaymentModalOpen(true)
+  }
+
+  const handleProcessPayment = async () => {
+    if (!selectedTransaction) return
+    setSaving(true)
+    try {
+      const finalAmount = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
+
+      // 1. Atualiza status da transação para PAGO e o VALOR (caso tenha sido editado)
+      const { error: txError } = await supabase
+        .from('financial_transactions')
+        .update({ status: 'paid', amount: finalAmount })
+        .eq('id', selectedTransaction.id)
+
+      if (txError) throw txError
+
+      // 2. Atualiza status do documento vinculado (se houver url de recibo na transação, buscamos o doc)
+      if (selectedTransaction.receipt_url) {
+         await supabase.from('patient_documents')
+           .update({ status: 'Aprovado' })
+           .eq('file_url', selectedTransaction.receipt_url)
+      }
+
+      // 3. Amortização Automática (Lógica Financeira Padrão)
+      let remainingAmount = finalAmount
+      
+      const { data: pendingApts } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('patient_id', id)
+        // Busca tudo que não está totalmente pago (compatibilidade com legado 'Pago' e novo 'paid')
+        .not('payment_status', 'in', '("Pago","paid")')
+        .order('start_time', { ascending: true })
+
+      if (pendingApts) {
+        for (const apt of pendingApts) {
+          if (remainingAmount <= 0.01) break
+
+          const price = Number(apt.price)
+          const paid = Number(apt.amount_paid || 0)
+          const debt = price - paid
+
+          if (debt > 0) {
+            const payNow = Math.min(remainingAmount, debt)
+            const newPaid = paid + payNow
+            const isFullyPaid = Math.round(newPaid * 100) >= Math.round(price * 100)
+
+            await supabase.from('appointments').update({ 
+                amount_paid: newPaid, 
+                payment_status: isFullyPaid ? 'paid' : 'pending' 
+              }).eq('id', apt.id)
+
+            remainingAmount -= payNow
+          }
+        }
+      }
+
+      // 4. Sobra vai para crédito
+      if (remainingAmount > 0.01) {
+         const { data: pat } = await supabase.from('patients').select('credit_balance').eq('id', id).single()
+         await supabase.from('patients').update({ credit_balance: (Number(pat?.credit_balance) || 0) + remainingAmount }).eq('id', id)
+      }
+
+      toast({ title: "Pagamento Confirmado", description: "Saldo e sessões atualizados com sucesso." })
+      setPaymentModalOpen(false)
+      router.refresh() // 🔄 Força atualização dos Server Components
+      await loadAllData()
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro", description: error.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCurrencyInput = (value: string) => {
+    const cleanValue = value.replace(/\D/g, "");
+    setPaymentAmount((Number(cleanValue) / 100).toFixed(2).replace('.', ','));
+  }
+
+  const getMoodIcon = (score: number) => {
+    const icons: any = { 1: Frown, 2: ThumbsDown, 3: Meh, 4: ThumbsUp, 5: Smile }
+    return icons[score] || Meh
+  }
+
+  const filteredAppointments = appointments
+    .filter(apt => {
+      const aptDate = new Date(apt.start_time);
+      const dateMatch = (!startDate || aptDate >= new Date(startDate)) && 
+                        (!endDate || aptDate <= new Date(endDate + 'T23:59:59'));
+      const now = new Date();
+      const isPast = now > aptDate;
+      const effectiveStatus = (apt.status === 'Agendado' && isPast) ? 'Realizada' : apt.status;
+      const statusMatch = sessaoFilter === 'Todas' ? true : effectiveStatus === sessaoFilter;
+      return dateMatch && statusMatch;
+    })
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+  // 🛡️ BLINDAGEM DA ABA DOCS: Exibe apenas uploads e comprovantes, ignorando documentos gerados pelo sistema
+  const receivedFiles = documents.filter(doc => 
+    !doc.title.toLowerCase().includes('termo') && 
+    !doc.title.toLowerCase().includes('contrato')
+  )
+
+  const filteredMetas = metas.filter(g => {
+    if (metaFilter === 'ATIVAS') return g.status === 'Ativa'
+    if (metaFilter === 'CONCLUÍDAS') return g.status === 'Concluída'
+    if (metaFilter === 'SUSPENSAS') return g.status === 'Suspensa'
+    return true
+  })
+
+  if (!isMounted) return null
+
+  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-teal-600" /></div>
+
+  return (
+    <div className="p-4 md:p-6 space-y-4 bg-slate-100 min-h-screen">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-[24px] shadow-md border border-slate-200 gap-4">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={() => router.back()} className="rounded-2xl h-10 w-10 p-0"><ArrowLeft size={20} className="text-slate-600"/></Button>
+          <div>
+            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Ficha Clínica Digital</h1>
+            <p className="text-sm font-medium text-slate-500">Paciente: <span className="text-teal-600 font-bold uppercase">{paciente.full_name}</span></p>
+          </div>
+        </div>
+        <div className="flex gap-3 w-full md:w-auto">
+          <Button variant="outline" onClick={() => router.back()} className="flex-1 md:flex-none rounded-2xl h-10 font-bold border-slate-300 text-slate-600">Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white font-bold flex-1 md:flex-none rounded-2xl h-10 shadow-sm hover:shadow-md">
+            {saving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
+            Salvar Alterações
+          </Button>
+        </div>
+      </div>
+
+      {/* STATS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <CardStat title="Saldo Devedor" value={stats.debt} icon={<DollarSign />} color="red" />
+        <CardStat title="Total Pago" value={stats.paid} icon={<CheckCircle />} color="emerald" />
+        {/* 💉 Card de Haver Corrigido: Agora mostra os R$ 50,00 ou qualquer saldo credor */}
+        <CardStat title="Sessões em Haver" value={stats.credit} icon={<Clock />} color="blue" />
+        <Card className="flex flex-col justify-center p-4 space-y-3 bg-white shadow-md border border-slate-200 rounded-[32px]">
+           <div className="flex justify-between items-center"><span className="text-sm flex items-center gap-2 font-medium"><CheckCircle size={14} className="text-green-600"/> Realizadas</span><Badge className="bg-green-100 text-green-700 border-none">{stats.done}</Badge></div>
+           <div className="flex justify-between items-center"><span className="text-sm flex items-center gap-2 font-medium"><CalendarIcon size={14} className="text-emerald-600"/> Agendadas</span><Badge variant="outline" className="border-blue-200 text-blue-600">{stats.scheduled}</Badge></div>
+           <div className="flex justify-between items-center"><span className="text-sm flex items-center gap-2 font-medium"><XCircle size={14} className="text-red-600"/> Desmarcadas</span><Badge variant="outline" className="border-red-200 text-red-600">{stats.cancelled}</Badge></div>
+        </Card>
+      </div>
+
+      {/* NAVEGAÇÃO MANUAL */}
+      <div className="w-full flex flex-wrap gap-2 h-auto relative mb-8 pb-4">
+          {[
+            { val: "pessoal", icon: <User className="w-3 h-3 mr-1"/>, label: "Pessoal" },
+            { val: "sessoes", icon: <CalendarIcon className="w-3 h-3 mr-1"/>, label: "Sessões" },
+            { val: "financeiro", icon: <CreditCard className="w-3 h-3 mr-1"/>, label: "Financeiro" },
+            { val: "evolucoes", icon: <FileText className="w-3 h-3 mr-1"/>, label: "Evoluções", color: "text-teal-700 bg-teal-50 border-teal-100" },
+            { val: "portal", icon: <Smartphone className="w-3 h-3 mr-1"/>, label: "Portal", color: "text-blue-700 bg-blue-50 border-blue-100" },
+            { val: "emocoes", icon: <Activity className="w-3 h-3 mr-1"/>, label: "Emoções" },
+            { val: "documentos", icon: <FileText className="w-3 h-3 mr-1"/>, label: "Docs" },
+            { val: "metas", icon: <Target className="w-3 h-3 mr-1"/>, label: "Metas" },
+            { val: "contato", icon: <MapPin className="w-3 h-3 mr-1"/>, label: "Contato" },
+            { val: "saude", icon: <Heart className="w-3 h-3 mr-1"/>, label: "Saúde" },
+            { val: "adicional", icon: <Info className="w-3 h-3 mr-1"/>, label: "Info" },
+          ].map((tab) => (
+            <Button 
+              key={tab.val}
+              variant={activeTab === tab.val ? 'default' : 'outline'}
+              onClick={() => setActiveTab(tab.val)}
+              className={`h-10 text-xs px-4 rounded-2xl font-bold shadow-sm transition-all ${activeTab === tab.val ? 'bg-teal-600 hover:bg-teal-700 text-white shadow-md' : 'text-slate-600 bg-white border-slate-300 hover:bg-slate-50'}`}
+            >
+              {tab.icon} {tab.label}
+            </Button>
+          ))}
+      </div>
+
+      {/* PESSOAL */}
+      {activeTab === 'pessoal' && (
+        <div className="w-full block clear-both animate-in fade-in">
+          <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-4 md:p-8 space-y-8">
+            <div className="space-y-4">
+              <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2 w-full block clear-both pt-4 mb-6"><User size={16}/> Identificação</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Nome Completo *</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.full_name || ''} onChange={e => setPaciente({...paciente, full_name: e.target.value})} /></div>
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">CPF</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.cpf || ''} onChange={handleCPFChange} placeholder="000.000.000-00" maxLength={14} /></div>
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">RG</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.rg || ''} onChange={e => setPaciente({...paciente, rg: e.target.value})} /></div>
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Data de Nascimento</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" type="date" value={paciente.birth_date || ''} onChange={e => setPaciente({...paciente, birth_date: e.target.value})} /></div>
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Gênero</Label>
+                  <Select value={paciente.gender || ''} onValueChange={v => setPaciente({...paciente, gender: v})}>
+                    <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione"/></SelectTrigger>
+                    <SelectContent><SelectItem value="feminino">Feminino</SelectItem><SelectItem value="masculino">Masculino</SelectItem><SelectItem value="outro">Outro</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Estado Civil</Label>
+                  <Select value={paciente.marital_status || ''} onValueChange={v => setPaciente({...paciente, marital_status: v})}>
+                    <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione"/></SelectTrigger>
+                    <SelectContent><SelectItem value="solteiro">Solteiro</SelectItem><SelectItem value="casado">Casado</SelectItem><SelectItem value="divorciado">Divorciado</SelectItem><SelectItem value="uniao_estavel">União Estável</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Nacionalidade</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.nationality || ''} onChange={e => setPaciente({...paciente, nationality: e.target.value})} /></div>
+                
+                {/* NOVOS CAMPOS: STATUS E FINANCEIRO */}
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Status do Paciente</Label>
+                  <Select value={paciente.status || 'Ativo'} onValueChange={v => setPaciente({...paciente, status: v})}>
+                    <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione"/></SelectTrigger>
+                    <SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Valor da Sessão (R$)</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl font-bold" value={paciente.session_value ? Number(paciente.session_value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''} onChange={e => { const cleanValue = e.target.value.replace(/\D/g, ""); const formattedValue = (Number(cleanValue) / 100).toFixed(2); setPaciente({...paciente, session_value: formattedValue}); }} /></div>
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Profissão</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.profession || ''} onChange={e => setPaciente({...paciente, profession: e.target.value})} /></div>
+              </div>
+
+              {/* NOVA SEÇÃO: CONTATO E LOCALIZAÇÃO */}
+              <div className="space-y-4 border-t border-slate-200 pt-6">
+                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2 mb-6"><MapPin size={16}/> Contato e Localização</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Telefone / WhatsApp</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.phone || ''} onChange={handlePhoneChange} placeholder="(00) 00000-0000" maxLength={15} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">CEP</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.cep || ''} onChange={e => setPaciente({...paciente, cep: e.target.value})} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">País</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.country || 'Brasil'} onChange={e => setPaciente({...paciente, country: e.target.value})} /></div>
+                  <div className="md:col-span-2 space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Logradouro (Rua)</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.address || ''} onChange={e => setPaciente({...paciente, address: e.target.value})} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Número</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.address_number || ''} onChange={e => setPaciente({...paciente, address_number: e.target.value})} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Bairro</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.neighborhood || ''} onChange={e => setPaciente({...paciente, neighborhood: e.target.value})} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Cidade</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.city || ''} onChange={e => setPaciente({...paciente, city: e.target.value})} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Estado</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.state || ''} onChange={e => setPaciente({...paciente, state: e.target.value})} /></div>
+              </div>
+            </div>
+            </div>
+          </CardContent></Card>
+        </div>
+      )}
+
+      {/* SESSÕES */}
+      {activeTab === 'sessoes' && (
+        <div className="w-full block clear-both animate-in fade-in">
+          <Card className="border border-slate-200 shadow-md overflow-hidden rounded-[24px] bg-white">
+            <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 border-b border-slate-200 p-6 gap-4">
+              <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">Histórico de Atendimentos</CardTitle>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center bg-white border border-slate-300 rounded-xl px-3 gap-2 shadow-sm">
+                  <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
+                  <span className="text-slate-300">|</span>
+                  <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
+                </div>
+                <Select value={sessaoFilter} onValueChange={setSessaoFilter}>
+                  <SelectTrigger className="h-9 w-40 bg-white font-bold text-xs rounded-xl"><SelectValue placeholder="Status"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Todas">Exibir Todas</SelectItem>
+                    <SelectItem value="Agendado">Agendadas</SelectItem>
+                    <SelectItem value="Realizada">Realizadas</SelectItem>
+                    <SelectItem value="Cancelado">Canceladas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="divide-y divide-slate-200 p-0">
+              {filteredAppointments.length > 0 ? filteredAppointments.map(apt => {
+                const now = new Date(); const aptTime = new Date(apt.start_time);
+                const isPast = now > aptTime;
+                const displayStatus = (apt.status === 'Agendado' && isPast) ? 'Realizada' : apt.status;
+                const isPaid = Math.round(Number(apt.amount_paid || 0) * 100) >= Math.round(Number(apt.price || 0) * 100);
+                const remaining = Math.max(0, Number(apt.price || 0) - Number(apt.amount_paid || 0));
+                return (
+                  <div key={apt.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-all border-b last:border-0">
+                    <div className="flex items-center gap-4">
+                      <div className="flex flex-col items-center bg-white px-3 py-1 rounded-xl border min-w-[65px] shadow-sm text-center">
+                        <span className="text-[10px] font-black text-teal-600 uppercase">{aptTime.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                        <span className="text-xs font-bold text-slate-700">{aptTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900 text-sm">{apt.modality || 'Individual'}</p>
+                        <div className="flex gap-2 items-center mt-1">
+                          <Badge className={`text-[9px] uppercase font-bold rounded-full border-none shadow-none hover:bg-opacity-100 ${
+                            displayStatus === 'Realizada' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 
+                            displayStatus === 'Cancelado' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 
+                            'bg-amber-100 text-amber-700 hover:bg-amber-100'
+                          }`}>
+                            {displayStatus}
+                          </Badge>
+                          {/* Badge do Status Financeiro Adicionado Abaixo */}
+                          <Badge className={`text-[9px] uppercase font-bold rounded-full border-none shadow-none hover:bg-opacity-100 ${
+                            isPaid ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'
+                          }`}>
+                            {isPaid ? 'PAGO' : `PENDENTE (-R$ ${remaining.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <Select value={displayStatus || ''} onValueChange={(v) => updateAppointmentStatus(apt.id, v)}>
+                      <SelectTrigger className={`w-[140px] h-8 text-[10px] font-bold rounded-lg ${displayStatus === 'Realizada' ? 'text-emerald-600 bg-emerald-50' : displayStatus === 'Cancelado' ? 'text-red-600 bg-red-50' : 'text-emerald-600 bg-blue-50'}`}><SelectValue/></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Agendado">Agendado</SelectItem>
+                        <SelectItem value="Realizada">Realizada</SelectItem>
+                        <SelectItem value="Cancelado">Cancelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )
+              }) : (
+                <div className="p-10 text-center text-slate-400 italic text-sm">Nenhuma sessão encontrada.</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* FINANCEIRO */}
+      {activeTab === 'financeiro' && (
+        <div className="w-full block clear-both animate-in fade-in">
+          {!permissions.financial ? (
+            <FeatureLock 
+              title="Gestão Financeira Completa"
+              description="O controle de pagamentos, saldo devedor e emissão de recibos é exclusivo do Plano Profissional."
+            />
+          ) : (
+            /* Componente integrado com o saldo calculado (stats.credit vem do banco) */
+            <PatientCreditLog patientId={id as string} currentBalance={stats.credit || 0} />
+          )}
+        </div>
+      )}
+
+      {/* EVOLUÇÕES */}
+      {activeTab === 'evolucoes' && (
+        <div className="w-full block clear-both animate-in fade-in space-y-6">
+          {!permissions.evolutions ? (
+            <FeatureLock 
+              title="Prontuário Eletrônico (Evoluções)" 
+              description="O registro de evoluções clínicas e anotações SOAP é exclusivo do Plano Profissional." 
+            />
+          ) : (
+            <>
+              <Card className="border border-slate-200 shadow-md rounded-[24px] overflow-hidden bg-white">
+                <CardHeader className="bg-slate-50 border-b border-slate-200 p-6">
+                  <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2"><Plus size={16} className="text-teal-600"/> Registrar Evolução Clínica</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 md:p-6 space-y-4">
+                  <div className="space-y-3 bg-teal-50/50 p-3 rounded-xl border border-teal-200">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Estrutura de Prontuário</Label>
+                      <Button variant="outline" size="sm" className="h-9 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-slate-100 text-slate-600 hover:bg-slate-200 border-none" onClick={() => setNewEvolution(prev => prev + "--- MÉTODO S.O.A.P ---\nS (Subjetivo): \nO (Objetivo): \nA (Avaliação): \nP (Plano): ")}>
+                        <Plus size={14} className="mr-1"/> Injetar Modelo SOAP
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-[9px] leading-tight text-teal-600/80 font-medium text-center">
+                      <div><strong>S:</strong> Relatos</div><div><strong>O:</strong> Sinais</div><div><strong>A:</strong> Análise</div><div><strong>P:</strong> Plano</div>
+                    </div>
+                  </div>
+                  <Textarea placeholder="Descreva aqui o atendimento..." className="min-h-[200px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={newEvolution} onChange={e => setNewEvolution(e.target.value)} />
+                  <Button onClick={handleSaveEvolution} disabled={saving || !newEvolution.trim()} className="w-full h-9 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-teal-600 hover:bg-teal-700 text-white">
+                    {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />} Salvar Evolução Instantaneamente
+                  </Button>
+                </CardContent>
+              </Card>
+              <div className="space-y-4">
+                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5 ml-2">Histórico Cronológico</Label>
+                {evolutions.map((evo) => (
+                  <Card key={evo.id} className="border border-slate-200 shadow-md rounded-[24px] border-l-4 border-l-teal-500 bg-white">
+                    <div className="bg-slate-50 px-4 md:px-6 py-3 border-b border-slate-200 text-[10px] font-bold text-slate-500 flex justify-between">
+                      <span><CalendarIcon size={12} className="inline mr-1"/> {new Date(evo.created_at).toLocaleString('pt-BR')}</span>
+                    </div>
+                    <CardContent className="p-4 md:p-6 text-xs italic text-slate-500 leading-relaxed whitespace-pre-wrap">{evo.content}</CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* PORTAL */}
+      {activeTab === 'portal' && (
+        <div className="w-full block clear-both animate-in fade-in space-y-6">
+          {!permissions.portal ? (
+            <FeatureLock 
+              title="Portal do Paciente"
+              description="A interação digital com o paciente (envio de materiais e recebimento de arquivos) é exclusiva do Plano Profissional."
+            />
+          ) : (
+            <>
+              {/* --- NOVO: CONFIGURAÇÃO DA SALA ONLINE --- */}
+              <Card className="border border-slate-200 shadow-md bg-white rounded-[24px] mb-6">
+                <CardHeader className="bg-slate-50 border-b border-slate-200 p-4 md:p-6">
+                  <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">
+                    <Video size={16} className="text-teal-600" /> Sala de Atendimento Online
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 md:p-6">
+                  <div className="flex flex-col sm:flex-row gap-4 items-end">
+                    <div className="w-full space-y-2">
+                      <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Link da Sala (Google Meet, Zoom, etc)</Label>
+                      <div className="relative">
+                        <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input value={paciente.meeting_link || ''} onChange={e => setPaciente({...paciente, meeting_link: e.target.value})} placeholder="Ex: https://meet.google.com/xyz-abc-foo" className="pl-9 bg-white border-slate-300 rounded-xl" />
+                      </div>
+                    </div>
+                    <Button onClick={handleSave} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-sm rounded-xl h-10 shrink-0">
+                      {saving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4 mr-2" />}
+                      Salvar Link
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-blue-200 bg-blue-50/30 rounded-[24px] shadow-md">
+                <CardHeader className="pb-2 p-4 md:p-6"><CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2"><MessageSquarePlus size={16} className="text-teal-600" /> Pauta do Paciente</CardTitle></CardHeader>
+                <CardContent className="p-4 md:p-6 pt-0">
+                  <div className="bg-white p-4 rounded-2xl border border-blue-200 italic text-slate-600 shadow-sm">"{sessionAgenda}"</div>
+                  <Button variant="ghost" size="sm" disabled={saving} className="mt-3 text-teal-600 hover:bg-teal-50 font-bold" onClick={async () => {
+                      setSaving(true);
+                      // Salva no prontuário (Evoluções)
+                      await supabase.from('clinical_evolutions').insert({
+                          patient_id: id,
+                          psychologist_id: paciente.psychologist_id,
+                          content: `[PAUTA ENVIADA PELO PACIENTE VIA PORTAL]\n${sessionAgenda}`
+                      });
+                      // Limpa a pauta
+                      await supabase.from('patients').update({ next_session_agenda: "" }).eq('id', id);
+                      setSessionAgenda("Pauta lida e arquivada nas Evoluções.");
+                      toast({ title: "Pauta arquivada no histórico!" });
+                      setSaving(false);
+                      loadAllData();
+                  }}>
+                    {saving ? <Loader2 className="animate-spin h-3 w-3 mr-2"/> : null}
+                    Marcar como lida e Arquivar
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              {/* HISTÓRICO DE PAUTAS ARQUIVADAS (LIDAS) */}
+              <details className="group mt-6 border-t border-slate-200 pt-6">
+                <summary className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center justify-between cursor-pointer hover:text-teal-600 transition-colors list-none select-none outline-none">
+                  <div className="flex items-center gap-2"><Clock size={16} /> Histórico de Pautas Lidas</div>
+                  <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full group-open:hidden border border-slate-200">Clique para expandir</span>
+                </summary>
+                <div className="space-y-3 mt-4 animate-in fade-in slide-in-from-top-2">
+                  {evolutions.filter(e => e.content?.includes('[PAUTA ENVIADA')).length === 0 ? (
+                    <p className="text-xs text-slate-400 italic bg-white p-4 rounded-xl border border-slate-200 text-center shadow-sm">Nenhum histórico de pautas arquivadas.</p>
+                  ) : (
+                    evolutions.filter(e => e.content?.includes('[PAUTA ENVIADA')).map(evo => (
+                      <div key={evo.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-sm text-slate-600 whitespace-pre-wrap shadow-sm">
+                         <div className="flex justify-between items-center mb-2 border-b border-slate-200 pb-2">
+                           <div className="flex items-center gap-2">
+                             <CheckCircle2 size={16} className="text-emerald-500" />
+                             <span className="text-[10px] font-bold text-teal-600 uppercase">
+                               Arquivado em {new Date(evo.created_at).toLocaleDateString('pt-BR')}
+                             </span>
+                           </div>
+                           <Button 
+                             variant="ghost" 
+                             size="sm" 
+                             onClick={(e) => { e.stopPropagation(); handleDeleteArchivedAgenda(evo.id); }} 
+                             className="text-red-400 hover:text-red-600 hover:bg-red-50 h-7 w-7 rounded-md p-0 transition-colors"
+                             title="Excluir Pauta"
+                           >
+                             <Trash2 size={14} />
+                           </Button>
+                         </div>
+                         {/* Remove a tag estrutural apenas da visualização */}
+                         {evo.content.replace('[PAUTA ENVIADA PELO PACIENTE VIA PORTAL]\n', '')}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </details>
+
+              {/* --- SEÇÃO 1: MATERIAIS ENVIADOS (VERDE/TEAL) --- */}
+              <Card className="border border-slate-200 shadow-md bg-white rounded-[24px] overflow-hidden mt-6">
+                <CardHeader className="bg-teal-50/50 pb-4 p-4 md:p-6">
+                  <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">
+                    <Upload size={16} /> Compartilhar Materiais Terapêuticos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 md:p-6 space-y-4">
+                  <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <input id="material-upload" type="file" className="hidden" onChange={handleFileUpload} />
+                    <Button variant="outline" onClick={() => document.getElementById('material-upload')?.click()} disabled={uploading} className="border-teal-200 text-teal-700 hover:bg-teal-50 font-bold rounded-xl h-10 shadow-sm">
+                      {uploading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Upload className="mr-2 h-4 w-4" />}
+                      {uploading ? "Enviando arquivo..." : "Selecionar PDF ou Imagem"}
+                    </Button>
+                  </div>
+                  
+                  {/* Campo de Link Adicional */}
+                  <div className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200">
+                    <Input placeholder="Título do Link" className="h-9 text-xs bg-white border border-slate-300 rounded-xl" value={materialTitle} onChange={e => setMaterialTitle(e.target.value)} />
+                    <Input placeholder="https://..." className="h-9 text-xs bg-white border border-slate-300 rounded-xl" value={materialUrl} onChange={e => setMaterialUrl(e.target.value)} />
+                    <Button size="sm" className="h-9 w-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white p-0" onClick={handleAddMaterial}><Plus size={16}/></Button>
+                  </div>
+
+                  <details className="group mt-6 border-t border-slate-200 pt-4">
+                    <summary className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between cursor-pointer hover:text-teal-600 list-none select-none outline-none">
+                      Ver Materiais Enviados ({materials.length})
+                      <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full group-open:hidden border border-slate-200">Expandir</span>
+                    </summary>
+                    <div className="space-y-2 mt-4 animate-in fade-in">
+                      {materials.map(mat => (
+                        <div key={mat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                          <div className="flex items-center gap-3"><FileText size={16} className="text-slate-400" /><span className="text-xs font-medium truncate max-w-[200px]">{mat.title}</span></div>
+                          <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 h-8 w-8 rounded-xl p-0" onClick={() => handleDeleteMaterial(mat)}><Trash2 size={14}/></Button>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </CardContent>
+              </Card>
+
+              {/* --- SEÇÃO 2: ARQUIVOS RECEBIDOS (AZUL) --- */}
+              <Card className="border border-slate-200 shadow-md bg-white rounded-[24px] overflow-hidden mt-6">
+                <CardHeader className="bg-blue-50/50 pb-4 p-4 md:p-6">
+                  <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">
+                    <Download size={16} /> Comprovantes e Arquivos do Paciente
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 md:p-6">
+                  <details className="group">
+                    <summary className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between cursor-pointer hover:text-teal-600 list-none select-none outline-none">
+                      Ver Arquivos Recebidos ({receivedFiles.length})
+                      <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full group-open:hidden border border-slate-200">Expandir</span>
+                    </summary>
+                    <div className="mt-4 animate-in fade-in">
+                      {receivedFiles.length === 0 ? (
+                        <p className="text-center py-6 text-slate-400 text-xs italic bg-slate-50 rounded-xl border border-slate-200">Nenhum arquivo recebido.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {receivedFiles.map(file => {
+                            // Busca se existe uma transação pendente ligada a este arquivo
+                            const linkedTransaction = transactions.find(t => t.receipt_url === file.file_url && t.status === 'pending_review')
+                            
+                            return (
+                            <div key={file.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                              <div className="flex items-center gap-3">
+                                <div className="bg-white p-2 rounded-lg text-emerald-600"><FileText size={16} /></div>
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-bold text-slate-700">{file.title || 'Comprovante'}</span>
+                                  <span className="text-[10px] text-slate-400">{new Date(file.created_at).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {linkedTransaction && (
+                                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-bold shadow-sm" onClick={() => handleOpenPaymentModal(linkedTransaction)} disabled={saving}>
+                                        <CheckCircle2 className="h-3 w-3 mr-1"/> Confirmar
+                                    </Button>
+                                )}
+                                <Button variant="ghost" size="sm" onClick={() => window.open(file.file_url, '_blank')} className="text-blue-600 font-bold text-xs h-8">
+                                  Visualizar
+                                </Button>
+                                <div className="w-px h-4 bg-slate-200 mx-1"></div> {/* Separador visual */}
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteDocument(file); }} 
+                                  className="text-red-400 hover:text-red-600 hover:bg-red-50 h-8 w-8 rounded-xl p-0 transition-colors"
+                                  title="Excluir Arquivo"
+                                >
+                                    <Trash2 size={14}/>
+                                </Button>
+                              </div>
+                            </div>
+                          )})}
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* EMOÇÕES */}
+      {activeTab === 'emocoes' && (
+        <div className="w-full block clear-both animate-in fade-in">
+          {!permissions.emotions ? (
+            <FeatureLock 
+              title="Diário de Emoções" 
+              description="O acompanhamento do humor e diário emocional do paciente é exclusivo do Plano Profissional." 
+            />
+          ) : (
+            <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-4 md:p-6 space-y-4">
+              {emotions.map(e => {
+                const MoodIcon = getMoodIcon(Number(e.mood_score));
+                return (
+                  <div key={e.id} className="flex gap-4 p-4 border border-slate-200 rounded-2xl bg-slate-50 transition-all hover:bg-white">
+                    <MoodIcon className="h-6 w-6 text-slate-400 shrink-0" />
+                    <div><p className="font-bold text-sm">{new Date(e.created_at).toLocaleDateString('pt-BR')}</p><p className="text-xs italic text-slate-600 mt-1">"{e.notes}"</p></div>
+                  </div>
+                )
+              })}
+              {emotions.length === 0 && <div className="p-10 text-center text-slate-400 italic">Nenhum registro de emoção ainda.</div>}
+            </CardContent></Card>
+          )}
+        </div>
+      )}
+
+      {/* DOCUMENTOS */}
+      {activeTab === 'documentos' && (
+        <div className="w-full block clear-both animate-in fade-in">
+          {!permissions.docs ? (
+            <FeatureLock 
+              title="Gestão de Documentos" 
+              description="A geração automática de contratos e armazenamento de documentos é exclusiva do Plano Profissional." 
+            />
+          ) : (
+            <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-6 md:p-10 border-2 border-dashed rounded-3xl text-center space-y-4 border-slate-200">
+              <FileText className="h-12 w-12 mx-auto text-slate-200" />
+              <div className="space-y-2">
+                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center justify-center gap-2 mb-2">Documentos e Contratos</h3>
+                <p className="text-xs text-slate-400">Gere documentos legais ou visualize assinaturas do paciente.</p>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <Button onClick={handleOpenLgpdEditor} className="w-full sm:w-auto h-auto min-h-[36px] py-2 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-teal-600 hover:bg-teal-700 text-white whitespace-normal text-center">Gerar e Editar Termo LGPD</Button>
+                <div className="relative w-full sm:w-auto">
+                  <Button variant="outline" className="w-full h-auto min-h-[36px] py-2 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider border-slate-300 text-slate-600 hover:bg-slate-50 whitespace-normal text-center" onClick={() => document.getElementById('doc-upload')?.click()}>
+                    <Upload className="mr-2 h-3 w-3 shrink-0" /> Upload Manual
+                  </Button>
+                  <input id="doc-upload" type="file" className="hidden" onChange={handleDocUpload} disabled={uploading} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+                {documents.map(doc => (
+                  <Card key={doc.id} className="p-4 border border-slate-200 shadow-md text-left relative rounded-[24px] group">
+                    <div className="flex justify-between items-start mb-2">
+                      <Badge className={`text-[10px] border-none ${doc.status === 'Assinado' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{doc.status}</Badge>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" onClick={() => handleDeleteDocument(doc)} title="Excluir Documento">
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                    <h4 className="font-bold text-xs truncate mb-4 text-slate-800">{doc.title}</h4>
+                    <Button variant="outline" size="sm" className="w-full h-8 rounded-xl text-[10px] uppercase font-bold border-slate-300 text-slate-600 hover:bg-slate-50" onClick={() => setViewDoc(doc)}>Ver Documento</Button>
+                  </Card>
+                ))}
+              </div>
+            </CardContent></Card>
+          )}
+        </div>
+      )}
+
+      {/* METAS */}
+      {activeTab === 'metas' && (
+        <div className="w-full block clear-both animate-in fade-in">
+          {!permissions.goals ? (
+            <FeatureLock 
+              title="Metas Terapêuticas" 
+              description="O acompanhamento de metas e objetivos do tratamento é exclusivo do Plano Profissional." 
+            />
+          ) : (
+            <Card className="border border-slate-200 shadow-md rounded-[24px] overflow-hidden bg-white">
+              <CardContent className="p-4 md:p-6 bg-white">
+                <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-8">
+                  <div className="flex flex-wrap gap-2">
+                      {['ATIVAS', 'CONCLUÍDAS', 'SUSPENSAS'].map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => setMetaFilter(status)}
+                          className={`rounded-full h-8 px-4 text-[10px] font-bold uppercase border transition-all ${metaFilter === status ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'}`}
+                        >
+                          {status}
+                        </button>
+                      ))}
+                  </div>
+                  <Dialog open={newGoalOpen} onOpenChange={setNewGoalOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white font-black text-xs uppercase tracking-widest h-12 px-6 rounded-2xl shadow-lg shadow-teal-100 flex items-center justify-center gap-2">
+                          <Plus size={16} /> NOVA META
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="rounded-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Nova Meta Terapêutica</DialogTitle>
+                        <DialogDescription className="sr-only">Defina uma nova meta.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2"><Label>Título da Meta</Label><Input value={newGoal.title} onChange={e => setNewGoal({...newGoal, title: e.target.value})} placeholder="Ex: Melhorar qualidade do sono" className="border-slate-300" /></div>
+                        <div className="space-y-2"><Label>Descrição / Estratégia</Label><Textarea value={newGoal.description} onChange={e => setNewGoal({...newGoal, description: e.target.value})} placeholder="Detalhes de como alcançar..." className="border-slate-300" /></div>
+                        <div className="space-y-2"><Label>Prazo (Opcional)</Label><Input type="date" value={newGoal.deadline} onChange={e => setNewGoal({...newGoal, deadline: e.target.value})} className="border-slate-300" /></div>
+                        <Button onClick={handleSaveMeta} disabled={saving} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 rounded-xl">{saving ? <Loader2 className="animate-spin"/> : "Salvar Meta"}</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                <div className="space-y-4">
+                  {filteredMetas.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400 italic text-sm border-2 border-dashed border-slate-200 rounded-2xl">Nenhuma meta encontrada neste status.</div>
+                  ) : (
+                    filteredMetas.map(goal => (
+                      <div key={goal.id} className="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col gap-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-1 ${goal.status === 'Concluída' ? 'text-emerald-500' : goal.status === 'Suspensa' ? 'text-amber-500' : 'text-blue-500'}`}>
+                              {goal.status === 'Concluída' ? <CheckCircle2 size={20} /> : goal.status === 'Suspensa' ? <PauseCircle size={20} /> : <PlayCircle size={20} />}
+                            </div>
+                            <div>
+                              <h4 className={`font-bold text-sm ${goal.status === 'Concluída' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{goal.title}</h4>
+                              {goal.deadline && <p className="text-[10px] text-slate-400 font-medium mt-1">Prazo: {new Date(goal.deadline).toLocaleDateString('pt-BR')}</p>}
+                            </div>
+                          </div>
+                          <Select value={goal.status} onValueChange={(v) => handleUpdateMetaStatus(goal.id, v)}>
+                            <SelectTrigger className={`h-7 w-[110px] text-[10px] font-bold rounded-lg border-none ${goal.status === 'Concluída' ? 'bg-emerald-50 text-emerald-700' : goal.status === 'Suspensa' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Ativa">Ativa</SelectItem>
+                              <SelectItem value="Concluída">Concluída</SelectItem>
+                              <SelectItem value="Suspensa">Suspensa</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {goal.description && (
+                          <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl leading-relaxed">{goal.description}</p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* CONTATO */}
+      {activeTab === 'contato' && (
+        <div className="w-full block clear-both animate-in fade-in">
+          <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-4 md:p-6 space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Telefone Principal *</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.phone || ''} onChange={handlePhoneChange} placeholder="(00) 00000-0000" maxLength={15} /></div>
+              <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Email de Contato</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.email || ''} onChange={e => setPaciente({...paciente, email: e.target.value})} /></div>
+            </div>
+            <div className="space-y-4 border-t border-slate-200 pt-6">
+              <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2 mb-6"><MapPin size={16}/> Endereço Completo</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">CEP</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.cep || ''} onChange={e => setPaciente({...paciente, cep: e.target.value})} /></div>
+                <div className="md:col-span-2 space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Logradouro</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.address || ''} onChange={e => setPaciente({...paciente, address: e.target.value})} /></div>
+                <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Cidade</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.city || ''} onChange={e => setPaciente({...paciente, city: e.target.value})} /></div>
+              </div>
+            </div>
+          </CardContent></Card>
+        </div>
+      )}
+
+      {/* SAÚDE */}
+      {activeTab === 'saude' && (
+        <div className="w-full block clear-both animate-in fade-in">
+          <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white">
+            <CardContent className="p-4 md:p-6 space-y-8">
+              
+              {/* Bloco 1: Histórico Clínico & Psiquiátrico */}
+              <div className="bg-slate-50 p-4 rounded-[24px] border border-slate-200">
+                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Histórico Clínico</h3>
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Histórico Psiquiátrico</Label><Textarea className="min-h-[100px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.psychiatric_history || ''} onChange={e => setPaciente({...paciente, psychiatric_history: e.target.value})} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Histórico Familiar</Label><Textarea className="min-h-[100px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.family_history || ''} onChange={e => setPaciente({...paciente, family_history: e.target.value})} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Outras Doenças / Condições</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.medical_history || ''} onChange={e => setPaciente({...paciente, medical_history: e.target.value})} /></div>
+                </div>
+              </div>
+
+              {/* Bloco 2: Histórico Terapêutico */}
+              <div className="bg-slate-50 p-4 rounded-[24px] border border-slate-200">
+                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Histórico Terapêutico</h3>
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Já realizou terapias anteriores?</Label>
+                    <Select value={paciente.previous_therapy || 'Não'} onValueChange={v => setPaciente({...paciente, previous_therapy: v})}>
+                      <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione"/></SelectTrigger>
+                      <SelectContent><SelectItem value="Sim">Sim</SelectItem><SelectItem value="Não">Não</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  {paciente.previous_therapy === 'Sim' && (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Motivo da interrupção / Experiência</Label><Textarea className="min-h-[100px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.previous_therapy_notes || ''} onChange={e => setPaciente({...paciente, previous_therapy_notes: e.target.value})} /></div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bloco 3: Segurança & Farmacologia */}
+              <div className="bg-slate-50 p-4 rounded-[24px] border border-slate-200">
+                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Medicamentos e Alergias</h3>
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Uso de Medicamentos Contínuos</Label><Textarea className="min-h-[100px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.medications || ''} onChange={e => setPaciente({...paciente, medications: e.target.value})} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Alergias</Label><Input className="text-sm text-red-700 bg-red-50 border-red-200 rounded-xl focus-visible:ring-red-200 placeholder:text-red-300" placeholder="Nenhuma conhecida" value={paciente.allergies || ''} onChange={e => setPaciente({...paciente, allergies: e.target.value})} /></div>
+                  <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Paciente possui Convênio Médico?</Label><Switch checked={paciente.has_insurance} onCheckedChange={v => setPaciente({...paciente, has_insurance: v})} /></div>
+                </div>
+              </div>
+
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ADICIONAL */}
+      {activeTab === 'adicional' && (
+        <div className="w-full block clear-both animate-in fade-in">
+          <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-4 md:p-6 space-y-8">
+            
+            {/* SEÇÃO LEAD / ORIGEM */}
+            <div>
+              <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Origem e Captação</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Como conheceu a clínica?</Label>
+                  <Select value={paciente.lead_source || ''} onValueChange={v => setPaciente({...paciente, lead_source: v})}>
+                    <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Indicação">Indicação</SelectItem>
+                      <SelectItem value="Google">Google</SelectItem>
+                      <SelectItem value="Instagram">Instagram</SelectItem>
+                      <SelectItem value="Facebook">Facebook</SelectItem>
+                      <SelectItem value="Outros">Outros</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Quem indicou?</Label>
+                  <Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.referred_by || ''} onChange={e => setPaciente({...paciente, referred_by: e.target.value})} />
+                </div>
+              </div>
+            </div>
+
+            {/* SEÇÃO NOTAS */}
+            <div className="border-t border-slate-200 pt-6">
+              <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Notas Gerais</h3>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Observações Gerais</Label>
+                <Textarea 
+                  className="min-h-[200px] rounded-2xl border-slate-300 focus:ring-teal-500 text-sm text-slate-700" 
+                  value={paciente.general_observations || ''} 
+                  onChange={e => setPaciente({...paciente, general_observations: e.target.value})} 
+                />
+              </div>
+            </div>
+          </CardContent></Card>
+        </div>
+      )}
+
+      <Button variant="ghost" onClick={handleDeletePatient} disabled={saving} className="mt-8 text-red-500 hover:text-red-700 hover:bg-red-50 font-bold text-xs h-10 rounded-xl transition-all items-center flex"><Trash2 className="mr-2 h-3 w-3"/> Excluir Registro Permanente</Button>
+
+      <Dialog open={!!viewDoc} onOpenChange={() => setViewDoc(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl border-none p-0 bg-slate-50">
+          <DialogDescription className="sr-only">Visualização do documento.</DialogDescription>
+          <div id="print-area" className="p-8 bg-white m-4 rounded-2xl shadow-md border border-slate-200 min-h-[80vh]">
+            {/* HEADER DINÂMICO (PAPEL TIMBRADO) */}
+            <div className="flex flex-col items-center text-center mb-6 border-b border-slate-200 pb-6 select-none">
+               {(viewDoc?.clinic_logo_url || professional?.logo_url) && (
+                 <img src={viewDoc?.clinic_logo_url || professional?.logo_url} alt="Logo Clínica" className="h-20 max-w-[200px] object-contain mb-2 mix-blend-multiply" />
+               )}
+               <h2 className="font-black text-xl text-slate-800 uppercase tracking-wide">
+                 {viewDoc?.clinic_name || viewDoc?.professional_name || professional?.clinic_name || professional?.full_name || 'DOCUMENTO OFICIAL'}
+               </h2>
+               <div className="flex items-center justify-center gap-2 text-xs text-slate-500 font-medium mt-1">
+                  <span>{professional?.city}</span>
+                  {professional?.crp && <span>• CRP: {professional.crp}</span>}
+               </div>
+            </div>
+
+            <div className="flex flex-row justify-between items-center border-b border-slate-200 pb-4 mb-6">
+              <DialogTitle className="text-xl font-black uppercase tracking-tight text-slate-800">{viewDoc?.title}</DialogTitle>
+              <Button variant="outline" size="sm" className="print:hidden bg-slate-50 font-bold border-slate-300" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> Imprimir / PDF</Button>
+            </div>
+            <div className="whitespace-pre-wrap font-serif text-sm leading-relaxed text-slate-800 text-justify px-4">{viewDoc?.content}</div>
+            
+            {/* VISUALIZAÇÃO DA ASSINATURA DIGITAL */}
+            {viewDoc?.signature_data && (
+              <div className="mt-8 px-4 break-inside-avoid">
+                <img src={viewDoc.signature_data} alt="Assinatura" className="h-16 object-contain mb-2" />
+                <div className="border-t border-slate-300 w-48 pt-1">
+                  <p className="text-xs font-bold text-slate-600 uppercase">Assinatura do Paciente</p>
+                  <p className="text-[10px] text-slate-400">{viewDoc.signed_at ? new Date(viewDoc.signed_at).toLocaleString('pt-BR') : 'Data não registrada'}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={lgpdModalOpen} onOpenChange={setLgpdModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-[32px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-teal-600">Revisar e Editar Contrato</DialogTitle>
+            <DialogDescription className="sr-only">Edite o termo de consentimento.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-slate-500 font-medium">Altere o texto abaixo conforme necessário para este paciente específico. Ao salvar, ele será enviado para o Portal do Paciente para assinatura.</p>
+            <Textarea 
+              className="min-h-[50vh] font-serif text-sm leading-relaxed p-4 border-slate-300 rounded-2xl focus:ring-teal-500" 
+              value={lgpdContent} 
+              onChange={e => setLgpdContent(e.target.value)} 
+            />
+            <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setLgpdModalOpen(false)} className="rounded-xl border-slate-300">Cancelar</Button>
+              <Button onClick={handleSaveLGPD} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-md">
+                {saving ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : <Save className="mr-2 h-4 w-4" />}
+                Salvar e Enviar para Assinatura
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL DE CONFIRMAÇÃO DE PAGAMENTO (PORTAL) */}
+      <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
+        <DialogContent className="max-w-xs rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Confirmar Recebimento</DialogTitle>
+            <DialogDescription className="sr-only">Confirme o valor do pagamento.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <Label className="text-xs font-bold text-slate-400 uppercase text-center block">Valor Efetivo (R$)</Label>
+            <Input value={paymentAmount} onChange={e => handleCurrencyInput(e.target.value)} className="text-2xl font-black text-teal-600 text-center rounded-xl border-slate-300" />
+            <Button onClick={handleProcessPayment} disabled={saving} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 rounded-xl shadow-sm">{saving ? <Loader2 className="animate-spin"/> : "Confirmar Baixa"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function CardStat({ title, value, icon, color }: any) {
+  const colors: any = { 
+    red: 'bg-red-50 text-red-600 border-red-200', 
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-200', 
+    blue: 'bg-blue-50 text-teal-600 border-blue-200' // 💉 Visu de sucesso para crédito
+  }
+  return (
+    <Card className="p-6 border border-slate-200 shadow-md bg-white rounded-[24px] transition-all hover:shadow-lg">
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-[10px] uppercase text-slate-400 font-black tracking-widest">{title}</p>
+          <h3 className={`text-2xl font-black mt-1 ${color === 'blue' && value > 0 ? 'text-teal-600' : 'text-slate-800'}`}>
+            {Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </h3>
+        </div>
+        <div className={`p-4 rounded-2xl border ${colors[color]}`}>{icon}</div>
+      </div>
+    </Card>
+  )
+}
