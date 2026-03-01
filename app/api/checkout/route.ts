@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const cleanCpf = cpf ? cpf.replace(/\D/g, '') : '';
 
     // Use o trim() em todas as chaves de ambiente.
-    const ASAAS_API_KEY = process.env.ASAAS_API_KEY?.trim();
+    const asaasKey = process.env.ASAAS_API_KEY?.replace(/'/g, '').trim();const ASAAS_API_KEY = process.env.ASAAS_API_KEY?.trim();
     const rawAsaasUrl = process.env.ASAAS_API_URL?.trim();
 
     // Higienização rigorosa da URL: garante que termine em /api/v3 e não tenha barras duplicadas
