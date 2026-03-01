@@ -13,16 +13,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'UserId is required' }, { status: 400 })
     }
 
-    const MINHA_CHAVE = process.env.ASAAS_API_KEY
+    const apiKey = String(process.env.ASAAS_API_KEY || '').replace(/'/g, '')
     const ASAAS_URL = process.env.ASAAS_API_URL
 
-    if (!MINHA_CHAVE || !ASAAS_URL) {
+    if (!apiKey || !ASAAS_URL) {
       throw new Error("Configuração do Asaas (API Key ou URL) não encontrada no servidor.")
     }
 
     const headers = {
       'Content-Type': 'application/json',
-      'access_token': MINHA_CHAVE as string,
+      'access_token': apiKey,
       'User-Agent': 'MentePsi'
     }
 
