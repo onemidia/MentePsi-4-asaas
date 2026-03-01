@@ -9,27 +9,27 @@ export async function POST(request: Request) {
     const cleanCpf = cpf ? cpf.replace(/\D/g, '') : '';
 
     // Use o trim() em todas as chaves de ambiente.
-    const asaasKey = process.env.ASAAS_API_KEY?.replace(/'/g, '').trim();const ASAAS_API_KEY = process.env.ASAAS_API_KEY?.trim();
+    const finalApiKey = String(process.env.ASAAS_API_KEY || '').trim();
     const rawAsaasUrl = process.env.ASAAS_API_URL?.trim();
 
     // Higienização rigorosa da URL: garante que termine em /api/v3 e não tenha barras duplicadas
     const baseUrl = rawAsaasUrl ? rawAsaasUrl.replace(/\/+$/, '').replace(/\/api\/v3\/?$/, '') : '';
     const ASAAS_API_URL = `${baseUrl}/api/v3`;
 
-    if (!ASAAS_API_KEY || !baseUrl) {
+    if (!finalApiKey || !baseUrl) {
       throw new Error("Variáveis de ambiente da Asaas não configuradas");
     }
 
     const headers = {
       'Content-Type': 'application/json',
-      access_token: ASAAS_API_KEY,
+      access_token: finalApiKey,
       'User-Agent': 'MentePsi'
     };
 
     // Log detalhado de segurança e configuração
     console.log("--- INICIANDO CRIAÇÃO DE ASSINATURA ---");
+    console.log('Status da chave:', finalApiKey.substring(0, 10));
     console.log(`Target URL: ${ASAAS_API_URL}`);
-    console.log(`Token Status: ${ASAAS_API_KEY ? `Presente (Inicia com ${ASAAS_API_KEY.substring(0, 4)}...)` : 'AUSENTE'}`);
 
     // 1. CRIAR OU LOCALIZAR CLIENTE
     const customerSearchUrl = `${ASAAS_API_URL}/customers?email=${encodeURIComponent(userEmail)}`;
