@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     
     const body = await request.json();
     const { planName, price, userId, userEmail, cpf } = body;
-    const cleanCpf = cpf ? cpf.replace(/\D/g, '') : '';
+    const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : '';
 
     // Tratamento da Chave: Remove aspas simples/duplas e espaços
     const rawApiKey = process.env.ASAAS_API_KEY || '';
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     // Mostra inicio e fim da chave para conferencia sem expor tudo
     console.log(`[DEBUG] API Key Preview: ${finalApiKey.substring(0, 5)}...${finalApiKey.substring(finalApiKey.length - 5)}`);
     console.log(`[DEBUG] Base URL: ${ASAAS_API_URL}`);
-    console.log(`[DEBUG] User: ${userEmail} | CPF: ${cleanCpf}`);
+    console.log(`[DEBUG] User: ${userEmail} | CPF Original: ${cpf} | CPF Limpo: ${cleanCpf}`);
 
     if (!finalApiKey || !baseUrl) {
       throw new Error("Configuração do Asaas inválida (API Key ou URL ausente).");
@@ -43,6 +43,8 @@ export async function POST(request: Request) {
     console.log("[STEP 1] Buscando cliente...");
     const customerSearchRes = await fetch(`${ASAAS_API_URL}/customers?email=${encodeURIComponent(userEmail)}`, { headers });
     
+    console.log(`[DEBUG] Status Busca Cliente: ${customerSearchRes.status} ${customerSearchRes.statusText}`);
+
     if (!customerSearchRes.ok) {
       const err = await customerSearchRes.json();
       console.error("[ASAAS ERROR] Falha ao buscar cliente:", JSON.stringify(err, null, 2));
@@ -56,15 +58,20 @@ export async function POST(request: Request) {
       console.log(`[STEP 1] Cliente encontrado: ${customerId}`);
     } else {
       console.log("[STEP 1] Cliente não encontrado. Criando novo...");
+      const createPayload = {
+        name: userEmail.split('@')[0],
+        email: userEmail,
+        cpfCnpj: cleanCpf
+      };
+      console.log("[DEBUG] Payload Criação Cliente:", JSON.stringify(createPayload));
+
       const createCustomerRes = await fetch(`${ASAAS_API_URL}/customers`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          name: userEmail.split('@')[0],
-          email: userEmail,
-          cpfCnpj: cleanCpf
-        })
+        body: JSON.stringify(createPayload)
       });
+
+      console.log(`[DEBUG] Status Criação Cliente: ${createCustomerRes.status}`);
 
       if (!createCustomerRes.ok) {
         const err = await createCustomerRes.json();
