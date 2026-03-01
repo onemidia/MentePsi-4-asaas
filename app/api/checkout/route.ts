@@ -5,82 +5,88 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const { planName, price, userId, userEmail, cpf } = await request.json();
+    // 1. Diagnóstico Inicial e Leitura de Variáveis
+    console.log("--- INICIANDO CHECKOUT (DEBUG) ---");
+    
+    const body = await request.json();
+    const { planName, price, userId, userEmail, cpf } = body;
     const cleanCpf = cpf ? cpf.replace(/\D/g, '') : '';
 
-    // Use o trim() em todas as chaves de ambiente.
-    const finalApiKey = String(process.env.ASAAS_API_KEY || '').trim();
-    const rawAsaasUrl = process.env.ASAAS_API_URL?.trim();
-
-    // Higienização rigorosa da URL: garante que termine em /api/v3 e não tenha barras duplicadas
-    const baseUrl = rawAsaasUrl ? rawAsaasUrl.replace(/\/+$/, '').replace(/\/api\/v3\/?$/, '') : '';
+    // Tratamento da Chave: Remove aspas simples/duplas e espaços
+    const rawApiKey = process.env.ASAAS_API_KEY || '';
+    const finalApiKey = String(rawApiKey).replace(/['"]/g, '').trim();
+    
+    // Tratamento da URL: Garante que não tenha barra no final para concatenação
+    const rawUrl = process.env.ASAAS_API_URL || '';
+    // Remove /api/v3 se estiver na env var para padronizar, e remove barra final
+    const baseUrl = rawUrl.replace(/\/api\/v3\/?$/, '').replace(/\/+$/, '');
     const ASAAS_API_URL = `${baseUrl}/api/v3`;
 
+    // Logs de Diagnóstico
+    console.log(`[DEBUG] API Key Length: ${finalApiKey.length}`);
+    // Mostra inicio e fim da chave para conferencia sem expor tudo
+    console.log(`[DEBUG] API Key Preview: ${finalApiKey.substring(0, 5)}...${finalApiKey.substring(finalApiKey.length - 5)}`);
+    console.log(`[DEBUG] Base URL: ${ASAAS_API_URL}`);
+    console.log(`[DEBUG] User: ${userEmail} | CPF: ${cleanCpf}`);
+
     if (!finalApiKey || !baseUrl) {
-      throw new Error("Variáveis de ambiente da Asaas não configuradas");
+      throw new Error("Configuração do Asaas inválida (API Key ou URL ausente).");
     }
 
     const headers = {
       'Content-Type': 'application/json',
-      access_token: finalApiKey,
-      'User-Agent': 'MentePsi'
+      'access_token': finalApiKey,
+      'User-Agent': 'MentePsi-Checkout'
     };
 
-    // Log detalhado de segurança e configuração
-    console.log("--- INICIANDO CRIAÇÃO DE ASSINATURA ---");
-    console.log('Status da chave:', finalApiKey.substring(0, 10));
-    console.log(`Target URL: ${ASAAS_API_URL}`);
-
-    // 1. CRIAR OU LOCALIZAR CLIENTE
-    const customerSearchUrl = `${ASAAS_API_URL}/customers?email=${encodeURIComponent(userEmail)}`;
-    const customerRes = await fetch(customerSearchUrl, { headers });
-
-    // Adicione logs de erro detalhados usando JSON.stringify(errorData) quando a resposta do Asaas não for 'ok'
-    if (!customerRes.ok) {
-      const errorData = await customerRes.json();
-      console.error('ERRO AO BUSCAR CLIENTE ASAAS:', JSON.stringify(errorData, null, 2));
-      throw new Error(errorData.errors?.[0]?.description || "Falha ao comunicar com o gateway de pagamento para buscar cliente.");
+    // 2. Buscar ou Criar Cliente
+    console.log("[STEP 1] Buscando cliente...");
+    const customerSearchRes = await fetch(`${ASAAS_API_URL}/customers?email=${encodeURIComponent(userEmail)}`, { headers });
+    
+    if (!customerSearchRes.ok) {
+      const err = await customerSearchRes.json();
+      console.error("[ASAAS ERROR] Falha ao buscar cliente:", JSON.stringify(err, null, 2));
+      throw new Error(`Erro Asaas (Buscar Cliente): ${err.errors?.[0]?.description || 'Erro desconhecido'}`);
     }
-    
-    const customerData = await customerRes.json();
-    
-    let customerId;
-    if (customerData.data && customerData.data.length > 0) {
-      customerId = customerData.data[0].id;
-      console.log(`Cliente localizado: ${customerId}`);
+
+    const customerData = await customerSearchRes.json();
+    let customerId = customerData.data?.[0]?.id;
+
+    if (customerId) {
+      console.log(`[STEP 1] Cliente encontrado: ${customerId}`);
     } else {
-      console.log("Cliente não encontrado, criando novo...");
-      const newCustomerRes = await fetch(`${ASAAS_API_URL}/customers`, {
+      console.log("[STEP 1] Cliente não encontrado. Criando novo...");
+      const createCustomerRes = await fetch(`${ASAAS_API_URL}/customers`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ name: userEmail.split('@')[0], email: userEmail, cpfCnpj: cleanCpf })
+        body: JSON.stringify({
+          name: userEmail.split('@')[0],
+          email: userEmail,
+          cpfCnpj: cleanCpf
+        })
       });
-      
-      const newCustomer = await newCustomerRes.json();
 
-      // se a criação do novo cliente falhar, retorne o erro específico do Asaas para o frontend.
-      if (!newCustomerRes.ok) {
-        console.error('ERRO AO CRIAR CLIENTE ASAAS (Detalhes):', JSON.stringify(newCustomer, null, 2));
-        // Retorna o erro JSON diretamente para o frontend para depuração
-        return NextResponse.json({ 
-          error: "Falha ao criar cliente no Asaas", 
-          details: newCustomer 
-        }, { status: newCustomerRes.status });
+      if (!createCustomerRes.ok) {
+        const err = await createCustomerRes.json();
+        console.error("[ASAAS ERROR] Falha ao criar cliente:", JSON.stringify(err, null, 2));
+        throw new Error(`Erro Asaas (Criar Cliente): ${err.errors?.[0]?.description || 'Erro desconhecido'}`);
       }
 
+      const newCustomer = await createCustomerRes.json();
       customerId = newCustomer.id;
-      console.log(`Novo cliente criado: ${customerId}`);
+      console.log(`[STEP 1] Novo cliente criado: ${customerId}`);
     }
 
-    // 2. CRIAR A ASSINATURA (SUBSCRIPTION)
+    // 3. Criar Assinatura
+    console.log("[STEP 2] Criando assinatura...");
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const dueDate = tomorrow.toISOString().split('T')[0];
 
     const subscriptionPayload = {
       customer: customerId,
-      billingType: 'UNDEFINED', // Garanta que o billingType da assinatura seja enviado como uma string
-      value: Number(price), // Garanta que o price como número.
+      billingType: 'UNDEFINED',
+      value: Number(price),
       nextDueDate: dueDate,
       cycle: 'MONTHLY',
       description: `Plano ${planName} - MentePsi`,
@@ -93,38 +99,41 @@ export async function POST(request: Request) {
       body: JSON.stringify(subscriptionPayload)
     });
 
-    const subscription = await subRes.json();
-
-    // Adicione logs de erro detalhados e verifique a resposta
-    if (!subRes.ok || subscription.errors) {
-      console.error('ERRO AO CRIAR ASSINATURA ASAAS:', JSON.stringify(subscription, null, 2));
-      const errorMessage = subscription.errors?.[0]?.description || "Falha ao criar a assinatura no gateway de pagamento.";
-      throw new Error(errorMessage);
+    if (!subRes.ok) {
+      const err = await subRes.json();
+      console.error("[ASAAS ERROR] Falha ao criar assinatura:", JSON.stringify(err, null, 2));
+      throw new Error(`Erro Asaas (Criar Assinatura): ${err.errors?.[0]?.description || 'Erro desconhecido'}`);
     }
 
-    // 3. BUSCAR O LINK DE PAGAMENTO DA PRIMEIRA FATURA
-    console.log("Assinatura criada! Buscando link de pagamento...");
+    const subscription = await subRes.json();
+    console.log(`[STEP 2] Assinatura criada: ${subscription.id}`);
+
+    // 4. Buscar Link de Pagamento (Fatura)
+    console.log("[STEP 3] Buscando link de pagamento...");
     const payRes = await fetch(`${ASAAS_API_URL}/payments?subscription=${subscription.id}`, { headers });
 
     if (!payRes.ok) {
-      const errorData = await payRes.json();
-      console.error('ERRO AO BUSCAR LINK DE PAGAMENTO ASAAS:', JSON.stringify(errorData, null, 2));
-      throw new Error(errorData.errors?.[0]?.description || "Assinatura criada, mas falha ao buscar o link de pagamento.");
+      const err = await payRes.json();
+      console.error("[ASAAS ERROR] Falha ao buscar pagamentos:", JSON.stringify(err, null, 2));
+      throw new Error(`Erro Asaas (Buscar Pagamento): ${err.errors?.[0]?.description || 'Erro desconhecido'}`);
     }
 
     const payData = await payRes.json();
+    const invoiceUrl = payData.data?.[0]?.invoiceUrl;
 
-    if (payData.data && payData.data.length > 0) {
-      console.log("SUCESSO! Link gerado.");
-      return NextResponse.json({ invoiceUrl: payData.data[0].invoiceUrl });
+    if (!invoiceUrl) {
+      console.error("[LOGIC ERROR] Assinatura criada mas sem fatura gerada.", JSON.stringify(payData, null, 2));
+      throw new Error("Assinatura criada, mas o link de pagamento não foi retornado pelo Asaas.");
     }
 
-    // Se a resposta for OK, mas não vier o link, é um erro de lógica
-    console.error("ERRO LÓGICO: Link de pagamento não encontrado na resposta da Asaas", JSON.stringify(payData, null, 2));
-    throw new Error("Assinatura criada, mas o link de pagamento não foi encontrado.");
+    console.log(`[SUCCESS] Link gerado: ${invoiceUrl}`);
+    return NextResponse.json({ invoiceUrl });
 
   } catch (error: any) {
-    console.error('ERRO NO PROCESSO DE CHECKOUT:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[CRITICAL ERROR] Checkout Failed:", error);
+    return NextResponse.json(
+      { error: error.message || "Erro interno no servidor durante o checkout." },
+      { status: 500 }
+    );
   }
 }
