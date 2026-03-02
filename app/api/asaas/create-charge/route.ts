@@ -4,7 +4,11 @@ import { supabaseAdmin as supabase } from '@/lib/supabase-admin'
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { userId, value, type, name, email, cpfCnpj, phone } = body 
+    // CORREÇÃO 1: Pegamos 'price' também, pois é o nome que vem do seu botão
+    const { userId, value, price, type, name, email, cpfCnpj, phone, creditCard, creditCardHolderInfo } = body 
+
+    // Define o valor final (se value for nulo, usa price)
+    const finalValue = value || price
 
     const asaasKey = process.env.ASAAS_API_KEY
     const asaasUrl = process.env.ASAAS_API_URL
@@ -31,17 +35,13 @@ export async function POST(req: Request) {
     
     const customerData = await customerResponse.json()
     
-    // Se o cliente já existir ou for criado, pegamos o ID. 
-    // O Asaas pode retornar erro se o CPF já existir, mas geralmente retorna o cliente.
-    const customerId = customerData.id || customerData.errors?.[0]?.description?.match(/cus_[a-zA-Z0-0]+/)?.[0];
+    // CORREÇÃO 2: Garantimos que o ID do cliente seja capturado mesmo se ele já existir
+    const customerId = customerData.id || (customerData.errors?.[0]?.description?.match(/cus_[a-zA-Z0-9]+/)?.[0]);
 
-    if (!customerId && !customerData.id) {
-       // Se der erro de CPF duplicado, o ideal é buscar o cliente, mas para este teste:
+    if (!customerId) {
        console.error('Erro ao processar cliente:', customerData)
        return NextResponse.json({ error: 'Erro ao identificar cliente no Asaas.' }, { status: 400 })
     }
-
-    const finalCustomerId = customerData.id;
 
     // 2. CRIAR A COBRANÇA USANDO O ID DO CLIENTE
     const response = await fetch(`${asaasUrl}/payments`, {
@@ -51,13 +51,17 @@ export async function POST(req: Request) {
         'access_token': asaasKey 
       },
       body: JSON.stringify({
-        customer: finalCustomerId, 
+        customer: customerId, // Usando a variável corrigida
         billingType: type || 'PIX',
-        value: value,
+        value: finalValue, // ✅ Usando o valor garantido (value ou price)
         dueDate: new Date().toISOString().split('T')[0],
         externalReference: userId,
         description: `Assinatura MentePsi - Plano Profissional`,
         redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+        // Campos necessários para Cartão de Crédito:
+        creditCard: creditCard,
+        creditCardHolderInfo: creditCardHolderInfo,
+        remoteIp: req.headers.get('x-forwarded-for') || '127.0.0.1'
       })
     })
 
