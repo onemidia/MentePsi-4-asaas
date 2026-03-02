@@ -1,5 +1,6 @@
 'use client'
 
+import { syncUserWithAsaas } from '@/lib/asaas-sync'
 import React, { useState, useEffect } from 'react'
 import { getPlanLimits } from '@/lib/planLimits'
 import { createClient } from '@/lib/client'
@@ -201,8 +202,7 @@ export default function SettingsPage() {
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     
-    const FALLBACK_USER_ID = 'e52b9d70-7e30-4b5e-8b8a-9f8c7d6e5f4a';
-    const userId = user?.id || FALLBACK_USER_ID;
+    const userId = user?.id || 'e52b9d70-7e30-4b5e-8b8a-9f8c7d6e5f4a';
 
     const sessionValue = String(profile.default_session_value).replace(',', '.');
     const sessionDuration = String(profile.default_session_duration).replace(',', '.');
@@ -238,12 +238,25 @@ export default function SettingsPage() {
       estado_civil: profile.estado_civil,
     };
 
+    // 1. Salva no perfil profissional
     const { error } = await supabase.from('professional_profile').upsert(formData);
 
     if (error) {
       toast({ variant: 'destructive', title: 'Erro ao salvar', description: error.message });
     } else {
-      toast({ title: 'Sucesso!', description: 'Alterações salvas com sucesso.' });
+      // --- NOVIDADE: SINCRONIZAÇÃO COM ASAAS ---
+      // Se o usuário já tiver um vínculo com o Asaas, atualizamos os dados lá também
+      try {
+        await syncUserWithAsaas(userId, {
+          name: profile.full_name,
+          phone: profile.phone,
+          // Se você tiver o campo de e-mail no estado 'profile', inclua aqui também
+        });
+      } catch (syncErr) {
+        console.warn('Sincronização Asaas falhou, mas dados locais foram salvos.');
+      }
+
+      toast({ title: 'Sucesso!', description: 'Alterações salvas e sincronizadas.' });
     }
     setSaving(false);
   };

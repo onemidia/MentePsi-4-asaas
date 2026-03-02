@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   try {
     // 1. Segurança: Validação do Token
     // Este token garante que a requisição veio realmente do Asaas
-    const ASAAS_WEBHOOK_TOKEN = 'whsec_hL9Z8Y8VYfU9ax_RLzZjCejBPSaJN0jQBkmvwl5u6sw'; // <--- COLE O TOKEN DO PAINEL AQUI
+    const ASAAS_WEBHOOK_TOKEN = 'whsec_1_ami9VB3wWcsqUUbEBruKds1ipwX1o-XlXb7ZuPkeM'; // <--- COLE O TOKEN DO PAINEL AQUI
     
     const receivedToken = request.headers.get('asaas-access-token');
 
