@@ -42,9 +42,11 @@ export async function POST(req: Request) {
 
     const data = await response.json()
 
-    if (data.errors) {
-      console.error('Erro Asaas:', data.errors)
-      return NextResponse.json({ error: data.errors[0].description }, { status: 400 })
+    // Mudança aqui: Verifica se a resposta foi "OK" antes de tratar os dados
+    if (!response.ok) {
+      console.error('Erro detalhado do Asaas:', data)
+      const errorMsg = data.errors?.[0]?.description || 'Erro desconhecido no Asaas'
+      return NextResponse.json({ error: errorMsg }, { status: response.status })
     }
 
     return NextResponse.json(data)
