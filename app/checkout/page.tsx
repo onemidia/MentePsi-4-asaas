@@ -98,7 +98,7 @@ export default function CheckoutPage() {
       await supabase.from('profiles').update({ cpf }).eq('id', user.id)
 
       // 2. Chama API de Checkout
-      const response = await fetch('/api/checkout', {
+      const response = await fetch('/api/asaas/create-charge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
