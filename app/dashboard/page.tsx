@@ -95,7 +95,10 @@ export default function PsychologistDashboard() {
     }
 
     const { data: profData } = await supabase.from('professional_profile').select('reminder_template').eq('id', profile?.id || user.id).single()
-    
+   
+    // ➕ ADICIONE ESTA LINHA ABAIXO (Busca o status real no SaaS)
+  const { data: ssaasData } = await supabase.from('profiles').select('subscription_status, plan_type').eq('id', targetUserId).single();
+
     const template = profData?.reminder_template || "Olá, {paciente}! Este é um lembrete da sua sessão agendada para {data} às {horario}."
     
     const mensagem = template

@@ -1,146 +1,64 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+// Configuração do Supabase
+// Tenta usar a Service Role Key (Admin) para garantir permissão de escrita
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(request: Request) {
   try {
-    // 1. Diagnóstico Inicial e Leitura de Variáveis
-    console.log("--- INICIANDO CHECKOUT (DEBUG) ---");
+    // 1. Segurança: Validação do Token
+    // Este token garante que a requisição veio realmente do Asaas
+    const ASAAS_WEBHOOK_TOKEN = 'whsec_hL9Z8Y8VYfU9ax_RLzZjCejBPSaJN0jQBkmvwl5u6sw'; // <--- COLE O TOKEN DO PAINEL AQUI
     
+    const receivedToken = request.headers.get('asaas-access-token');
+
+    if (receivedToken !== ASAAS_WEBHOOK_TOKEN) {
+      console.error('[WEBHOOK] Acesso negado: Token inválido.');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // 2. Leitura do Evento
     const body = await request.json();
-    const { planName, price, userId, userEmail, cpf } = body;
-    const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : '';
+    const { event, payment } = body;
 
-    // Tratamento da Chave: Remove aspas simples/duplas e espaços
-    const rawApiKey = process.env.ASAAS_API_KEY || '';
-    const finalApiKey = String(rawApiKey).replace(/['"]/g, '').trim();
-    
-    // Tratamento da URL: Garante que não tenha barra no final para concatenação
-    const rawUrl = process.env.ASAAS_API_URL || '';
-    // Remove /api/v3 se estiver na env var para padronizar, e remove barra final
-    const baseUrl = rawUrl.replace(/\/api\/v3\/?$/, '').replace(/\/+$/, '');
-    const ASAAS_API_URL = `${baseUrl}/api/v3`;
+    console.log(`[WEBHOOK] Evento recebido: ${event} | ID: ${payment?.id}`);
 
-    // Logs de Diagnóstico
-    console.log(`[DEBUG] API Key Length: ${finalApiKey.length}`);
-    // Mostra inicio e fim da chave para conferencia sem expor tudo
-    console.log(`[DEBUG] API Key Preview: ${finalApiKey.substring(0, 5)}...${finalApiKey.substring(finalApiKey.length - 5)}`);
-    console.log(`[DEBUG] Base URL: ${ASAAS_API_URL}`);
-    console.log(`[DEBUG] User: ${userEmail} | CPF Original: ${cpf} | CPF Limpo: ${cleanCpf}`);
+    // 3. Lógica de Ativação
+    if (event === 'PAYMENT_CONFIRMED') {
+      // O externalReference foi enviado no checkout contendo o ID do usuário (userId)
+      const userId = payment.externalReference;
+      const email = payment.email || 'Email não enviado no payload';
 
-    if (!finalApiKey || !baseUrl) {
-      throw new Error("Configuração do Asaas inválida (API Key ou URL ausente).");
-    }
+      if (userId) {
+        // Atualiza o status do usuário para 'active'
+        const { error } = await supabase
+          .from('profiles')
+          .update({ 
+            subscription_status: 'active',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
 
-    const headers = {
-      'Content-Type': 'application/json',
-      'access_token': finalApiKey,
-      'User-Agent': 'MentePsi-Checkout'
-    };
+        if (error) {
+          console.error('[WEBHOOK] Erro ao atualizar banco de dados:', error);
+          return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
+        }
 
-    // 2. Buscar ou Criar Cliente
-    console.log("[STEP 1] Buscando cliente...");
-    const customerSearchRes = await fetch(`${ASAAS_API_URL}/customers?email=${encodeURIComponent(userEmail)}`, { headers });
-    
-    console.log(`[DEBUG] Status Busca Cliente: ${customerSearchRes.status} ${customerSearchRes.statusText}`);
-
-    if (!customerSearchRes.ok) {
-      const err = await customerSearchRes.json();
-      console.error("[ASAAS ERROR] Falha ao buscar cliente:", JSON.stringify(err, null, 2));
-      throw new Error(`Erro Asaas (Buscar Cliente): ${err.errors?.[0]?.description || 'Erro desconhecido'}`);
-    }
-
-    const customerData = await customerSearchRes.json();
-    let customerId = customerData.data?.[0]?.id;
-
-    if (customerId) {
-      console.log(`[STEP 1] Cliente encontrado: ${customerId}`);
-    } else {
-      console.log("[STEP 1] Cliente não encontrado. Criando novo...");
-      const createPayload = {
-        name: userEmail.split('@')[0],
-        email: userEmail,
-        cpfCnpj: cleanCpf
-      };
-      console.log("[DEBUG] Payload Criação Cliente:", JSON.stringify(createPayload));
-
-      const createCustomerRes = await fetch(`${ASAAS_API_URL}/customers`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(createPayload)
-      });
-
-      console.log(`[DEBUG] Status Criação Cliente: ${createCustomerRes.status}`);
-
-      if (!createCustomerRes.ok) {
-        const err = await createCustomerRes.json();
-        console.error("[ASAAS ERROR] Falha ao criar cliente:", JSON.stringify(err, null, 2));
-        throw new Error(`Erro Asaas (Criar Cliente): ${err.errors?.[0]?.description || 'Erro desconhecido'}`);
+        // Logs de Sucesso
+        console.log('✅ WEBHOOK: Pagamento confirmado para o usuário:', email);
+        console.log(`[SUCCESS] Status atualizado para ACTIVE no perfil: ${userId}`);
+      } else {
+        console.warn('[WEBHOOK] Aviso: Pagamento sem externalReference (userId).');
       }
-
-      const newCustomer = await createCustomerRes.json();
-      customerId = newCustomer.id;
-      console.log(`[STEP 1] Novo cliente criado: ${customerId}`);
     }
 
-    // 3. Criar Assinatura
-    console.log("[STEP 2] Criando assinatura...");
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dueDate = tomorrow.toISOString().split('T')[0];
-
-    const subscriptionPayload = {
-      customer: customerId,
-      billingType: 'UNDEFINED',
-      value: Number(price),
-      nextDueDate: dueDate,
-      cycle: 'MONTHLY',
-      description: `Plano ${planName} - MentePsi`,
-      externalReference: userId
-    };
-
-    const subRes = await fetch(`${ASAAS_API_URL}/subscriptions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(subscriptionPayload)
-    });
-
-    if (!subRes.ok) {
-      const err = await subRes.json();
-      console.error("[ASAAS ERROR] Falha ao criar assinatura:", JSON.stringify(err, null, 2));
-      throw new Error(`Erro Asaas (Criar Assinatura): ${err.errors?.[0]?.description || 'Erro desconhecido'}`);
-    }
-
-    const subscription = await subRes.json();
-    console.log(`[STEP 2] Assinatura criada: ${subscription.id}`);
-
-    // 4. Buscar Link de Pagamento (Fatura)
-    console.log("[STEP 3] Buscando link de pagamento...");
-    const payRes = await fetch(`${ASAAS_API_URL}/payments?subscription=${subscription.id}`, { headers });
-
-    if (!payRes.ok) {
-      const err = await payRes.json();
-      console.error("[ASAAS ERROR] Falha ao buscar pagamentos:", JSON.stringify(err, null, 2));
-      throw new Error(`Erro Asaas (Buscar Pagamento): ${err.errors?.[0]?.description || 'Erro desconhecido'}`);
-    }
-
-    const payData = await payRes.json();
-    const invoiceUrl = payData.data?.[0]?.invoiceUrl;
-
-    if (!invoiceUrl) {
-      console.error("[LOGIC ERROR] Assinatura criada mas sem fatura gerada.", JSON.stringify(payData, null, 2));
-      throw new Error("Assinatura criada, mas o link de pagamento não foi retornado pelo Asaas.");
-    }
-
-    console.log(`[SUCCESS] Link gerado: ${invoiceUrl}`);
-    return NextResponse.json({ invoiceUrl });
+    return NextResponse.json({ received: true });
 
   } catch (error: any) {
-    console.error("[CRITICAL ERROR] Checkout Failed:", error);
-    return NextResponse.json(
-      { error: error.message || "Erro interno no servidor durante o checkout." },
-      { status: 500 }
-    );
+    console.error('[WEBHOOK] Erro interno:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -1,73 +1,67 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { supabaseAdmin } from '@/lib/supabase-admin' // Certifique-se de que o caminho está correto
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+async function enviarAvisoConfirmacao(email: string) {
+  // Log de confirmação - aqui você conectará o Resend/SendGrid no futuro
+  console.log(`📧 [AVISO] Enviando confirmação de pagamento para: ${email}`)
+}
+
 export async function POST(req: Request) {
   try {
+    // 1. VALIDAÇÃO DE SEGURANÇA (Opcional mas recomendado)
+    const authToken = req.headers.get('asaas-access-token')
+    if (process.env.ASAAS_WEBHOOK_TOKEN && authToken !== process.env.ASAAS_WEBHOOK_TOKEN) {
+      console.warn('⚠️ [WEBHOOK] Tentativa de acesso não autorizada.')
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await req.json()
+    const { event, payment, subscription } = body
 
-    const { event, payment } = body
+    // Log para você acompanhar no terminal do VS Code
+    console.log(`📩 [WEBHOOK RECEBIDO] Evento: ${event}`)
 
+    // 2. FILTRAR APENAS PAGAMENTOS CONFIRMADOS
     if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
+      const userId = payment?.externalReference || subscription?.externalReference
       
-      const userId = payment.externalReference
-
       if (!userId) {
-        return NextResponse.json({ received: true })
+        console.error("❌ [WEBHOOK] ID de usuário não encontrado no externalReference.")
+        return NextResponse.json({ error: 'No user ID' }, { status: 400 })
       }
 
-      // 1. Com o modelo de plano único, o plano é sempre 'profissional'.
-      const planoComprado = 'profissional';
-
-      // 2. ATUALIZA A TABELA DO SAAS (Admin)
-      const { error: errorProfiles } = await supabaseAdmin
+      // 3. ATUALIZAÇÃO DO BANCO (Profiles)
+      const { data: profileData, error: errorProfiles } = await supabaseAdmin
         .from('profiles')
         .update({ 
           subscription_status: 'active',
-          plan_type: 'profissional',
+          plan: 'professional',
           updated_at: new Date().toISOString()
         })
         .eq('id', userId)
+        .select('email')
+        .single()
 
-      if (errorProfiles) console.error("Erro ao atualizar a tabela 'profiles':", errorProfiles)
+      if (errorProfiles) {
+        console.error("❌ [WEBHOOK] Erro ao atualizar profiles:", errorProfiles)
+        throw errorProfiles
+      }
 
-      // 3. ATUALIZA A TABELA DO UTILIZADOR (Configurações)
-      const { error: errorProf } = await supabaseAdmin
-        .from('professional_profile')
-        .update({ 
-          subscription_status: 'active',
-          plan_type: 'profissional',
-        })
-        .eq('id', userId)
-
-      if (errorProf) console.error("Erro ao atualizar a tabela 'professional_profile':", errorProf)
-
-      // ------------------------------------------------------------------
-      // 4. NOVO: GUARDA O REGISTO NO HISTÓRICO DE PAGAMENTOS
-      // ------------------------------------------------------------------
-      const { error: errorHistory } = await supabaseAdmin
-        .from('payment_history')
-        .insert({
-          user_id: userId,
-          amount: payment.value || 0,
-          plan_name: planoComprado,
-          status: 'CONFIRMADO',
-          asaas_payment_id: payment.id || 'N/A'
-        })
-
-      if (errorHistory) {
-         console.error("Erro ao guardar histórico de pagamento:", errorHistory)
+      if (profileData?.email) {
+        console.log(`✅ [WEBHOOK] Usuário ${profileData.email} ativado e Trial removido.`)
+        await enviarAvisoConfirmacao(profileData.email)
       }
     }
 
-    return NextResponse.json({ success: true })
-  } catch (err: any) {
-    console.error('Erro no handler do Webhook:', err)
-    return NextResponse.json(
-      { error: 'Internal Error' },
-      { status: 500 }
-    )
+    // SEMPRE responder 200 para o Asaas não ficar repetindo o aviso
+    return NextResponse.json({ received: true }, { status: 200 })
+
+  } catch (error) {
+    console.error('💥 [WEBHOOK ERROR]:', error)
+    // Mesmo com erro, retornamos 200 para evitar loops de retry do Asaas em erros de lógica
+    return NextResponse.json({ received: true }, { status: 200 })
   }
 }
