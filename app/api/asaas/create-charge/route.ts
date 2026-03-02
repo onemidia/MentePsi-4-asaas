@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server' // Ajuste conforme seu setup de auth
+import { supabaseAdmin as supabase } from '@/lib/supabase-admin' // 👈 AQUI A MÁGICA ACONTECE
 
 export async function POST(req: Request) {
   try {
     // 1. Autenticação e Obtenção do User ID
-    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
