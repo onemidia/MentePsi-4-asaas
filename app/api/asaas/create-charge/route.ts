@@ -3,11 +3,18 @@ import { supabaseAdmin as supabase } from '@/lib/supabase-admin' // 👈 AQUI A 
 
 export async function POST(req: Request) {
   try {
-    // 1. Autenticação e Obtenção do User ID
-    const { data: { user } } = await supabase.auth.getUser()
+    const body = await req.json()
+    const { userId, value, type, customerId } = body // Agora pegamos o userId direto do corpo
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // 1. Verificação de ID (Se não vier pelo getUser, vem pelo body)
+    let finalUserId = userId
+    if (!finalUserId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      finalUserId = user?.id
+    }
+
+    if (!finalUserId) {
+      return NextResponse.json({ error: 'Usuário não identificado.' }, { status: 401 })
     }
 
     const body = await req.json()
