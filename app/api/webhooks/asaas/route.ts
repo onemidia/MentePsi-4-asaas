@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
-    const authToken = req.headers.get('asaas-token') || req.headers.get('Asaas-Token')
+    const authToken = req.headers.get('asaas-access-token') || req.headers.get('asaas-token') || req.headers.get('Asaas-Token')
     const secretToken = process.env.ASAAS_WEBHOOK_TOKEN
 
     if (secretToken && authToken !== secretToken) {
