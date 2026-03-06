@@ -27,33 +27,50 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect('/login')
   }
 
-  // Buscamos as colunas que definimos para o Plano Único
-  const { data: profile } = await supabase
-    .from('profiles') // Usando a tabela profiles diretamente para garantir os dados novos
-    .select('subscription_status, trial_ends_at, plan_type')
-    .eq('id', user.id)
-    .single()
+  // Dentro do seu DashboardLayout
+  const admins = [
+    'alvino@onemidia.tv.br', 
+    'mentepsiclinic@gmail.com', 
+    'onemidiamarketing@gmail.com'
+  ];
 
-  // LÓGICA DO PLANO ÚNICO
+  const isSuperAdmin = admins.includes(user.email || '');
+
+  if (isSuperAdmin) {
+    return <>{children}</>; // Imunidade total contra bloqueios de assinatura
+  }
+
+  // 🟢 BLINDAGEM: Imunidade para Equipe/Assistentes (Acesso liberado sem checar assinatura)
+  const { data: teamMember } = await supabase
+    .from('clinic_team')
+    .select('status')
+    .eq('email', user.email)
+    .eq('status', 'active')
+    .maybeSingle()
+
+  if (teamMember) {
+    return <>{children}</>
+  }
+
+  // LÓGICA DO PLANO ÚNICO (Via Subscriptions)
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('status, current_period_end')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   const now = new Date()
-  const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null
+  const trialEndsAt = subscription?.current_period_end ? new Date(subscription.current_period_end) : null
   
-  // Condições de acesso:
-  // 1. Está no período de teste (Trial não expirou)
-  const isTrialValid = profile?.subscription_status === 'trialing' && trialEndsAt && trialEndsAt > now
-  
-  // 2. Já realizou o pagamento (Status Ativo)
-  const isPaid = profile?.subscription_status === 'active'
+  const isTrialValid = subscription?.status === 'trialing' && trialEndsAt && trialEndsAt > now
+  const isPaid = subscription?.status === 'active'
 
-  // SE NÃO ESTIVER EM TRIAL VÁLIDO E NÃO ESTIVER PAGO -> BLOQUEIO TOTAL
+  // BLOQUEIO TOTAL se não estiver pago ou em trial
   if (!isTrialValid && !isPaid) {
-    // Aqui você tem duas opções:
-    // Opção A: Redirecionar para a página de planos (Mais agressivo)
-    // redirect('/planos') 
-
-    // Opção B: Mostrar o Overlay (Mais elegante, mantém ele na URL que estava)
     return <SubscriptionRequiredOverlay />
   }
 
-  return <>{children}</>
+  return <>{children}</> // 🟢 Retorno limpo para usuários comuns também
 }

@@ -35,12 +35,13 @@ export async function POST(request: Request) {
       if (userId) {
         // Atualiza o status do usuário para 'active'
         const { error } = await supabase
-          .from('profiles')
+          .from('subscriptions')
           .update({ 
-            subscription_status: 'active',
-            updated_at: new Date().toISOString()
+            status: 'active',
+            updated_at: new Date().toISOString(),
+            current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
           })
-          .eq('id', userId);
+          .eq('user_id', userId);
 
         if (error) {
           console.error('[WEBHOOK] Erro ao atualizar banco de dados:', error);

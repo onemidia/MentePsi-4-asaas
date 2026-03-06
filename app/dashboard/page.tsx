@@ -1,5 +1,6 @@
 'use client'
 
+import { cn } from "@/lib/utils"
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -87,18 +88,8 @@ export default function PsychologistDashboard() {
   const handleSendReminder = async (item: any) => {
     const supabase = createClient()
     
-    // 🔒 TRAVA DE PLANO: Lembretes
-    const { data: profileCheck } = await supabase.from('profiles').select('plan_type').eq('id', user.id).single()
-    if (profileCheck?.plan_type?.toLowerCase() === 'iniciante') {
-      toast({ variant: "destructive", title: "Funcionalidade Bloqueada", description: "Lembretes automáticos são exclusivos do Plano Profissional." })
-      return
-    }
-
-    const { data: profData } = await supabase.from('professional_profile').select('reminder_template').eq('id', profile?.id || user.id).single()
-   
-    // ➕ ADICIONE ESTA LINHA ABAIXO (Busca o status real no SaaS)
-  const { data: ssaasData } = await supabase.from('profiles').select('subscription_status, plan_type').eq('id', targetUserId).single();
-
+    const { data: profData } = await supabase.from('professional_profile').select('reminder_template').eq('user_id', profile?.user_id || user.id).single()
+    
     const template = profData?.reminder_template || "Olá, {paciente}! Este é um lembrete da sua sessão agendada para {data} às {horario}."
     
     const mensagem = template
@@ -127,7 +118,6 @@ export default function PsychologistDashboard() {
     setConfirmModalOpen(true)
   }
 
-  // 💰 LÓGICA DE CONFIRMAÇÃO DE PAGAMENTO (Igual ao Financeiro)
   const finalizePaymentConfirmation = async () => {
     if (!transactionToConfirm) return
     setProcessingPayment(true)
@@ -135,10 +125,8 @@ export default function PsychologistDashboard() {
     const finalAmount = parseFloat(confirmAmount.replace(/\./g, '').replace(',', '.'))
     
     try {
-      // 1. Atualiza status E VALOR da transação (caso tenha sido editado)
       await supabase.from('financial_transactions').update({ status: 'CONCLUIDO', amount: finalAmount }).eq('id', transactionToConfirm.id)
 
-      // 2. Amortização Automática (Baixa nas sessões)
       let remainingAmount = finalAmount
       const { data: pendingApts } = await supabase
         .from('appointments')
@@ -169,52 +157,49 @@ export default function PsychologistDashboard() {
         }
       }
 
-      // 3. Sobra vai para crédito
       if (remainingAmount > 0.01) {
          const { data: pat } = await supabase.from('patients').select('credit_balance').eq('id', transactionToConfirm.patient_id).single()
          await supabase.from('patients').update({ credit_balance: (Number(pat?.credit_balance) || 0) + remainingAmount }).eq('id', transactionToConfirm.patient_id)
       }
 
-      // 4. Geração de Recibo PDF
       const { data: patient } = await supabase.from('patients').select('*').eq('id', transactionToConfirm.patient_id).single()
-      const { data: profData } = await supabase.from('professional_profile').select('*').eq('id', user.id).single()
+      const { data: profData } = await supabase.from('professional_profile').select('*').eq('user_id', user.id).single()
       
       if (patient && profData) {
-         let receiptNumber = 1
-         let { data: counter } = await supabase.from('receipt_counters').select('current_count').eq('psychologist_id', user.id).single()
-         if (!counter) {
-           const { data: newCounter } = await supabase.from('receipt_counters').insert({ psychologist_id: transactionToConfirm.psychologist_id, current_count: 0 }).select().single()
-           counter = newCounter
-         }
-         receiptNumber = (counter?.current_count || 0) + 1
-         await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', transactionToConfirm.psychologist_id)
+          let receiptNumber = 1
+          let { data: counter } = await supabase.from('receipt_counters').select('current_count').eq('psychologist_id', user.id).single()
+          if (!counter) {
+            const { data: newCounter } = await supabase.from('receipt_counters').insert({ psychologist_id: transactionToConfirm.psychologist_id, current_count: 0 }).select().single()
+            counter = newCounter
+          }
+          receiptNumber = (counter?.current_count || 0) + 1
+          await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', transactionToConfirm.psychologist_id)
 
-         const doc = new jsPDF()
-         doc.setFontSize(16); doc.setTextColor(13, 148, 136);
-         doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
-         doc.setTextColor(0, 0, 0); doc.setFontSize(10);
-         doc.text(profData.full_name || "Profissional", 105, 30, { align: "center" }); 
-         doc.text(`CRP: ${profData.crp || "..."}`, 105, 35, { align: "center" })
-         doc.setFontSize(12);
-         doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf || '...'}`, 14, 50)
-         doc.text(`a importância de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
-         doc.text(`referente a serviços de psicologia.`, 14, 64)
-         doc.text(`${profData.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, 120, { align: "center" })
-         
-         const pdfBlob = doc.output('blob')
-         const fileName = `${transactionToConfirm.patient_id}/recibo_${receiptNumber}_${Date.now()}.pdf`
-         const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, pdfBlob)
-         
-         if (!uploadError) {
-           const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName)
-           await supabase.from('patient_documents').insert({
-             patient_id: transactionToConfirm.patient_id, psychologist_id: transactionToConfirm.psychologist_id, title: `Recibo Nº ${String(receiptNumber).padStart(3, '0')}`, file_url: publicUrl, status: 'Gerado'
-           })
-         }
+          const doc = new jsPDF()
+          doc.setFontSize(16); doc.setTextColor(13, 148, 136);
+          doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
+          doc.setTextColor(0, 0, 0); doc.setFontSize(10);
+          doc.text(profData.full_name || "Profissional", 105, 30, { align: "center" }); 
+          doc.text(`CRP: ${profData.crp || "..."}`, 105, 35, { align: "center" })
+          doc.setFontSize(12);
+          doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf || '...'}`, 14, 50)
+          doc.text(`a importância de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
+          doc.text(`referente a serviços de psicologia.`, 14, 64)
+          doc.text(`${profData.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, 120, { align: "center" })
+          
+          const pdfBlob = doc.output('blob')
+          const fileName = `${transactionToConfirm.patient_id}/recibo_${receiptNumber}_${Date.now()}.pdf`
+          const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, pdfBlob)
+          
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName)
+            await supabase.from('patient_documents').insert({
+              patient_id: transactionToConfirm.patient_id, psychologist_id: transactionToConfirm.psychologist_id, title: `Recibo Nº ${String(receiptNumber).padStart(3, '0')}`, file_url: publicUrl, status: 'Gerado'
+            })
+          }
       }
 
       toast({ title: "Pagamento confirmado!", description: "Recibo gerado e enviado ao portal." })
-      // Remove da lista local
       setPendingTransactions(prev => prev.filter(item => item.id !== transactionToConfirm.id))
       setConfirmModalOpen(false)
 
@@ -232,7 +217,6 @@ export default function PsychologistDashboard() {
   useEffect(() => {
     const supabase = createClient()
 
-    // Busca telefone de suporte global
     supabase.from('global_settings').select('whatsapp').single().then(({ data }) => {
       if (data?.whatsapp) setSupportPhone(data.whatsapp)
     })
@@ -249,25 +233,28 @@ export default function PsychologistDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       
-      // 🕵️ LÓGICA DE IMPERSONATION (VISÃO MASTER)
       let targetUserId = user.id
-      const { data: profileCheck } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      const { data: profileCheck } = await supabase.from('professional_profile').select('role').eq('user_id', user.id).single()
       
       if (profileCheck?.role === 'admin') {
         setIsAdminView(true)
         const impersonatedId = localStorage.getItem('impersonate_id')
         if (impersonatedId) {
            targetUserId = impersonatedId
-           toast({ title: "Modo Master", description: "Visualizando dashboard do profissional." })
         }
       }
 
       setUser(user)
 
-      const { data: profileData } = await supabase.from('professional_profile').select('*').eq('id', targetUserId).single()
-      setProfile(profileData)
+      const { data: profileData } = await supabase.from('professional_profile').select('*').eq('user_id', targetUserId).single()
+      const { data: subData } = await supabase.from('subscriptions').select('status, plan_id').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+
+      setProfile({
+        ...profileData,
+        subscription_status: subData?.status || 'trialing',
+        plan_type: 'professional'
+      })
       
-      // Datas para o gráfico (Últimos 6 meses)
       const sixMonthsAgo = subMonths(new Date(), 5)
       const startChart = startOfMonth(sixMonthsAgo).toISOString()
 
@@ -316,7 +303,7 @@ export default function PsychologistDashboard() {
           name: item.patients?.full_name,
           phone: item.patients?.phone,
           time: dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          formattedDate: dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), // ➕ Data formatada
+          formattedDate: dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), 
           startTime: item.start_time,
           type: item.modality || 'Sessão',
           status: item.status,
@@ -324,7 +311,6 @@ export default function PsychologistDashboard() {
         }
       }) || [])
 
-      // 📊 PROCESSAMENTO DO GRÁFICO
       const monthsData = []
       for (let i = 5; i >= 0; i--) {
         const d = subMonths(new Date(), i)
@@ -336,10 +322,10 @@ export default function PsychologistDashboard() {
         
         const revenue = monthTrans.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0)
         const realizadas = monthApts.filter((a: any) => {
-           const isPast = new Date(a.start_time) < new Date()
-           return a.status === 'Realizada' || (a.status === 'Agendado' && isPast)
+            const isPast = new Date(a.start_time) < new Date()
+            return a.status === 'Realizada' || (a.status === 'Agendado' && isPast)
         }).length
-        const agendadas = monthApts.length // Total agendado (inclui cancelados e realizados)
+        const agendadas = monthApts.length 
         const absenteismo = agendadas > 0 ? Math.round(((agendadas - realizadas) / agendadas) * 100) : 0
 
         monthsData.push({
@@ -352,11 +338,9 @@ export default function PsychologistDashboard() {
       }
       setChartData(monthsData)
 
-      // 🎂 PROCESSAMENTO DE ANIVERSARIANTES
       const currentMonth = new Date().getMonth()
       const bdays = patientsRes.data?.filter((p: any) => {
         if (!p.birth_date) return false
-        // birth_date vem como YYYY-MM-DD
         const parts = p.birth_date.split('-')
         const month = parseInt(parts[1]) - 1
         return month === currentMonth
@@ -378,7 +362,7 @@ export default function PsychologistDashboard() {
   if (loading) return <DashboardSkeleton />
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 space-y-8">
+    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 space-y-8">
       {isAdminView && (
         <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-800 p-3 rounded-r shadow-sm flex items-center gap-3 animate-in slide-in-from-top-2">
           <ShieldCheck className="h-5 w-5" />
@@ -386,28 +370,8 @@ export default function PsychologistDashboard() {
         </div>
       )}
 
-      {/* BANNER TRIAL (VISÍVEL APENAS NO PERÍODO DE TESTE) */}
-      {profile?.subscription_status === 'trialing' && (
-        <div className="bg-indigo-600 text-white px-4 py-3 rounded-lg shadow-md flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-5">
-          <div className="flex items-center gap-3">
-            <div className="bg-white/20 p-2 rounded-full shrink-0">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="font-bold text-sm md:text-base">
-                Você está no período de teste do Plano {profile?.plan_type ? profile.plan_type.charAt(0).toUpperCase() + profile.plan_type.slice(1) : 'Profissional'}
-              </p>
-              <p className="text-xs text-indigo-100">
-                Aproveite todas as funcionalidades premium gratuitamente por 30 dias.
-              </p>
-            </div>
-          </div>
-          <Button variant="secondary" size="sm" className="whitespace-nowrap text-indigo-700 font-bold w-full sm:w-auto" asChild>
-            <Link href="/planos">Ver Assinatura</Link>
-          </Button>
-        </div>
-      )}
-
+      {/* ✅ BANNER TRIAL CONSOLIDADO (Lógica real do componente) */}
+    
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">Olá, {profile?.full_name?.split(' ')[0] || 'Profissional'}</h1>
@@ -425,10 +389,9 @@ export default function PsychologistDashboard() {
         </div>
       </div>
 
-      {/* 🔔 ALERTA DE AÇÕES NECESSÁRIAS */}
       {pendingTransactions.length > 0 && (
         <div className="mb-6 animate-in slide-in-from-top-4 duration-500">
-          <Card className="border-amber-200 bg-amber-50 shadow-sm">
+          <Card className="bg-white border-none shadow-md">
             <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-amber-100 text-amber-700 rounded-full animate-pulse">
@@ -461,125 +424,139 @@ export default function PsychologistDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-slate-800"><TrendingUp className="h-5 w-5 text-teal-600" /> Desempenho e Eficiência</CardTitle>
-            <CardDescription>Comparativo dos últimos 6 meses (Faturamento vs. Consultas Realizadas).</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full min-w-0 min-h-[300px]">
-              <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
-                  <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(value) => `R$ ${value}`} />
-                  <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                  <RechartsTooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    formatter={(value: any, name: string | undefined) => [
-                      name === 'faturamento' ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : value,
-                      // Tratamento seguro para name undefined
-                      (name || '') === 'faturamento' ? 'Faturamento' : (name || '') === 'consultas' ? 'Consultas Realizadas' : name
-                    ]}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                  <Bar yAxisId="left" dataKey="faturamento" name="Faturamento (R$)" fill="#0d9488" radius={[4, 4, 0, 0]} barSize={30} />
-                  <Line yAxisId="right" type="monotone" dataKey="consultas" name="Consultas Realizadas" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: "#f59e0b", strokeWidth: 2, stroke: "#fff" }} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-          <CardHeader><CardTitle className="flex items-center gap-2 text-slate-800"><Activity className="h-5 w-5 text-teal-600" /> Alertas de Bem-estar</CardTitle><CardDescription>Diário de emoções dos seus pacientes.</CardDescription></CardHeader>
-          <CardContent className="space-y-4">
-            {attentionList.length === 0 ? <div className="text-center py-8 text-slate-500">Nenhum registro recente.</div> : attentionList.map((item) => <EmotionItem key={item.id} item={item} />)}
-          </CardContent>
-        </Card>
+        {/* COLUNA ESQUERDA (Ocupa 2 espaços) */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* CARD 1: Gráfico */}
+          <Card className="bg-white border-none shadow-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-slate-800"><TrendingUp className="h-5 w-5 text-teal-600" /> Desempenho e Eficiência</CardTitle>
+              <CardDescription>Comparativo dos últimos 6 meses (Faturamento vs. Consultas Realizadas).</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px] w-full min-w-0 min-h-[300px]">
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
+                    <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(value) => `R$ ${value}`} />
+                    <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <RechartsTooltip 
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      formatter={(value: any, name: string | undefined) => [
+                        name === 'faturamento' ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : value,
+                        (name || '') === 'faturamento' ? 'Faturamento' : (name || '') === 'consultas' ? 'Consultas Realizadas' : name
+                      ]}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                    <Bar yAxisId="left" dataKey="faturamento" name="Faturamento (R$)" fill="#0d9488" radius={[4, 4, 0, 0]} barSize={30} />
+                    <Line yAxisId="right" type="monotone" dataKey="consultas" name="Consultas Realizadas" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: "#f59e0b", strokeWidth: 2, stroke: "#fff" }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card className="border-slate-200 shadow-sm h-fit">
-          {/* 🎂 WIDGET DE ANIVERSARIANTES */}
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-slate-800"><Gift className="h-5 w-5 text-pink-500" /> Aniversariantes</CardTitle>
-            <CardDescription>Pacientes celebrando este mês.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 mb-6">
-            {birthdays.length === 0 ? (
-              <div className="text-center py-4 text-slate-400 text-sm italic">Nenhum aniversariante em {format(new Date(), 'MMMM', { locale: ptBR })}.</div>
-            ) : (
-              birthdays.map((p: any, idx: number) => {
-                const day = p.birth_date.split('-')[2]
-                return (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-pink-50/50 rounded-xl border border-pink-100">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-white text-pink-500 font-black text-xs h-8 w-8 rounded-full flex items-center justify-center shadow-sm">{day}</div>
-                      <span className="text-sm font-bold text-slate-700 truncate max-w-[120px]">{p.full_name.split(' ')[0]} {p.full_name.split(' ')[1]?.charAt(0)}.</span>
+          {/* CARD 2: Agenda / Próximas 24h (Movido para baixo do gráfico) */}
+          <Card className="bg-white border-none shadow-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-slate-800"><Clock className="h-5 w-5 text-teal-600" /> Próximas 24 Horas</CardTitle>
+              <CardDescription>Clique para enviar lembrete.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {agenda.map((item) => {
+              const now = new Date()
+              const aptTime = new Date(item.startTime)
+              const isPast = now > aptTime
+              const displayStatus = (item.status === 'Agendado' && isPast) ? 'Realizada' : item.status;
+
+              return (
+                <div key={item.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col items-center bg-white px-2 py-1 rounded border min-w-[50px]">
+                      <span className="text-[10px] font-bold text-teal-600 leading-none mb-0.5">{item.formattedDate}</span>
+                      <span className="text-xs font-bold text-slate-700 leading-none">{item.time}</span>
                     </div>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:bg-green-50 hover:text-green-700" onClick={() => {
-                        const template = profile?.birthday_message_template || "Parabéns, {nome_paciente}! Feliz aniversário!"
-                        const msg = template.replace('{nome_paciente}', p.full_name.split(' ')[0])
-                        window.open(`https://wa.me/55${p.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
-                    }}>
-                      <MessageCircle className="h-4 w-4" />
+                    <div>
+                      <p className="font-medium text-sm text-slate-900">{item.name}</p>
+                      <Badge className={`text-[9px] h-4 px-2 rounded-full uppercase font-black shadow-none hover:bg-opacity-100 ${
+                        displayStatus === 'Realizada' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 
+                        displayStatus === 'Cancelado' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 
+                        'bg-amber-100 text-amber-700 hover:bg-amber-100'
+                      }`}>
+                        {displayStatus}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      className={`h-8 w-8 ${item.reminderSent ? 'text-emerald-500' : 'text-slate-400'}`}
+                      onClick={() => handleSendReminder(item)}
+                    >
+                      <MessageCircle className="h-4 w-4" fill={item.reminderSent ? "currentColor" : "none"} />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-teal-600" asChild>
+                      <Link href={`/pacientes/${item.patientId}`}><Play className="h-4 w-4" /></Link>
                     </Button>
                   </div>
-                )
-              })
-            )}
-          </CardContent>
-
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-slate-800"><Clock className="h-5 w-5 text-teal-600" /> Próximas 24 Horas</CardTitle>
-            <CardDescription>Clique para enviar lembrete.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {agenda.map((item) => {
-            // 💉 LÓGICA CIRÚRGICA: Auto-detecta status na Dashboard
-            const now = new Date()
-            const aptTime = new Date(item.startTime)
-            const isPast = now > aptTime
-            const displayStatus = (item.status === 'Agendado' && isPast) ? 'Realizada' : item.status;
-
-            return (
-              <div key={item.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-center bg-white px-2 py-1 rounded border min-w-[50px]">
-                    <span className="text-[10px] font-bold text-teal-600 leading-none mb-0.5">{item.formattedDate}</span>
-                    <span className="text-xs font-bold text-slate-700 leading-none">{item.time}</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm text-slate-900">{item.name}</p>
-                    {/* Badge de Status Automático */}
-                    <Badge className={`text-[9px] h-4 px-2 rounded-full uppercase font-black shadow-none hover:bg-opacity-100 ${
-                      displayStatus === 'Realizada' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 
-                      displayStatus === 'Cancelado' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 
-                      'bg-amber-100 text-amber-700 hover:bg-amber-100'
-                    }`}>
-                      {displayStatus}
-                    </Badge>
-                  </div>
                 </div>
-                <div className="flex gap-1">
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
-                    className={`h-8 w-8 ${item.reminderSent ? 'text-emerald-500' : 'text-slate-400'}`}
-                    onClick={() => handleSendReminder(item)}
-                  >
-                    <MessageCircle className="h-4 w-4" fill={item.reminderSent ? "currentColor" : "none"} />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-teal-600" asChild>
-                    <Link href={`/pacientes/${item.patientId}`}><Play className="h-4 w-4" /></Link>
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
-          </CardContent>
-          <CardFooter className="border-t border-slate-100 pt-4">
-            <Button variant="ghost" className="w-full text-slate-600 hover:text-teal-600" asChild>
-              <Link href="/agenda">Ver Agenda Completa <ArrowRight className="ml-2 h-4 w-4" /></Link>
-            </Button>
-          </CardFooter>
-        </Card>
+              )
+            })}
+            </CardContent>
+            <CardFooter className="border-t border-slate-100 pt-4">
+              <Button variant="ghost" className="w-full text-slate-600 hover:text-teal-600" asChild>
+                <Link href="/agenda">Ver Agenda Completa <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+
+        {/* COLUNA DIREITA (Ocupa 1 espaço lateral) */}
+        <div className="space-y-8">
+          {/* CARD 3: Aniversariantes */}
+          <Card className="bg-white border-none shadow-md h-fit">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-slate-800"><Gift className="h-5 w-5 text-pink-500" /> Aniversariantes</CardTitle>
+              <CardDescription>Pacientes celebrando este mês.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 mb-6">
+              {birthdays.length === 0 ? (
+                <div className="text-center py-4 text-slate-400 text-sm italic">Nenhum aniversariante em {format(new Date(), 'MMMM', { locale: ptBR })}.</div>
+              ) : (
+                birthdays.map((p: any, idx: number) => {
+                  const day = p.birth_date.split('-')[2]
+                  return (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-pink-50/50 rounded-xl border border-pink-100">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-white text-pink-500 font-black text-xs h-8 w-8 rounded-full flex items-center justify-center shadow-sm">{day}</div>
+                        <span className="text-sm font-bold text-slate-700 truncate max-w-[120px]">{p.full_name.split(' ')[0]} {p.full_name.split(' ')[1]?.charAt(0)}.</span>
+                      </div>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:bg-green-50 hover:text-green-700" onClick={() => {
+                          const template = profile?.birthday_message_template || "Parabéns, {nome_paciente}! Feliz aniversário!"
+                          const msg = template.replace('{nome_paciente}', p.full_name.split(' ')[0])
+                          window.open(`https://wa.me/55${p.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
+                      }}>
+                        <MessageCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )
+                })
+              )}
+            </CardContent>
+          </Card>
+
+          {/* CARD 4: Alertas de Bem-estar (Movido para a direita) */}
+          <Card className="bg-white border-none shadow-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-slate-800"><Activity className="h-5 w-5 text-teal-600" /> Alertas de Bem-estar</CardTitle>
+              <CardDescription>Diário de emoções dos seus pacientes.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {attentionList.length === 0 ? <div className="text-center py-8 text-slate-500">Nenhum registro recente.</div> : attentionList.map((item) => <EmotionItem key={item.id} item={item} />)}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Dialog open={confirmModalOpen} onOpenChange={setConfirmModalOpen}>
@@ -607,9 +584,18 @@ export default function PsychologistDashboard() {
 
 function StatCard({ title, value, icon, subtitle, isAlert = false }: any) {
   return (
-    <Card className={`${isAlert ? 'border-red-100 bg-red-50/30' : 'border-slate-200'} shadow-sm`}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className={`text-sm font-medium ${isAlert ? 'text-red-700' : 'text-slate-600'}`}>{title}</CardTitle>{icon}</CardHeader>
-      <CardContent><div className={`text-2xl font-bold ${isAlert ? 'text-red-700' : 'text-slate-900'}`}>{value}</div><p className={`text-xs mt-1 ${isAlert ? 'text-red-600/80' : 'text-slate-500'}`}>{subtitle}</p></CardContent>
+    <Card className={cn(
+      "border-none shadow-md transition-all", 
+      isAlert ? "bg-red-50" : "bg-white" 
+    )}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className={cn("text-sm font-medium", isAlert ? "text-red-700" : "text-slate-600")}>{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className={cn("text-2xl font-bold", isAlert ? "text-red-700" : "text-slate-900")}>{value}</div>
+        <p className={cn("text-xs mt-1", isAlert ? "text-red-600/80" : "text-slate-500")}>{subtitle}</p>
+      </CardContent>
     </Card>
   )
 }

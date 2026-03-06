@@ -6,6 +6,7 @@ import { createClient } from '@/lib/client'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, CheckCircle, ShieldCheck, Info } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SignaturePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -15,13 +16,14 @@ export default function SignaturePage({ params }: { params: Promise<{ id: string
   const [saving, setSaving] = useState(false)
   const [signed, setSigned] = useState(false)
   const supabase = createClient()
+  const { toast } = useToast()
 
   useEffect(() => {
     async function getDoc() {
       // Buscamos o documento e o nome do profissional para passar credibilidade
       const { data } = await supabase
         .from('patient_documents')
-        .select('*, profiles(full_name)')
+        .select('*, professional_profile(full_name)')
         .eq('id', id)
         .single()
       setDoc(data)
@@ -30,20 +32,50 @@ export default function SignaturePage({ params }: { params: Promise<{ id: string
     getDoc()
   }, [id])
 
+  // Fix de Responsividade: Ajusta o canvas ao redimensionar/girar
+  useEffect(() => {
+    const resizeCanvas = () => {
+      if (sigCanvas.current) {
+        const canvas = sigCanvas.current.getCanvas()
+        const ratio = Math.max(window.devicePixelRatio || 1, 1)
+        
+        canvas.width = canvas.offsetWidth * ratio
+        canvas.height = canvas.offsetHeight * ratio
+        canvas.getContext("2d").scale(ratio, ratio)
+        
+        sigCanvas.current.clear() // Limpa para evitar distorção
+      }
+    }
+    window.addEventListener("resize", resizeCanvas)
+    resizeCanvas()
+    return () => window.removeEventListener("resize", resizeCanvas)
+  }, [])
+
   // Limpa o canvas e lida com o resize (importante para mobile)
   const clear = () => sigCanvas.current.clear()
 
   const handleSave = async () => {
-    if (sigCanvas.current.isEmpty()) return alert("Por favor, forneça sua assinatura.")
+    if (sigCanvas.current.isEmpty()) {
+      return toast({ variant: "destructive", title: "Assinatura vazia", description: "Por favor, assine no campo indicado." })
+    }
     
     setSaving(true)
+    
+    // Coleta de IP para auditoria
+    let signerIp = null
+    try {
+      const res = await fetch('https://api.ipify.org?format=json')
+      const data = await res.json()
+      signerIp = data.ip
+    } catch (e) { console.error("Erro ao obter IP", e) }
+
     const signatureImage = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png')
     
     const { error } = await supabase.from('patient_documents').update({
       signature_data: signatureImage,
       status: 'Assinado',
       signed_at: new Date().toISOString(),
-      // Aqui poderíamos salvar o IP do paciente para auditoria (mais um recurso PRO)
+      signer_ip: signerIp
     }).eq('id', id)
 
     if (!error) setSigned(true)
@@ -88,7 +120,7 @@ export default function SignaturePage({ params }: { params: Promise<{ id: string
             {/* Espaço para o Logo do Profissional que assina o sistema */}
             <div className="text-right hidden sm:block">
               <p className="text-xs text-slate-400 uppercase">Profissional Responsável</p>
-              <p className="font-semibold text-slate-700">{doc?.profiles?.full_name}</p>
+              <p className="font-semibold text-slate-700">{doc?.professional_profile?.full_name}</p>
             </div>
           </div>
         </CardHeader>
@@ -111,7 +143,8 @@ export default function SignaturePage({ params }: { params: Promise<{ id: string
                 ref={sigCanvas}
                 penColor='navy'
                 canvasProps={{
-                  className: 'w-full h-48 cursor-crosshair'
+                  className: 'w-full h-48 cursor-crosshair',
+                  style: { touchAction: 'none' } // Bloqueio de Scroll
                 }}
               />
               <div className="absolute bottom-2 right-2 flex gap-2">

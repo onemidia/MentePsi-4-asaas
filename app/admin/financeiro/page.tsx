@@ -33,19 +33,31 @@ export default function FinanceiroGlobal() {
   const [searchTerm, setSearchTerm] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  
-  const PLAN_PRICE = 49.90
+
   const supabase = createClient()
 
   useEffect(() => {
     async function fetchFinanceData() {
       setLoading(true)
-      const { data: allProfiles } = await supabase
-        .from('profiles')
-        .select('*')
+      // Query Unificada
+      const { data } = await supabase
+        .from('professional_profile')
+        .select('*, subscriptions(status, saas_plans(price_monthly, name))')
         .order('created_at', { ascending: false })
 
-      if (allProfiles) setProfiles(allProfiles)
+      if (data) {
+        const formattedData = data.map(profile => {
+          const sub = Array.isArray(profile.subscriptions) ? profile.subscriptions[0] : profile.subscriptions
+          return {
+            ...profile,
+            id: profile.user_id,
+            subscription_status: sub?.status || 'trialing',
+            plan_price: sub?.saas_plans?.price_monthly || 49.90
+          }
+        })
+        setProfiles(formattedData)
+      }
+      
       setLoading(false)
     }
     fetchFinanceData()
@@ -74,8 +86,10 @@ export default function FinanceiroGlobal() {
     trialCount: filteredProfiles.filter(p => p.subscription_status === 'trialing').length,
   }
 
-  const mrr = stats.activeCount * PLAN_PRICE
-  const pendingRev = stats.pendingCount * PLAN_PRICE
+  // Cálculo de MRR: Usa o preço vindo da tabela de planos para cada usuário ativo
+  const mrr = filteredProfiles.filter(p => p.subscription_status === 'active').reduce((acc, curr) => acc + (curr.plan_price || 0), 0)
+  // Cálculo de Pendente: Usa o preço vindo da tabela de planos para inadimplentes (assumindo preço do plano que tentaram assinar)
+  const pendingRev = filteredProfiles.filter(p => p.subscription_status === 'past_due' || p.subscription_status === 'canceled').reduce((acc, curr) => acc + (curr.plan_price || 0), 0)
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -210,11 +224,11 @@ export default function FinanceiroGlobal() {
                           ? "bg-blue-100 text-blue-700 border-none px-3 font-bold"
                           : "bg-red-50 text-red-600 border border-red-100 px-3 font-bold"
                       }>
-                        {profile.subscription_status?.toUpperCase() || 'SEM STATUS'}
+                        {profile.subscription_status === 'trialing' ? 'PERÍODO DE TESTE' : profile.subscription_status === 'active' ? 'ASSINANTE ATIVO' : profile.subscription_status?.toUpperCase() || 'SEM STATUS'}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-black text-slate-700">
-                      {profile.subscription_status === 'active' ? formatCurrency(PLAN_PRICE) : '---'}
+                      {profile.subscription_status === 'active' ? formatCurrency(profile.plan_price) : '---'}
                     </TableCell>
                     <TableCell className="text-right px-8 text-slate-500 font-mono text-sm">
                       {new Date(profile.created_at).toLocaleDateString('pt-BR')}

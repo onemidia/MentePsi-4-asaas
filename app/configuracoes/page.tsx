@@ -1,8 +1,7 @@
 'use client'
 
-import { syncUserWithAsaas } from '@/lib/asaas-sync'
 import React, { useState, useEffect } from 'react'
-import { getPlanLimits } from '@/lib/planLimits'
+import TrialBanner from './TrialBanner' // 🟢 Importa o novo banner
 import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
@@ -10,13 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Loader2, Save, Image as ImageIcon, AlertTriangle } from 'lucide-react'
+import { TeamManagement } from '@/components/TeamManagement'
 
-// ... (Tipos e initialProfileState permanecem idênticos ao seu original)
+// Define the type for the profile data
 type ProfileData = {
   id: string;
   full_name: string;
@@ -27,7 +26,7 @@ type ProfileData = {
   pix_key: string;
   bank: string;
   agency: string;
-  bank_account: string;
+  bank_account: string; // Nome exato da coluna no banco
   account_type: string;
   default_session_value: number;
   default_session_duration: number;
@@ -46,10 +45,6 @@ type ProfileData = {
   rg: string;
   genero: string;
   estado_civil: string;
-  subscription_status: string;
-  plan_type: string;
-  created_at?: string;
-  trial_ends_at?: string;
 }
 
 type PaymentHistory = {
@@ -87,13 +82,12 @@ const initialProfileState: Partial<ProfileData> = {
   cpf: '',
   rg: '',
   genero: '',
-  estado_civil: '',
-  subscription_status: 'trialing',
-  plan_type: 'iniciante',
+  estado_civil: ''
 };
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState(initialProfileState);
+  const [subscription, setSubscription] = useState<{ status: string | null, current_period_end: string | null } | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -107,60 +101,64 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    let channel: any;
-
     const fetchProfile = async () => {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id || 'e52b9d70-7e30-4b5e-8b8a-9f8c7d6e5f4a';
+      
+      // 🔴 REMOVIDO: ID fixo que causava erro no F5
+      if (user?.id) {
+        const userId = user.id;
 
-      if (userId) {
-        // --- LOGICA ORIGINAL DE BUSCA ---
-        const { data: profData } = await supabase.from('professional_profile').select('*').eq('id', userId).single();
-        const { data: ssaasData } = await supabase.from('profiles').select('subscription_status, plan_type, created_at, trial_ends_at').eq('id', userId).single();
-        const { data: historyData } = await supabase.from('payment_history').select('*').eq('user_id', userId).order('payment_date', { ascending: false });
+        // 1. Busca os dados profissionais
+        const { data: profData } = await supabase
+          .from('professional_profile')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle(); // Alterado para maybeSingle para evitar erros se for o primeiro acesso
+        
+        // 2. Busca o status da assinatura na tabela subscriptions
+        const { data: subData } = await supabase
+          .from('subscriptions')
+          .select('status, current_period_end')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        if (historyData) setPaymentHistory(historyData);
-
-        if (ssaasData) {
-          setProfile(prev => ({ 
-            ...prev, 
-            ...(profData || {}),
-            subscription_status: ssaasData.subscription_status || 'trialing',
-            plan_type: ssaasData.plan_type || 'professional',
-            created_at: ssaasData.created_at,
-            trial_ends_at: ssaasData.trial_ends_at,
-          }));
+        if (subData) {
+          setSubscription(subData);
         }
 
-        // --- INJEÇÃO CIRÚRGICA: REALTIME ---
-        channel = supabase
-          .channel('profile-update')
-          .on(
-            'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
-            (payload: any) => {
-              if (payload.new.subscription_status === 'active') {
-                setProfile(prev => ({ ...prev, subscription_status: 'active' }));
-                toast({ 
-                  title: "Pagamento Confirmado! 🚀", 
-                  description: "Seu plano Profissional foi ativado agora mesmo.",
-                  className: "bg-teal-600 text-white" 
-                });
-              }
-            }
-          )
-          .subscribe();
+        // 3. Busca o histórico de pagamentos do usuário
+        const { data: historyData } = await supabase
+          .from('payment_history')
+          .select('*')
+          .eq('user_id', userId)
+          .order('payment_date', { ascending: false }); // Traz os mais recentes primeiro
+
+        if (historyData) {
+          setPaymentHistory(historyData);
+        }
+
+        // Force o preenchimento manual de cada campo crítico no setProfile
+        if (profData) {
+          setProfile(prev => ({ 
+            ...prev, 
+            ...profData,
+            // 🟢 GARANTIA DE PERSISTÊNCIA:
+            full_name: profData.full_name || '',
+            clinic_name: profData.clinic_name || '',
+            pix_key: profData.pix_key || '',
+            bank_account: profData.bank_account || '', // Certifique-se que o nome da coluna bate
+            logo_url: profData.logo_url || '',
+          }));
+        }
       }
       setLoading(false);
     };
-
     fetchProfile();
-    return () => { if (channel) supabase.removeChannel(channel); };
   }, []);
 
-  // ... (Todos os outros métodos handleSave, handleInputChange, etc., continuam exatamente como você enviou)
-  
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
     setProfile(prev => ({ ...prev, [id]: value }));
@@ -202,61 +200,59 @@ export default function SettingsPage() {
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     
-    const userId = user?.id || 'e52b9d70-7e30-4b5e-8b8a-9f8c7d6e5f4a';
+    if (!user) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não autenticado.' });
+      setSaving(false);
+      return;
+    }
 
-    const sessionValue = String(profile.default_session_value).replace(',', '.');
-    const sessionDuration = String(profile.default_session_duration).replace(',', '.');
+    const userId = user.id;
+
+    // Prepara os dados removendo máscaras e garantindo números
+    const sessionValue = String(profile.default_session_value || '0').replace(',', '.');
+    const sessionDuration = String(profile.default_session_duration || '50').replace(',', '.');
 
     const formData = {
-      id: userId,
-      full_name: profile.full_name,
-      crp: profile.crp,
-      specialty: profile.specialty,
-      phone: profile.phone,
-      logo_url: profile.logo_url,
-      pix_key: profile.pix_key,
-      bank: profile.bank,
-      agency: profile.agency,
-      bank_account: profile.bank_account,
-      account_type: profile.account_type,
+      user_id: userId,
+      full_name: profile.full_name || '',
+      crp: profile.crp || '',
+      specialty: profile.specialty || '',
+      phone: profile.phone || '',
+      logo_url: profile.logo_url || '',
+      pix_key: profile.pix_key || '',
+      bank: profile.bank || '',
+      agency: profile.agency || '',
+      bank_account: profile.bank_account || '',
+      account_type: profile.account_type || 'Corrente',
       default_session_value: parseFloat(sessionValue) || 0,
       default_session_duration: parseFloat(sessionDuration) || 50,
-      clinic_name: profile.clinic_name,
-      address: profile.address,
-      cep: profile.cep,
-      city: profile.city,
-      state: profile.state,
-      work_hours_start: profile.work_hours_start,
-      work_hours_end: profile.work_hours_end,
-      whatsapp_reminders_enabled: profile.whatsapp_reminders_enabled,
+      clinic_name: profile.clinic_name || '',
+      address: profile.address || '',
+      cep: profile.cep || '',
+      city: profile.city || '',
+      state: profile.state || '',
+      work_hours_start: profile.work_hours_start || '08:00',
+      work_hours_end: profile.work_hours_end || '18:00',
+      whatsapp_reminders_enabled: !!profile.whatsapp_reminders_enabled,
       reminder_lead_time: Number(profile.reminder_lead_time) || 24,
-      reminder_template: profile.reminder_template,
-      birthday_message_template: profile.birthday_message_template,
-      cpf: profile.cpf,
-      rg: profile.rg,
-      genero: profile.genero,
-      estado_civil: profile.estado_civil,
+      reminder_template: profile.reminder_template || '',
+      birthday_message_template: profile.birthday_message_template || '',
+      cpf: profile.cpf || '',
+      rg: profile.rg || '',
+      genero: profile.genero || '',
+      estado_civil: profile.estado_civil || '',
     };
 
-    // 1. Salva no perfil profissional
-    const { error } = await supabase.from('professional_profile').upsert(formData);
+    // 🟢 USANDO UPSERT: Isso garante que ele atualize se já existir ou crie se for novo
+    const { error } = await supabase
+      .from('professional_profile')
+      .upsert(formData, { onConflict: 'user_id' }); // Conflito baseado no seu ID único
 
     if (error) {
+      console.error('ERRO AO SALVAR:', error);
       toast({ variant: 'destructive', title: 'Erro ao salvar', description: error.message });
     } else {
-      // --- NOVIDADE: SINCRONIZAÇÃO COM ASAAS ---
-      // Se o usuário já tiver um vínculo com o Asaas, atualizamos os dados lá também
-      try {
-        await syncUserWithAsaas(userId, {
-          name: profile.full_name,
-          phone: profile.phone,
-          // Se você tiver o campo de e-mail no estado 'profile', inclua aqui também
-        });
-      } catch (syncErr) {
-        console.warn('Sincronização Asaas falhou, mas dados locais foram salvos.');
-      }
-
-      toast({ title: 'Sucesso!', description: 'Alterações salvas e sincronizadas.' });
+      toast({ title: 'Sucesso!', description: 'Configurações salvas permanentemente.' });
     }
     setSaving(false);
   };
@@ -264,12 +260,23 @@ export default function SettingsPage() {
   const handleCancelSubscription = async () => {
     setCancelling(true);
     const { data: { user } } = await supabase.auth.getUser();
+    
     if (user) {
-      const { error } = await supabase.from('profiles').update({ subscription_status: 'canceled', plan_type: 'starter' }).eq('id', user.id);
+      // Atualiza o status na tabela 'subscriptions'
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({ 
+          status: 'canceled'
+        })
+        .eq('user_id', user.id);
+
       if (error) {
         toast({ variant: 'destructive', title: 'Erro ao cancelar', description: error.message });
       } else {
-        toast({ title: 'Assinatura cancelada', description: 'Sua assinatura permanecerá ativa até o fim do ciclo atual.' });
+        toast({ 
+          title: 'Assinatura cancelada', 
+          description: 'Sua assinatura permanecerá ativa até o fim do ciclo atual.' 
+        });
         setProfile(prev => ({ ...prev, subscription_status: 'canceled', plan_type: 'starter' }));
         setIsCancelModalOpen(false);
       }
@@ -277,14 +284,11 @@ export default function SettingsPage() {
     setCancelling(false);
   };
 
-  const planAccess = getPlanLimits(profile);
-  const showWhatsAppLock = planAccess.isBlocked;
-
   if (!isMounted) return null;
 
   return (
-    // ... Todo o seu JSX de retorno permanece exatamente igual
     <div className="container mx-auto p-6 space-y-8 bg-slate-100 min-h-screen">
+      <TrialBanner />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Configurações</h1>
@@ -303,6 +307,7 @@ export default function SettingsPage() {
           <TabsTrigger value="pagamentos" className="flex-1 min-w-[100px]">Pagamentos</TabsTrigger>
           <TabsTrigger value="lembretes" className="flex-1 min-w-[100px]">Lembretes</TabsTrigger>
           <TabsTrigger value="plano" className="flex-1 min-w-[100px]">Plano</TabsTrigger>
+          <TabsTrigger value="equipe" className="flex-1 min-w-[100px]">Equipe</TabsTrigger>
         </TabsList>
 
         <TabsContent value="perfil" className="mt-6">
@@ -505,34 +510,17 @@ export default function SettingsPage() {
               <CardDescription>Configure o envio de mensagens via WhatsApp para seus pacientes.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {showWhatsAppLock ? (
-                /* --- BLOCO BLOQUEADO (PLANO INICIANTE) --- */
-                <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl space-y-4">
-                  <div className="bg-amber-100 p-3 rounded-full">
-                    <AlertTriangle className="h-6 w-6 text-amber-700" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-slate-900 text-lg">Funcionalidade Exclusiva</h3>
-                    <p className="text-slate-500 text-sm max-w-md mx-auto">
-                      Sua assinatura não está ativa. Para usar os lembretes automáticos e outras funcionalidades, por favor, regularize seu plano.
-                    </p>
-                  </div>
-                  <Button 
-                    onClick={() => window.location.href = '/planos'}
-                    className="bg-teal-600 hover:bg-teal-700 text-white mt-2"
-                  >
-                    Fazer Upgrade Agora
-                  </Button>
-                </div>
-              ) : (
-                /* --- BLOCO DESBLOQUEADO (PLANO PROFISSIONAL) --- */
-                <>
                   <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="whatsapp_reminders_enabled" 
-                      checked={profile.whatsapp_reminders_enabled} 
-                      onCheckedChange={(checked) => handleSwitchChange('whatsapp_reminders_enabled', checked)}
-                    />
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        id="whatsapp_reminders_enabled"
+                        className="sr-only peer" 
+                        checked={profile.whatsapp_reminders_enabled} 
+                        onChange={(e) => handleSwitchChange('whatsapp_reminders_enabled', e.target.checked)} 
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                    </label>
                     <Label htmlFor="whatsapp_reminders_enabled">Ativar lembretes automáticos via WhatsApp</Label>
                   </div>
                   
@@ -589,8 +577,6 @@ export default function SettingsPage() {
                       />
                     </div>
                   </div>
-                </>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -606,29 +592,29 @@ export default function SettingsPage() {
                 <div className="p-4 rounded-xl border bg-slate-50 space-y-1">
                   <Label className="text-slate-500 text-xs uppercase tracking-wider">Plano Atual</Label>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold text-slate-900">
-                      {profile.subscription_status === 'trialing' ? 'Plano Profissional (Teste Grátis)' : 'Plano Profissional'}
+                    <span className="text-xl font-bold text-slate-900 capitalize">
+                      {subscription?.status === 'trialing' ? 'Plano Profissional (Teste Grátis)' : 'Plano Profissional'}
                     </span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      profile.subscription_status?.toLowerCase() === 'active' 
+                      subscription?.status?.toLowerCase() === 'active' 
                         ? 'bg-green-100 text-green-700' 
                         : 'bg-amber-100 text-amber-700'
                     }`}>
-                      {profile.subscription_status?.toLowerCase() === 'active' ? 'Ativo' : 'Período de Teste'}
+                      {subscription?.status?.toLowerCase() === 'active' ? 'Ativo' : subscription?.status === 'trialing' ? 'Em teste' : 'Inativo'}
                     </span>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-xl border bg-slate-50 space-y-1">
                   <Label className="text-slate-500 text-xs uppercase tracking-wider">Status Financeiro</Label>
-                  <p className="text-xl font-bold text-teal-700">
-                    {profile.subscription_status === 'active' ? 'Assinatura Regular' : 'Aguardando Ativação'}
+                  <p className="text-xl font-bold text-teal-700 capitalize">
+                    {subscription?.status === 'active' ? 'Assinatura Regular' : 'Aguardando Ativação'}
                   </p>
                 </div>
               </div>
 
               {/* BOTÃO SÓ APARECE SE NÃO ESTIVER ATIVO */}
-              {profile.subscription_status?.toLowerCase() !== 'active' && (
+              {subscription?.status?.toLowerCase() !== 'active' && (
                 <div className="p-6 rounded-xl border-2 border-dashed border-teal-200 bg-teal-50 flex flex-col items-center text-center space-y-4">
                   <div className="space-y-1">
                     <h4 className="font-bold text-teal-900">Ative sua conta profissional</h4>
@@ -643,8 +629,8 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* ZONA DE PERIGO / CANCELAMENTO */}
-              {profile.subscription_status?.toLowerCase() === 'active' && (
+              {/* ZONA DE PERIGO / CANCELAMENTO (MOVIDO PARA CÁ) */}
+              {subscription?.status?.toLowerCase() === 'active' && (
                 <div className="flex justify-center pt-2">
                   <Dialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
                     <DialogTrigger asChild>
@@ -663,6 +649,7 @@ export default function SettingsPage() {
                         </DialogDescription>
                       </DialogHeader>
 
+                      {/* Seção 1: Aversão à Perda */}
                       <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3 items-start mt-2">
                         <div className="bg-amber-100 p-2 rounded-full shrink-0">
                           <AlertTriangle className="h-5 w-5 text-amber-600" />
@@ -677,6 +664,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
 
+                      {/* Seção 2: Feedback */}
                       <div className="space-y-3 py-4">
                         <Label className="text-sm font-semibold text-slate-700">Qual o motivo do cancelamento?</Label>
                         <div className="space-y-2">
@@ -704,6 +692,24 @@ export default function SettingsPage() {
                         </div>
                       </div>
 
+                      {/* Oferta Dinâmica de Retenção */}
+                      {cancelReason === "O sistema está caro para o meu momento" && (
+                        <div className="bg-green-50 border border-green-100 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 mb-2">
+                          <p className="text-sm text-green-800 font-medium">
+                            💡 <strong>Dica:</strong> Que tal fazer um downgrade para o <strong>Plano Iniciante</strong>? 
+                            Você mantém seus dados e paga muito menos.
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="mt-2 w-full border-green-200 text-green-700 hover:bg-green-100"
+                            onClick={() => window.location.href = '/planos'}
+                          >
+                            Ver Plano Iniciante
+                          </Button>
+                        </div>
+                      )}
+
                       <DialogFooter className="flex-col sm:flex-col gap-2 sm:space-x-0">
                         <Button 
                           className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 shadow-md"
@@ -726,10 +732,11 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* HISTÓRICO DE PAGAMENTOS */}
+              {/* --- INÍCIO: BLOCO DE HISTÓRICO DE PAGAMENTOS --- */}
               <div className="pt-6 mt-6 border-t border-slate-100 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold text-slate-900">Histórico de Pagamentos</h3>
+                  {/* Futuramente podemos colocar um botão de 'Atualizar' aqui */}
                 </div>
                 
                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
@@ -779,8 +786,14 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
+              {/* --- FIM: BLOCO DE HISTÓRICO DE PAGAMENTOS --- */}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* NOVA ABA DE EQUIPE */}
+        <TabsContent value="equipe" className="mt-6">
+          <TeamManagement />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/client'
-import { getSubscriptionStatus } from '@/lib/subscription'
 
 export type SubscriptionStatus = {
   isTrialActive: boolean
@@ -34,31 +33,33 @@ export function useSubscription() {
         return
       }
 
-      // 2. Buscar Perfil (Plano e Data de Início do Trial)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('plan_type, trial_started_at')
-        .eq('id', user.id)
+      // 2. Buscar Assinatura Ativa
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('status, current_period_end')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single()
 
-      // 3. Contar Pacientes
-      const { count } = await supabase
-        .from('patients')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
+      let daysRemaining = 0
+      let isTrialActive = false
 
-      const patientCount = count || 0
-      
-      // Usar a função auxiliar para lógica de negócio
-      const result = getSubscriptionStatus(profile, patientCount)
+      if (sub?.status === 'trialing' && sub.current_period_end) {
+        const endDate = new Date(sub.current_period_end)
+        const now = new Date()
+        const diffTime = endDate.getTime() - now.getTime()
+        daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
+        isTrialActive = daysRemaining > 0
+      }
 
       setStatus({
-        isTrialActive: !result.isExpired,
-        daysRemaining: result.daysRemaining,
-        isFreePlan: result.currentPlan === 'Free',
-        canAddPatient: result.canCreatePatient,
-        patientCount,
-        planType: result.currentPlan,
+        isTrialActive,
+        daysRemaining,
+        isFreePlan: false, // Conceito descontinuado
+        canAddPatient: true, // Ilimitado
+        patientCount: 0, // Não é mais necessário consultar
+        planType: 'Professional',
         loading: false
       })
     }

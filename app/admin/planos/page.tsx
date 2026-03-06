@@ -29,9 +29,9 @@ export default function AdminPlanosPage() {
     setLoading(true)
     // Buscamos apenas o plano profissional, que é o nosso plano único agora
     const { data } = await supabase
-      .from('plans')
+      .from('saas_plans')
       .select('*')
-      .eq('slug', 'profissional')
+      .eq('slug', 'professional')
       .single()
 
     if (data) {
@@ -39,9 +39,9 @@ export default function AdminPlanosPage() {
     } else {
       // Seed caso não exista o slug profissional
       setPlan({ 
-        slug: 'profissional', 
+        slug: 'professional', 
         name: 'Plano Profissional MentePsi', 
-        price: 49.90, 
+        price_monthly: 59.90, 
         trial_days: 30 
       })
     }
@@ -53,7 +53,7 @@ export default function AdminPlanosPage() {
   const handleSave = async () => {
     setSaving(true)
     const { error } = await supabase
-      .from('plans')
+      .from('saas_plans')
       .upsert(plan, { onConflict: 'slug' })
 
     if (!error) {
@@ -75,7 +75,7 @@ export default function AdminPlanosPage() {
           </h1>
           <p className="text-slate-500 font-medium">Configure as condições comerciais da assinatura profissional.</p>
         </div>
-        <Button onClick={handleSave} disabled={saving} className="bg-teal-600 hover:bg-teal-700 h-12 px-10 font-black text-white shadow-lg shadow-teal-100 uppercase tracking-wider">
+        <Button onClick={handleSave} disabled={saving} className="bg-teal-600 hover:bg-teal-700 h-12 px-10 font-black text-white shadow-lg shadow-teal-100 uppercase tracking-wider active:scale-95 transition-all">
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Atualizar Oferta
         </Button>
@@ -109,8 +109,8 @@ export default function AdminPlanosPage() {
                   <Input 
                     type="number"
                     className="pl-12 h-14 font-black text-2xl bg-slate-50 border-slate-200 rounded-xl"
-                    value={plan.price}
-                    onChange={(e) => setPlan({...plan, price: parseFloat(e.target.value)})}
+                    value={plan.price_monthly}
+                    onChange={(e) => setPlan({...plan, price_monthly: Math.max(0, parseFloat(e.target.value) || 0)})}
                   />
                 </div>
               </div>
@@ -131,7 +131,7 @@ export default function AdminPlanosPage() {
               <div>
                 <p className="text-teal-900 font-bold">Visualização do Cliente</p>
                 <p className="text-teal-700 text-sm font-medium">
-                  Os psicólogos verão: <span className="underline">{plan.name}</span> por <span className="underline">R$ {plan.price}/mês</span> com <span className="underline">{plan.trial_days} dias grátis</span> para testar.
+                  Os psicólogos verão: <span className="underline">{plan.name}</span> por <span className="underline">R$ {plan.price_monthly}/mês</span> com <span className="underline">{plan.trial_days} dias grátis</span> para testar.
                 </p>
               </div>
             </div>

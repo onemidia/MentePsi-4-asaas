@@ -6,23 +6,27 @@ import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, ShieldCheck } from "lucide-react"
+import { Loader2, ShieldCheck, MailCheck } from "lucide-react"
 import Link from 'next/link'
+import { useToast } from "@/hooks/use-toast"
 
 export default function RegistroPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [nome, setNome] = useState('')
+  const [isSuccess, setIsSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+  const { toast } = useToast()
 
   const handleRegistro = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      // 1. Criar o usuário no Auth
+      // 1. O Front-end agora só faz UMA coisa: Criar o usuário no Auth
+      // O 'full_name' nos options é o que a Trigger do banco vai ler
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -38,35 +42,35 @@ export default function RegistroPage() {
       if (error) throw error
 
       if (data?.user) {
-        // 2. Definimos a data de término do trial (30 dias a partir de agora)
-        const trialEnds = new Date()
-        trialEnds.setDate(trialEnds.getDate() + 30)
-
-        // 3. ATUALIZAÇÃO PARA PLANO ÚNICO PROFISSIONAL
-        // Adicionamos um pequeno retry ou delay se necessário, mas o .eq('id') costuma ser rápido
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ 
-            plan_type: 'profissional',
-            subscription_status: 'trialing',
-            trial_ends_at: trialEnds.toISOString(), // CRUCIAL para a trava funcionar
-            email: email 
-          })
-          .eq('id', data.user.id)
-
-        if (updateError) {
-          console.error("Erro ao atualizar perfil:", updateError.message)
-        }
-
-        // 4. Redireciona para o Dashboard
-        router.push('/dashboard')
-        router.refresh()
+        setIsSuccess(true)
       }
     } catch (error: any) {
-      alert("Erro ao criar conta: " + error.message)
+      toast({ variant: 'destructive', title: 'Erro ao criar conta', description: error.message })
     } finally {
       setLoading(false)
     }
+  }
+
+  if (isSuccess) {
+    return (
+      <div className="fixed inset-0 z-[999] bg-slate-50 w-screen h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center space-y-6 animate-in fade-in zoom-in duration-500">
+           <div className="mx-auto bg-teal-100 p-6 rounded-full w-fit text-teal-600 shadow-lg shadow-teal-100">
+             <MailCheck size={64} />
+           </div>
+           <div className="space-y-2">
+             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Quase lá! Verifique seu e-mail</h2>
+             <p className="text-slate-600 text-lg leading-relaxed">
+               Enviamos um link de ativação para <span className="font-bold text-slate-800">{email}</span>. <br/>
+               Clique no link para liberar seu acesso ao MentePsi.
+             </p>
+           </div>
+           <Button asChild className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-14 text-lg rounded-xl shadow-md transition-all hover:scale-105">
+             <Link href="/login">Voltar para o Login</Link>
+           </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -104,7 +108,7 @@ export default function RegistroPage() {
                 <Input type="password" placeholder="Mínimo 6 caracteres" value={password} onChange={e => setPassword(e.target.value)} required className="h-12 border-slate-200 focus:ring-teal-500 rounded-xl" />
               </div>
               
-              <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white h-14 text-lg font-black transition-all shadow-lg shadow-teal-100 mt-6 rounded-xl" type="submit" disabled={loading}>
+              <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white h-14 text-lg font-black transition-all shadow-lg shadow-teal-100 mt-6 rounded-xl active:scale-95 transition-transform" type="submit" disabled={loading}>
                 {loading ? <Loader2 className="animate-spin mr-2 h-5 w-5" /> : "Criar Minha Conta Grátis"}
               </Button>
             </form>

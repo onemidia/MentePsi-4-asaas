@@ -1,12 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    // Ignora erros de TS no build para evitar falhas com arquivos externos (ex: supabase functions)
-    ignoreBuildErrors: true,
+  images: {
+    formats: ['image/avif', 'image/webp'], // Gera versões super leves automaticamente
+    remotePatterns: [
+      { protocol: 'https', hostname: 'api.dicebear.com' },
+      { protocol: 'https', hostname: '**.supabase.co' }
+    ],
   },
+  // Desativa o aviso de lint no build para acelerar o deploy
   eslint: {
-    // Ignora erros de ESLint no build
     ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true, // Garante que o deploy não pare por um erro bobo de tipagem
   },
 };
 

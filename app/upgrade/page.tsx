@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@/lib/client';
 import { useSubscription } from '@/hooks/use-subscription';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,9 +13,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from 'next/link';
 
 export default function UpgradePage() {
-  const { isTrialActive, isFreePlan, loading } = useSubscription();
+  const { isTrialActive, loading } = useSubscription();
+  const [planPrice, setPlanPrice] = useState<number | null>(null);
 
-  const trialExpired = !isTrialActive && isFreePlan;
+  const trialExpired = !isTrialActive;
+
+  useEffect(() => {
+    const fetchPlanPrice = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('saas_plans')
+        .select('price_monthly')
+        .eq('slug', 'professional')
+        .single();
+      
+      if (data) setPlanPrice(data.price_monthly);
+    };
+    fetchPlanPrice();
+  }, []);
 
   if (loading) {
     return (
@@ -49,29 +65,8 @@ export default function UpgradePage() {
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-xl text-slate-700">Plano Free</CardTitle>
-              <CardDescription>Para iniciantes.</CardDescription>
-              <div className="mt-4">
-                <span className="text-3xl font-bold text-slate-900">R$ 0,00</span>
-                <span className="text-slate-500">/mês</span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ul className="space-y-3 text-sm text-slate-600">
-                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> 3 Pacientes ativos</li>
-                <Separator className="my-2" />
-                <li className="flex items-center gap-2 text-slate-400"><X className="h-4 w-4" /> Sem IA</li>
-              </ul>
-            </CardContent>
-            <CardFooter>
-              <Button variant="outline" className="w-full" disabled>Plano Atual</Button>
-            </CardFooter>
-          </Card>
-
-          <Card className="border-teal-500 shadow-lg relative bg-white ring-2 ring-teal-500 ring-offset-2">
+        <div className="flex justify-center items-start">
+          <Card className="border-teal-500 shadow-lg relative bg-white ring-2 ring-teal-500 ring-offset-2 w-full max-w-md">
             <div className="absolute top-0 right-0 bg-teal-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">PROFISSIONAL</div>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -80,7 +75,7 @@ export default function UpgradePage() {
               </div>
               <CardDescription>A suíte completa.</CardDescription>
               <div className="mt-4">
-                <span className="text-4xl font-bold text-slate-900">R$ 59,90</span>
+                <span className="text-4xl font-bold text-slate-900">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(planPrice || 59.90)}</span>
                 <span className="text-slate-500">/mês</span>
               </div>
             </CardHeader>
@@ -94,7 +89,7 @@ export default function UpgradePage() {
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
               <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white h-12 text-lg shadow-md" asChild>
-                <Link href="/checkout">
+                <Link href="/checkout?plan=professional">
                   Assinar Agora <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>

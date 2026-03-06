@@ -1,18 +1,17 @@
 'use client'
 
 import { useRouter } from "next/navigation"
-import { differenceInDays } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Sparkles, AlertTriangle, CreditCard } from "lucide-react"
 
 interface TrialBannerProps {
-  createdAt: string | Date
+  trialEndsAt: string | Date
   planName?: string
   status?: string
 }
 
 export function TrialBanner({
-  createdAt,
+  trialEndsAt,
   planName = "Profissional",
   status = "trialing"
 }: TrialBannerProps) {
@@ -23,12 +22,17 @@ export function TrialBanner({
   if (status === 'active') return null
 
   // 👉 Cálculo de dias de trial
-  const start = new Date(createdAt)
+  const end = new Date(trialEndsAt)
   const now = new Date()
-
-  const daysUsed = differenceInDays(now, start)
-  const remainingDays = Math.max(0, 30 - daysUsed)
-  const progressPercentage = Math.min(100, Math.max(0, (daysUsed / 30) * 100))
+  now.setHours(0, 0, 0, 0) // Garante início do dia para evitar expiração no meio da tarde
+  
+  // Diferença em milissegundos convertida para dias
+  const diffTime = end.getTime() - now.getTime()
+  const remainingDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
+  
+  const totalTrialDays = 30
+  // Progresso invertido (quanto menos dias faltam, mais a barra enche)
+  const progressPercentage = Math.min(100, Math.max(0, ((totalTrialDays - remainingDays) / totalTrialDays) * 100))
 
   // 👉 Se trial acabou, não exibe (overlay cuida disso)
   if (remainingDays <= 0) return null

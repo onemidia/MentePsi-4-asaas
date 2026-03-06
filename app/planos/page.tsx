@@ -24,17 +24,16 @@ export default function PlanosPage() {
       
       if (user) {
         setUser(user)
-        const { data: profile } = await supabase.from('profiles').select('created_at, subscription_status').eq('id', user.id).single()
-        if (profile) {
-          if (profile.subscription_status) setSubStatus(profile.subscription_status)
-          const createdAt = new Date(profile.created_at)
-          const now = new Date()
-          const diffDays = Math.ceil(Math.abs(now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
-          if (diffDays <= 30) setIsTrial(true)
+        // Busca status na tabela nova
+        const { data: sub } = await supabase.from('subscriptions').select('status').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).single()
+        
+        if (sub) {
+          setSubStatus(sub.status)
+          if (sub.status === 'trialing') setIsTrial(true)
         }
       }
 
-      const { data: planData } = await supabase.from('plans').select('*').eq('slug', 'profissional').single()
+      const { data: planData } = await supabase.from('saas_plans').select('*').eq('slug', 'professional').single()
       if (planData) setDbPlan(planData)
       setLoading(false)
     }
@@ -44,11 +43,11 @@ export default function PlanosPage() {
   const handleSubscribe = () => {
     if (!user) {
       // Se não tem usuário, manda registrar para o teste grátis
-      router.push('/registro?plan=profissional')
+      router.push('/registro?plan=professional')
     } else if (subStatus !== 'active') {
       // Se está logado mas não pagou (está em trial ou vencido), vai pro checkout
       // Envia o ID do plano para garantir a integração correta
-      router.push(`/checkout?plan=${dbPlan?.id || 'profissional'}`)
+      router.push(`/checkout?plan=${dbPlan?.id || 'professional'}`)
     } else {
       // Se já é ativo, volta pro dashboard
       router.push('/dashboard')
@@ -78,7 +77,7 @@ export default function PlanosPage() {
             <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0" />
           </div>
           <p className="text-sm font-medium">
-            Seu <strong>teste grátis de 30 dias</strong> está ativo. Assine agora para desbloquear o acesso vitalício aos seus dados e garantir sua vaga no Plano Profissional.
+            Seu <strong>teste grátis</strong> está ativo. Assine agora para garantir acesso contínuo e ilimitado. <strong>Você não perderá nenhum dado cadastrado.</strong>
           </p>
         </div>
       )}
@@ -133,7 +132,7 @@ export default function PlanosPage() {
                 <div className="flex items-center justify-center gap-1">
                   <span className="text-slate-400 text-lg font-medium">R$</span>
                   <span className="text-6xl font-black text-slate-900 tracking-tighter">
-                    {dbPlan.price.toFixed(2).replace('.', ',')}
+                    {new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(dbPlan?.price_monthly || 59.90)}
                   </span>
                 </div>
                 <p className="text-slate-500 text-sm mt-1">cobrado mensalmente</p>
@@ -142,11 +141,11 @@ export default function PlanosPage() {
               <ul className="space-y-4">
                 {[
                   'Pacientes e Prontuários Ilimitados',
-                  'IA para Análise de Evolução',
-                  'Lembretes WhatsApp Sem Custo Extra',
+                  'Agendamentos e Sessões Ilimitadas',
+                  'IA para Análise de Evolução Ilimitada',
+                  'Lembretes WhatsApp Ilimitados',
                   'Portal do Paciente Personalizado',
                   'Assinatura Digital de Documentos',
-                  'Gestão Financeira e Fluxo de Caixa',
                   'Suporte Prioritário Via WhatsApp'
                 ].map((feature: string, i: number) => (
                   <li key={i} className="flex items-center gap-3 text-sm font-medium text-slate-700">
@@ -161,18 +160,6 @@ export default function PlanosPage() {
 
             <CardFooter className="p-8">
               <Button 
-                onClick={() => {
-                  if (!user) {
-                    // Se não tem usuário, manda registrar para o teste grátis
-                    router.push('/registro?plan=profissional')
-                  } else if (subStatus !== 'active') {
-                    // Se está logado mas não pagou (está em trial ou vencido), vai pro checkout
-                    router.push('/checkout?plan=profissional')
-                  } else {
-                    // Se já é ativo, volta pro dashboard
-                    router.push('/dashboard')
-                  }
-                }}
                 onClick={handleSubscribe}
                 disabled={false}
                 className="w-full h-16 text-lg font-black rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl shadow-emerald-200 transition-all hover:scale-105 active:scale-95"

@@ -10,12 +10,17 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get('code')
   const next = requestUrl.searchParams.get('next') ?? '/dashboard'
 
+  // Proteção de Variáveis: Verifica se as chaves do Supabase existem
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.redirect(`${requestUrl.origin}/login?error=ServerConfigurationError`)
+  }
+
   if (code) {
     const cookieStore = await cookies()
     
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
           getAll() {
@@ -26,7 +31,7 @@ export async function GET(request: Request) {
               cookiesToSet.forEach(({ name, value, options }) =>
                 cookieStore.set(name, value, options)
               )
-            } catch (error) {
+            } catch {
               // O middleware pode lidar com isso se necessário
             }
           },
@@ -39,6 +44,11 @@ export async function GET(request: Request) {
     if (!error) {
       // Se a troca de código funcionou, redireciona para a página final (ex: /reset-password)
       return NextResponse.redirect(`${requestUrl.origin}${next}`)
+    }
+
+    // Tratamento de Erro Detalhado
+    if (error) {
+      return NextResponse.redirect(`${requestUrl.origin}/login?error=${encodeURIComponent(error.message)}`)
     }
   }
 

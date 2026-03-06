@@ -2,13 +2,11 @@
 
 import React, { useEffect, useState } from 'react'
 import { createClient } from '@/lib/client'
-import { canUseFeature } from '@/lib/planLimits'
-import { Search, Link as LinkIcon, MessageCircle, Loader2, Smartphone, Lock, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Link as LinkIcon, MessageCircle, Loader2, Smartphone, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { Label } from "@/components/ui/label"
 
@@ -20,7 +18,6 @@ export default function PortalManagementPage() {
   const [endDate, setEndDate] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
   const [updatingId, setUpdatingId] = useState<string | null>(null) // ➕ Estado de feedback
-  const [planInfo, setPlanInfo] = useState({ type: 'starter', status: 'trialing' })
   const supabase = createClient()
   const { toast } = useToast()
   const [isMounted, setIsMounted] = useState(false)
@@ -33,12 +30,6 @@ export default function PortalManagementPage() {
       // 1. Obtém o usuário logado para garantir a segurança dos dados
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-
-      // Busca dados do plano para Feature Gating
-      const { data: profileData } = await supabase.from('profiles').select('plan_type, subscription_status').eq('id', user.id).single()
-      if (profileData) {
-        setPlanInfo({ type: profileData.plan_type, status: profileData.subscription_status })
-      }
 
       // Busca usando os nomes REAIS das colunas: 'phone' em vez de 'whatsapp'
       // 2. Aplica o filtro obrigatório pelo ID do psicólogo
@@ -114,11 +105,6 @@ export default function PortalManagementPage() {
 
   const itemsPerPage = 8
 
-  const canUseDiary = canUseFeature(planInfo.type, planInfo.status, 'portalHasDiary')
-  const canUseFinancial = canUseFeature(planInfo.type, planInfo.status, 'portalHasFinancial')
-  const canUseMaterials = canUseFeature(planInfo.type, planInfo.status, 'portalHasMaterials')
-  const canUseDocs = canUseFeature(planInfo.type, planInfo.status, 'portalHasDocs')
-
   if (!isMounted) return null
 
   return (
@@ -161,25 +147,21 @@ export default function PortalManagementPage() {
                 <TableHead className="text-center w-[100px]">
                   <div className="flex items-center justify-center gap-1">
                     Diário
-                    {!canUseDiary && <Lock className="h-3 w-3 text-amber-500" />}
                   </div>
                 </TableHead>
                 <TableHead className="text-center w-[100px]">
                   <div className="flex items-center justify-center gap-1">
                     Financeiro
-                    {!canUseFinancial && <Lock className="h-3 w-3 text-amber-500" />}
                   </div>
                 </TableHead>
                 <TableHead className="text-center w-[100px]">
                   <div className="flex items-center justify-center gap-1">
                     Materiais
-                    {!canUseMaterials && <Lock className="h-3 w-3 text-amber-500" />}
                   </div>
                 </TableHead>
                 <TableHead className="text-center w-[100px]">
                   <div className="flex items-center justify-center gap-1">
                     Docs
-                    {!canUseDocs && <Lock className="h-3 w-3 text-amber-500" />}
                   </div>
                 </TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -197,44 +179,72 @@ export default function PortalManagementPage() {
                     <TableCell className="text-center">
                       <div className="flex justify-center">
                         {updatingId === p.id ? <Loader2 className="h-5 w-5 animate-spin text-teal-600"/> : (
-                          <Switch checked={p.portal_settings?.active} onCheckedChange={(v) => updatePortalConfig(p.id, 'active', v)} />
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="sr-only peer" 
+                              checked={p.portal_settings?.active} 
+                              onChange={(e) => updatePortalConfig(p.id, 'active', e.target.checked)} 
+                            />
+                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                          </label>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
-                        <Switch 
-                          checked={p.portal_settings?.journal} 
-                          onCheckedChange={(v) => updatePortalConfig(p.id, 'journal', v)} 
-                          disabled={!p.portal_settings?.active || updatingId === p.id || !canUseDiary} 
-                        />
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={p.portal_settings?.journal} 
+                            onChange={(e) => updatePortalConfig(p.id, 'journal', e.target.checked)} 
+                            disabled={!p.portal_settings?.active || updatingId === p.id}
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
+                        </label>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
-                        <Switch 
-                          checked={p.portal_settings?.financials} 
-                          onCheckedChange={(v) => updatePortalConfig(p.id, 'financials', v)} 
-                          disabled={!p.portal_settings?.active || updatingId === p.id || !canUseFinancial} 
-                        />
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={p.portal_settings?.financials} 
+                            onChange={(e) => updatePortalConfig(p.id, 'financials', e.target.checked)} 
+                            disabled={!p.portal_settings?.active || updatingId === p.id}
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
+                        </label>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
-                        <Switch 
-                          checked={p.portal_settings?.materials} 
-                          onCheckedChange={(v) => updatePortalConfig(p.id, 'materials', v)} 
-                          disabled={!p.portal_settings?.active || updatingId === p.id || !canUseMaterials} 
-                        />
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={p.portal_settings?.materials} 
+                            onChange={(e) => updatePortalConfig(p.id, 'materials', e.target.checked)} 
+                            disabled={!p.portal_settings?.active || updatingId === p.id}
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
+                        </label>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
-                        <Switch 
-                          checked={p.portal_settings?.documents} 
-                          onCheckedChange={(v) => updatePortalConfig(p.id, 'documents', v)} 
-                          disabled={!p.portal_settings?.active || updatingId === p.id || !canUseDocs} 
-                        />
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={p.portal_settings?.documents} 
+                            onChange={(e) => updatePortalConfig(p.id, 'documents', e.target.checked)} 
+                            disabled={!p.portal_settings?.active || updatingId === p.id}
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
+                        </label>
                       </div>
                     </TableCell>
                     <TableCell className="text-right flex justify-end gap-2">

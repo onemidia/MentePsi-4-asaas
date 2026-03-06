@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, memo } from 'react'
 import { createClient } from '@/lib/client'
 import { 
   History, 
@@ -19,7 +19,7 @@ interface CreditLogProps {
   currentBalance: number;
 }
 
-export default function PatientCreditLog({ patientId, currentBalance }: CreditLogProps) {
+function PatientCreditLog({ patientId, currentBalance }: CreditLogProps) {
   const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -44,6 +44,12 @@ export default function PatientCreditLog({ patientId, currentBalance }: CreditLo
 
   const formatBRL = (val: number) => 
     val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const formatCategory = (cat: string) => {
+    if (!cat) return 'GERAL'
+    if (cat === 'Uso_Credito' || cat.toLowerCase().includes('uso')) return 'USO'
+    return cat.replace(/_/g, ' ').toUpperCase()
+  }
 
   return (
     <Card className="border border-slate-100 shadow-sm bg-white rounded-[32px]">
@@ -82,7 +88,7 @@ export default function PatientCreditLog({ patientId, currentBalance }: CreditLo
                     )}
                     <div>
                       <p className="text-sm font-bold text-slate-700">{log.description}</p>
-                      <p className="text-[10px] text-slate-500 font-medium">
+                      <p className="text-[10px] text-slate-500 font-medium" suppressHydrationWarning>
                         {format(new Date(log.created_at), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
                       </p>
                     </div>
@@ -92,7 +98,7 @@ export default function PatientCreditLog({ patientId, currentBalance }: CreditLo
                       {isUsage ? '-' : '+'}{formatBRL(Number(log.amount))}
                     </p>
                     <Badge variant="outline" className="text-[9px] uppercase font-bold">
-                      {log.category}
+                      {formatCategory(log.category)}
                     </Badge>
                   </div>
                 </div>
@@ -104,3 +110,5 @@ export default function PatientCreditLog({ patientId, currentBalance }: CreditLo
     </Card>
   )
 }
+
+export default memo(PatientCreditLog)

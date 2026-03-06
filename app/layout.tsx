@@ -14,14 +14,18 @@ export default function RootLayout({
 }>) {
   const pathname = usePathname();
 
-  // ADICIONADO: /forgot-password e /registro para garantir tela cheia sem Sidebar
-  const isPublicPage = 
+  // ADICIONADO: Rotas limpas sem Sidebar (incluindo rotas dinâmicas com startsWith)
+  const isFullWidthPage = 
     pathname === "/" || 
     pathname === "/login" || 
     pathname === "/planos" || 
     pathname === "/registro" || 
+    pathname === "/hub" ||
     pathname === "/forgot-password" ||
-    pathname === "/reset-password";
+    pathname === "/reset-password" ||
+    pathname === "/checkout" ||
+    (pathname?.startsWith("/portal/") && pathname !== "/portal") ||
+    pathname?.startsWith("/callback");
 
   return (
     <html lang="pt-BR">
@@ -29,9 +33,9 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
       <body className={`${inter.className} antialiased bg-white`}>
-        {isPublicPage ? (
+        {isFullWidthPage ? (
           // Se for página pública, renderiza limpo (sem Sidebar)
-          <main>{children}</main>
+          <main className="w-full min-h-screen bg-white">{children}</main>
         ) : (
           // Se for área logada, usa o AppShell com o menu lateral
           <AppShell>{children}</AppShell>

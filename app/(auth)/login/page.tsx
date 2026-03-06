@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
 import Link from 'next/link'
+import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -15,37 +16,40 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+  const { toast } = useToast()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      await supabase.auth.signOut()
-
       const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (authError) {
-        alert("Erro ao entrar: " + authError.message)
+        toast({ variant: 'destructive', title: 'Erro', description: "Erro ao entrar: " + authError.message })
         return
       }
 
       if (user) {
+        // Atualiza apenas o last_login, deixando a verificação de planos para o Middleware/Dashboard
         await supabase
-          .from('profiles')
-          .update({ last_login: new Date().toISOString() })
-          .eq('id', user.id)
+          .from('professional_profile')
+          .upsert({ user_id: user.id, last_login: new Date().toISOString() })
 
-        router.push('/dashboard')
+        // 🚀 A MÁGICA ESTÁ AQUI:
+        // Em vez de forçar /dashboard, mandamos para a raiz '/'
+        // O Middleware vai interceptar essa batida na raiz, 
+        // verá que você é Admin e te jogará para o /hub automaticamente.
+        router.push('/')
         router.refresh()
       }
       
     } catch (err) {
       console.error("Erro inesperado no login:", err)
-      alert("Ocorreu um erro inesperado. Tente novamente.")
+      toast({ variant: 'destructive', title: 'Erro', description: "Ocorreu um erro inesperado. Tente novamente." })
     } finally {
       setLoading(false)
     }
@@ -97,7 +101,7 @@ export default function LoginPage() {
               </div>
               
               <Button 
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white h-11 font-bold mt-2" 
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white h-11 font-bold mt-2 transition-all active:scale-95" 
                 type="submit" 
                 disabled={loading}
               >

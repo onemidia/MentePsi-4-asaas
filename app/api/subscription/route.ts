@@ -30,22 +30,18 @@ export async function GET(request: Request) {
     let asaasCustomerId = null
 
     // Tenta buscar ID salvo no perfil
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('asaas_customer_id, email') // Tenta pegar email do profile também se existir
-      .eq('id', userId)
+    const { data: dbSubscription } = await supabaseAdmin
+      .from('subscriptions')
+      .select('asaas_customer_id')
+      .eq('user_id', userId)
       .single()
 
-    if (profile?.asaas_customer_id) {
-      asaasCustomerId = profile.asaas_customer_id
+    if (dbSubscription?.asaas_customer_id) {
+      asaasCustomerId = dbSubscription.asaas_customer_id
     } else {
       // Fallback: Busca o email do usuário no Auth ou Profile para pesquisar no Asaas
-      let userEmail = profile?.email
-      
-      if (!userEmail) {
-        const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(userId)
-        userEmail = user?.email
-      }
+      const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(userId)
+      const userEmail = user?.email
 
       if (userEmail) {
         const customerRes = await fetch(`${ASAAS_URL}/customers?email=${encodeURIComponent(userEmail)}`, { headers })

@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/client'
-import { canUseFeature } from '@/lib/planLimits'
-import { FeatureLock } from '@/components/feature-lock'
 import { useToast } from "@/hooks/use-toast"
 import { 
   User, MapPin, Heart, Target, Info, 
@@ -12,7 +10,7 @@ import {
   DollarSign, CheckCircle, Clock, Calendar as CalendarIcon, XCircle,
   Activity, Frown, Meh, Smile, ThumbsDown, ThumbsUp, CreditCard,
   FileText, Smartphone, MessageSquarePlus, Printer, Upload, Download, CheckCircle2, PlayCircle, PauseCircle,
-  Video, Link as LinkIcon
+  Video, Link as LinkIcon, ChevronLeft, ChevronRight
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -20,8 +18,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 // Garante que o import está correto
@@ -42,6 +38,7 @@ export default function FichaClinicaDigital() {
   const [metaFilter, setMetaFilter] = useState('ATIVAS')
   
   const [sessaoFilter, setSessaoFilter] = useState('Agendado')
+  const [currentPage, setCurrentPage] = useState(1)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   
@@ -154,17 +151,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     referred_by: '', general_observations: '', meeting_link: ''
   })
 
-  // 🔒 ESTADO DE PERMISSÕES (FEATURE GATING)
-  const [permissions, setPermissions] = useState({
-    financial: true,
-    evolutions: true,
-    portal: true,
-    emotions: true,
-    docs: true,
-    goals: true,
-  })
-
-  // 💉 LOGICA DE CARGA CENTRALIZADA PARA ATUALIZAÇÃO INSTANTÂNEA
+  //  LOGICA DE CARGA CENTRALIZADA PARA ATUALIZAÇÃO INSTANTÂNEA
   const loadAllData = useCallback(async () => {
     // 🔄 Garante sessão ativa para evitar bloqueio de RLS silencioso
     const { data: { user } } = await supabase.auth.getUser()
@@ -209,20 +196,6 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
 
       const { data: prof } = await supabase.from('professional_profile').select('*').eq('id', patientRes.data.psychologist_id).single()
       setProfessional(prof)
-
-      // 🔒 BUSCA DADOS DE PLANO PARA TRAVAR ABAS
-      const { data: profileData } = await supabase.from('profiles').select('plan_type, subscription_status').eq('id', patientRes.data.psychologist_id).single()
-      const planType = profileData?.plan_type || 'starter'
-      const subStatus = profileData?.subscription_status || 'trialing'
-
-      setPermissions({
-        financial: canUseFeature(planType, subStatus, 'hasFinancialTab'),
-        evolutions: canUseFeature(planType, subStatus, 'hasEvolutionsTab'),
-        portal: canUseFeature(planType, subStatus, 'hasPortalTab'),
-        emotions: canUseFeature(planType, subStatus, 'hasEmotionsTab'),
-        docs: canUseFeature(planType, subStatus, 'hasDocsTab'),
-        goals: canUseFeature(planType, subStatus, 'hasGoalsTab'),
-      })
     }
 
     if (settingsRes.data) setPortalSettings(settingsRes.data)
@@ -234,13 +207,27 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     if (aptRes.data) {
       const apts = aptRes.data
       setAppointments(apts)
+
+      // 🕒 CONSTANTE DE TOLERÂNCIA (90 min)
+      const tempoToleranciaMs = 90 * 60 * 1000
+      const now = Date.now()
+
+      // 🔍 LÓGICA DE STATUS EFETIVO
+      const isFinalized = (a: any) => {
+        if (a.status === 'Realizada') return true
+        if (a.status === 'Agendado') {
+           const startTime = new Date(a.start_time).getTime()
+           return (startTime + tempoToleranciaMs) < now
+        }
+        return false
+      }
+
       setStats(prev => ({ 
         ...prev, 
         // 💉 CORREÇÃO: Matemática de Centavos para Dívida
         debt: apts.filter((a: any) => {
-          const isPast = new Date(a.start_time) < new Date();
-          const effectiveStatus = (a.status === 'Agendado' && isPast) ? 'Realizada' : a.status;
-          return effectiveStatus === 'Realizada' && a.payment_status !== 'Pago' && a.payment_status !== 'paid';
+          const finalized = isFinalized(a)
+          return finalized && a.payment_status !== 'Pago' && a.payment_status !== 'paid'
         }).reduce((acc: number, curr: any) => {
           const price = Math.round(Number(curr.price) * 100)
           const paid = Math.round(Number(curr.amount_paid || 0) * 100)
@@ -252,8 +239,8 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
           .filter((t: any) => t.type === 'income')
           .reduce((acc: number, curr: any) => acc + Math.round(Number(curr.amount) * 100), 0) / 100,
         
-        done: apts.filter((a: any) => a.status === 'Realizada').length,
-        scheduled: apts.filter((a: any) => a.status === 'Agendado').length,
+        done: apts.filter((a: any) => isFinalized(a)).length,
+        scheduled: apts.filter((a: any) => a.status === 'Agendado' && !isFinalized(a)).length,
         cancelled: apts.filter((a: any) => a.status === 'Cancelado' || a.status === 'Desmarcada').length
       }))
     }
@@ -271,6 +258,10 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     setIsMounted(true)
   }, [])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [startDate, endDate, sessaoFilter])
+
   // 🔔 EFEITO: Navegação Inteligente via URL
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
@@ -285,15 +276,6 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
   }, [viewDoc])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // 🔒 TRAVA DE PLANO: Materiais
-    const { data: profile } = await supabase.from('profiles').select('plan_type').eq('id', professional?.id).single()
-    const plan = profile?.plan_type?.toLowerCase() || 'iniciante'
-    
-    if (plan === 'iniciante') {
-      toast({ variant: "destructive", title: "Funcionalidade Bloqueada", description: "O envio de materiais é exclusivo do Plano Profissional." })
-      return
-    }
-
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
@@ -316,15 +298,6 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
   }
 
   const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // 🔒 TRAVA DE PLANO: Documentos
-    const { data: profile } = await supabase.from('profiles').select('plan_type').eq('id', professional?.id).single()
-    const plan = profile?.plan_type?.toLowerCase() || 'iniciante'
-
-    if (plan === 'iniciante') {
-      toast({ variant: "destructive", title: "Funcionalidade Bloqueada", description: "O upload de documentos não está disponível no plano Iniciante." })
-      return
-    }
-
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
@@ -436,7 +409,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         city: paciente.city,
         state: paciente.state,
         country: paciente.country,
-        address_street: paciente.address, // Mapeado para a coluna 'address_street'
+        address: paciente.address, // Ajustado para coincidir com a coluna 'address'
         address_number: paciente.address_number,
         neighborhood: paciente.neighborhood,
         complement: paciente.complement,
@@ -723,13 +696,21 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       const aptDate = new Date(apt.start_time);
       const dateMatch = (!startDate || aptDate >= new Date(startDate)) && 
                         (!endDate || aptDate <= new Date(endDate + 'T23:59:59'));
+      
+      // 🕒 Lógica de 90 min (Status Efetivo)
       const now = new Date();
-      const isPast = now > aptDate;
-      const effectiveStatus = (apt.status === 'Agendado' && isPast) ? 'Realizada' : apt.status;
+      const tempoToleranciaMs = 90 * 60 * 1000;
+      const isPastTolerance = now.getTime() > (aptDate.getTime() + tempoToleranciaMs);
+      
+      const effectiveStatus = (apt.status === 'Agendado' && isPastTolerance) ? 'Realizada' : apt.status;
       const statusMatch = sessaoFilter === 'Todas' ? true : effectiveStatus === sessaoFilter;
+      
       return dateMatch && statusMatch;
     })
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+  const totalPages = Math.ceil(filteredAppointments.length / 10) || 1
+  const paginatedAppointments = filteredAppointments.slice((currentPage - 1) * 10, currentPage * 10)
 
   // 🛡️ BLINDAGEM DA ABA DOCS: Exibe apenas uploads e comprovantes, ignorando documentos gerados pelo sistema
   const receivedFiles = documents.filter(doc => 
@@ -819,25 +800,30 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">RG</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.rg || ''} onChange={e => setPaciente({...paciente, rg: e.target.value})} /></div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Data de Nascimento</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" type="date" value={paciente.birth_date || ''} onChange={e => setPaciente({...paciente, birth_date: e.target.value})} /></div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Gênero</Label>
-                  <Select value={paciente.gender || ''} onValueChange={v => setPaciente({...paciente, gender: v})}>
-                    <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione"/></SelectTrigger>
-                    <SelectContent><SelectItem value="feminino">Feminino</SelectItem><SelectItem value="masculino">Masculino</SelectItem><SelectItem value="outro">Outro</SelectItem></SelectContent>
-                  </Select>
+                  <select value={paciente.gender || ''} onChange={e => setPaciente({...paciente, gender: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                    <option value="" disabled>Selecione</option>
+                    <option value="feminino">Feminino</option>
+                    <option value="masculino">Masculino</option>
+                    <option value="outro">Outro</option>
+                  </select>
                 </div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Estado Civil</Label>
-                  <Select value={paciente.marital_status || ''} onValueChange={v => setPaciente({...paciente, marital_status: v})}>
-                    <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione"/></SelectTrigger>
-                    <SelectContent><SelectItem value="solteiro">Solteiro</SelectItem><SelectItem value="casado">Casado</SelectItem><SelectItem value="divorciado">Divorciado</SelectItem><SelectItem value="uniao_estavel">União Estável</SelectItem></SelectContent>
-                  </Select>
+                  <select value={paciente.marital_status || ''} onChange={e => setPaciente({...paciente, marital_status: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                    <option value="" disabled>Selecione</option>
+                    <option value="solteiro">Solteiro</option>
+                    <option value="casado">Casado</option>
+                    <option value="divorciado">Divorciado</option>
+                    <option value="uniao_estavel">União Estável</option>
+                  </select>
                 </div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Nacionalidade</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.nationality || ''} onChange={e => setPaciente({...paciente, nationality: e.target.value})} /></div>
                 
                 {/* NOVOS CAMPOS: STATUS E FINANCEIRO */}
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Status do Paciente</Label>
-                  <Select value={paciente.status || 'Ativo'} onValueChange={v => setPaciente({...paciente, status: v})}>
-                    <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione"/></SelectTrigger>
-                    <SelectContent><SelectItem value="Ativo">Ativo</SelectItem><SelectItem value="Inativo">Inativo</SelectItem></SelectContent>
-                  </Select>
+                  <select value={paciente.status || 'Ativo'} onChange={e => setPaciente({...paciente, status: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                    <option value="Ativo">Ativo</option>
+                    <option value="Inativo">Inativo</option>
+                  </select>
                 </div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Valor da Sessão (R$)</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl font-bold" value={paciente.session_value ? Number(paciente.session_value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''} onChange={e => { const cleanValue = e.target.value.replace(/\D/g, ""); const formattedValue = (Number(cleanValue) / 100).toFixed(2); setPaciente({...paciente, session_value: formattedValue}); }} /></div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Profissão</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.profession || ''} onChange={e => setPaciente({...paciente, profession: e.target.value})} /></div>
@@ -874,22 +860,19 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   <span className="text-slate-300">|</span>
                   <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
                 </div>
-                <Select value={sessaoFilter} onValueChange={setSessaoFilter}>
-                  <SelectTrigger className="h-9 w-40 bg-white font-bold text-xs rounded-xl"><SelectValue placeholder="Status"/></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Todas">Exibir Todas</SelectItem>
-                    <SelectItem value="Agendado">Agendadas</SelectItem>
-                    <SelectItem value="Realizada">Realizadas</SelectItem>
-                    <SelectItem value="Cancelado">Canceladas</SelectItem>
-                  </SelectContent>
-                </Select>
+                <select value={sessaoFilter} onChange={e => setSessaoFilter(e.target.value)} className="flex h-9 w-40 items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                  <option value="Todas">Exibir Todas</option>
+                  <option value="Agendado">Agendadas</option>
+                  <option value="Realizada">Realizadas</option>
+                  <option value="Cancelado">Canceladas</option>
+                </select>
               </div>
             </CardHeader>
             <CardContent className="divide-y divide-slate-200 p-0">
-              {filteredAppointments.length > 0 ? filteredAppointments.map(apt => {
+              {paginatedAppointments.length > 0 ? paginatedAppointments.map(apt => {
                 const now = new Date(); const aptTime = new Date(apt.start_time);
-                const isPast = now > aptTime;
-                const displayStatus = (apt.status === 'Agendado' && isPast) ? 'Realizada' : apt.status;
+                const isPastTolerance = now.getTime() > (aptTime.getTime() + 90 * 60 * 1000);
+                const displayStatus = (apt.status === 'Agendado' && isPastTolerance) ? 'Realizada' : apt.status;
                 const isPaid = Math.round(Number(apt.amount_paid || 0) * 100) >= Math.round(Number(apt.price || 0) * 100);
                 const remaining = Math.max(0, Number(apt.price || 0) - Number(apt.amount_paid || 0));
                 return (
@@ -918,20 +901,26 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                         </div>
                       </div>
                     </div>
-                    <Select value={displayStatus || ''} onValueChange={(v) => updateAppointmentStatus(apt.id, v)}>
-                      <SelectTrigger className={`w-[140px] h-8 text-[10px] font-bold rounded-lg ${displayStatus === 'Realizada' ? 'text-emerald-600 bg-emerald-50' : displayStatus === 'Cancelado' ? 'text-red-600 bg-red-50' : 'text-emerald-600 bg-blue-50'}`}><SelectValue/></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Agendado">Agendado</SelectItem>
-                        <SelectItem value="Realizada">Realizada</SelectItem>
-                        <SelectItem value="Cancelado">Cancelado</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <select value={displayStatus || ''} onChange={(e) => updateAppointmentStatus(apt.id, e.target.value)} className={`w-[140px] h-8 text-[10px] font-bold rounded-lg border-none focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer ${displayStatus === 'Realizada' ? 'text-emerald-600 bg-emerald-50' : displayStatus === 'Cancelado' ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'}`}>
+                      <option value="Agendado">Agendado</option>
+                      <option value="Realizada">Realizada</option>
+                      <option value="Cancelado">Cancelado</option>
+                    </select>
                   </div>
                 )
               }) : (
                 <div className="p-10 text-center text-slate-400 italic text-sm">Nenhuma sessão encontrada.</div>
               )}
             </CardContent>
+            
+            {/* CONTROLES DE PAGINAÇÃO */}
+            {filteredAppointments.length > 0 && (
+              <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50">
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-xl font-bold text-xs h-8"><ChevronLeft className="h-3 w-3 mr-1"/> Anterior</Button>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Página {currentPage} de {totalPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-xl font-bold text-xs h-8">Próximo <ChevronRight className="h-3 w-3 ml-1"/></Button>
+              </div>
+            )}
           </Card>
         </div>
       )}
@@ -939,27 +928,14 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       {/* FINANCEIRO */}
       {activeTab === 'financeiro' && (
         <div className="w-full block clear-both animate-in fade-in">
-          {!permissions.financial ? (
-            <FeatureLock 
-              title="Gestão Financeira Completa"
-              description="O controle de pagamentos, saldo devedor e emissão de recibos é exclusivo do Plano Profissional."
-            />
-          ) : (
-            /* Componente integrado com o saldo calculado (stats.credit vem do banco) */
-            <PatientCreditLog patientId={id as string} currentBalance={stats.credit || 0} />
-          )}
+          {/* Componente integrado com o saldo calculado (stats.credit vem do banco) */}
+          <PatientCreditLog patientId={id as string} currentBalance={stats.credit || 0} />
         </div>
       )}
 
       {/* EVOLUÇÕES */}
       {activeTab === 'evolucoes' && (
         <div className="w-full block clear-both animate-in fade-in space-y-6">
-          {!permissions.evolutions ? (
-            <FeatureLock 
-              title="Prontuário Eletrônico (Evoluções)" 
-              description="O registro de evoluções clínicas e anotações SOAP é exclusivo do Plano Profissional." 
-            />
-          ) : (
             <>
               <Card className="border border-slate-200 shadow-md rounded-[24px] overflow-hidden bg-white">
                 <CardHeader className="bg-slate-50 border-b border-slate-200 p-6">
@@ -995,19 +971,12 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 ))}
               </div>
             </>
-          )}
         </div>
       )}
 
       {/* PORTAL */}
       {activeTab === 'portal' && (
         <div className="w-full block clear-both animate-in fade-in space-y-6">
-          {!permissions.portal ? (
-            <FeatureLock 
-              title="Portal do Paciente"
-              description="A interação digital com o paciente (envio de materiais e recebimento de arquivos) é exclusiva do Plano Profissional."
-            />
-          ) : (
             <>
               {/* --- NOVO: CONFIGURAÇÃO DA SALA ONLINE --- */}
               <Card className="border border-slate-200 shadow-md bg-white rounded-[24px] mb-6">
@@ -1195,19 +1164,12 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 </CardContent>
               </Card>
             </>
-          )}
         </div>
       )}
 
       {/* EMOÇÕES */}
       {activeTab === 'emocoes' && (
         <div className="w-full block clear-both animate-in fade-in">
-          {!permissions.emotions ? (
-            <FeatureLock 
-              title="Diário de Emoções" 
-              description="O acompanhamento do humor e diário emocional do paciente é exclusivo do Plano Profissional." 
-            />
-          ) : (
             <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-4 md:p-6 space-y-4">
               {emotions.map(e => {
                 const MoodIcon = getMoodIcon(Number(e.mood_score));
@@ -1220,19 +1182,12 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               })}
               {emotions.length === 0 && <div className="p-10 text-center text-slate-400 italic">Nenhum registro de emoção ainda.</div>}
             </CardContent></Card>
-          )}
         </div>
       )}
 
       {/* DOCUMENTOS */}
       {activeTab === 'documentos' && (
         <div className="w-full block clear-both animate-in fade-in">
-          {!permissions.docs ? (
-            <FeatureLock 
-              title="Gestão de Documentos" 
-              description="A geração automática de contratos e armazenamento de documentos é exclusiva do Plano Profissional." 
-            />
-          ) : (
             <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-6 md:p-10 border-2 border-dashed rounded-3xl text-center space-y-4 border-slate-200">
               <FileText className="h-12 w-12 mx-auto text-slate-200" />
               <div className="space-y-2">
@@ -1265,19 +1220,12 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 ))}
               </div>
             </CardContent></Card>
-          )}
         </div>
       )}
 
       {/* METAS */}
       {activeTab === 'metas' && (
         <div className="w-full block clear-both animate-in fade-in">
-          {!permissions.goals ? (
-            <FeatureLock 
-              title="Metas Terapêuticas" 
-              description="O acompanhamento de metas e objetivos do tratamento é exclusivo do Plano Profissional." 
-            />
-          ) : (
             <Card className="border border-slate-200 shadow-md rounded-[24px] overflow-hidden bg-white">
               <CardContent className="p-4 md:p-6 bg-white">
                 <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-8">
@@ -1329,16 +1277,11 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                               {goal.deadline && <p className="text-[10px] text-slate-400 font-medium mt-1">Prazo: {new Date(goal.deadline).toLocaleDateString('pt-BR')}</p>}
                             </div>
                           </div>
-                          <Select value={goal.status} onValueChange={(v) => handleUpdateMetaStatus(goal.id, v)}>
-                            <SelectTrigger className={`h-7 w-[110px] text-[10px] font-bold rounded-lg border-none ${goal.status === 'Concluída' ? 'bg-emerald-50 text-emerald-700' : goal.status === 'Suspensa' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Ativa">Ativa</SelectItem>
-                              <SelectItem value="Concluída">Concluída</SelectItem>
-                              <SelectItem value="Suspensa">Suspensa</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <select value={goal.status} onChange={(e) => handleUpdateMetaStatus(goal.id, e.target.value)} className={`h-7 w-[110px] text-[10px] font-bold rounded-lg border-none focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer ${goal.status === 'Concluída' ? 'bg-emerald-50 text-emerald-700' : goal.status === 'Suspensa' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
+                            <option value="Ativa">Ativa</option>
+                            <option value="Concluída">Concluída</option>
+                            <option value="Suspensa">Suspensa</option>
+                          </select>
                         </div>
                         {goal.description && (
                           <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl leading-relaxed">{goal.description}</p>
@@ -1349,7 +1292,6 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 </div>
               </CardContent>
             </Card>
-          )}
         </div>
       )}
 
@@ -1395,10 +1337,10 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Já realizou terapias anteriores?</Label>
-                    <Select value={paciente.previous_therapy || 'Não'} onValueChange={v => setPaciente({...paciente, previous_therapy: v})}>
-                      <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione"/></SelectTrigger>
-                      <SelectContent><SelectItem value="Sim">Sim</SelectItem><SelectItem value="Não">Não</SelectItem></SelectContent>
-                    </Select>
+                    <select value={paciente.previous_therapy || 'Não'} onChange={e => setPaciente({...paciente, previous_therapy: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                      <option value="Sim">Sim</option>
+                      <option value="Não">Não</option>
+                    </select>
                   </div>
                   {paciente.previous_therapy === 'Sim' && (
                     <div className="space-y-2 animate-in fade-in slide-in-from-top-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Motivo da interrupção / Experiência</Label><Textarea className="min-h-[100px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.previous_therapy_notes || ''} onChange={e => setPaciente({...paciente, previous_therapy_notes: e.target.value})} /></div>
@@ -1412,7 +1354,18 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Uso de Medicamentos Contínuos</Label><Textarea className="min-h-[100px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.medications || ''} onChange={e => setPaciente({...paciente, medications: e.target.value})} /></div>
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Alergias</Label><Input className="text-sm text-red-700 bg-red-50 border-red-200 rounded-xl focus-visible:ring-red-200 placeholder:text-red-300" placeholder="Nenhuma conhecida" value={paciente.allergies || ''} onChange={e => setPaciente({...paciente, allergies: e.target.value})} /></div>
-                  <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Paciente possui Convênio Médico?</Label><Switch checked={paciente.has_insurance} onCheckedChange={v => setPaciente({...paciente, has_insurance: v})} /></div>
+                  <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200">
+                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Paciente possui Convênio Médico?</Label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={paciente.has_insurance} 
+                        onChange={(e) => setPaciente({...paciente, has_insurance: e.target.checked})} 
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -1432,16 +1385,14 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Como conheceu a clínica?</Label>
-                  <Select value={paciente.lead_source || ''} onValueChange={v => setPaciente({...paciente, lead_source: v})}>
-                    <SelectTrigger className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Indicação">Indicação</SelectItem>
-                      <SelectItem value="Google">Google</SelectItem>
-                      <SelectItem value="Instagram">Instagram</SelectItem>
-                      <SelectItem value="Facebook">Facebook</SelectItem>
-                      <SelectItem value="Outros">Outros</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select value={paciente.lead_source || ''} onChange={e => setPaciente({...paciente, lead_source: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                    <option value="" disabled>Selecione</option>
+                    <option value="Indicação">Indicação</option>
+                    <option value="Google">Google</option>
+                    <option value="Instagram">Instagram</option>
+                    <option value="Facebook">Facebook</option>
+                    <option value="Outros">Outros</option>
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Quem indicou?</Label>
@@ -1471,7 +1422,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       <Dialog open={!!viewDoc} onOpenChange={() => setViewDoc(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl border-none p-0 bg-slate-50">
           <DialogDescription className="sr-only">Visualização do documento.</DialogDescription>
-          <div id="print-area" className="p-8 bg-white m-4 rounded-2xl shadow-md border border-slate-200 min-h-[80vh]">
+          <div id="print-area" className="document-container p-8 bg-white m-4 rounded-2xl shadow-md border border-slate-200 min-h-[80vh]">
             {/* HEADER DINÂMICO (PAPEL TIMBRADO) */}
             <div className="flex flex-col items-center text-center mb-6 border-b border-slate-200 pb-6 select-none">
                {(viewDoc?.clinic_logo_url || professional?.logo_url) && (

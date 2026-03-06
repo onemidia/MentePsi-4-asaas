@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -158,11 +157,12 @@ export default function FinanceiroPage() {
     const recebidoCents = transactionsNoPeriodo.reduce((acc, t) => acc + Math.round(Number(t.amount) * 100), 0)
     const recebidoMesAtualCents = transactionsMesAtual.reduce((acc, t) => acc + Math.round(Number(t.amount) * 100), 0)
     
-    // 2. Corrigir Card de Dívida: Usa 'appointments' (Global) em vez de 'appointmentsNoPeriodo'
-    // para somar pendências de sessões antigas que já foram Realizadas.
-    const pendenteRealCents = appointments
+    // 2. Lógica de Pendência (Valores a Receber)
+    // Filtra apenas sessões DO PERÍODO SELECIONADO que já aconteceram (Realizadas ou Passadas)
+    const tempoToleranciaMs = 90 * 60 * 1000
+    const pendenteRealCents = appointmentsNoPeriodo
       .filter(a => {
-        const isPast = new Date(a.start_time) < new Date()
+        const isPast = new Date(new Date(a.start_time).getTime() + tempoToleranciaMs) < new Date()
         const effectiveStatus = (a.status === 'Agendado' && isPast) ? 'Realizada' : a.status
         return effectiveStatus === 'Realizada' && a.payment_status !== 'Pago' && a.payment_status !== 'paid'
       })
@@ -498,59 +498,6 @@ export default function FinanceiroPage() {
         }
       }
     }
-
-      // 🧾 GERAÇÃO AUTOMÁTICA DE RECIBO E ARMAZENAMENTO
-      try {
-        // Busca dados necessários se não estiverem em memória
-        const patient = patientsList.find(p => p.id === patientId)
-        const profName = professionalData?.full_name || "Alvino Buriti"
-        const profCRP = professionalData?.crp || "CRP não informado"
-        
-        if (patient && user) {
-           // 1. Contador de Recibos
-           let receiptNumber = 1
-           let { data: counter } = await supabase.from('receipt_counters').select('current_count').eq('psychologist_id', user.id).single()
-           if (!counter) {
-             const { data: newCounter } = await supabase.from('receipt_counters').insert({ psychologist_id: user.id, current_count: 0 }).select().single()
-             counter = newCounter
-           }
-           receiptNumber = (counter?.current_count || 0) + 1
-           await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', user.id)
-
-           // 2. Gera o PDF em memória (Blob)
-           const doc = new jsPDF()
-           doc.setFontSize(16); doc.setTextColor(13, 148, 136);
-           doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
-           doc.setTextColor(0, 0, 0); doc.setFontSize(10);
-           doc.text(profName, 105, 30, { align: "center" }); doc.text(`CRP: ${profCRP}`, 105, 35, { align: "center" })
-           doc.setFontSize(12);
-           doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf || '...'}`, 14, 50)
-           doc.text(`a importância de ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
-           doc.text(`referente a serviços de psicologia.`, 14, 64)
-           doc.text(`${professionalData?.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, 120, { align: "center" })
-           doc.setFontSize(8); doc.setTextColor(150);
-           doc.text(`Documento emitido automaticamente por ${professionalData?.clinic_name || "Sistema de Gestão"}.`, 105, 140, { align: "center" })
-
-           const pdfBlob = doc.output('blob')
-
-           // 3. Upload para o Storage
-           const fileName = `${patientId}/recibo_${receiptNumber}_${Date.now()}.pdf`
-           const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, pdfBlob)
-           
-           if (!uploadError) {
-             const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName)
-             
-             // 4. Salva referência na Ficha Clínica (Documentos)
-             await supabase.from('patient_documents').insert({
-               patient_id: patientId,
-               psychologist_id: user.id,
-               title: `Recibo Nº ${String(receiptNumber).padStart(3, '0')} - ${format(new Date(), 'dd/MM/yyyy')}`,
-               file_url: publicUrl,
-               status: 'Gerado'
-             })
-           }
-        }
-      } catch (err) { console.error("Erro ao gerar recibo automático:", err) }
 
     toast({ title: "Transação estornada com sucesso!" })
     await refreshData()
@@ -1079,7 +1026,13 @@ export default function FinanceiroPage() {
             <DialogDescription className="sr-only">Registre uma nova transação.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2"><Label className="font-bold">Paciente</Label><Select onValueChange={setSelectedPatient}><SelectTrigger className="rounded-xl border-slate-300"><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{patientsList.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2">
+              <Label className="font-bold">Paciente</Label>
+              <select value={selectedPatient} onChange={(e) => setSelectedPatient(e.target.value)} className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                <option value="" disabled>Selecione</option>
+                {patientsList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              </select>
+            </div>
             <div className="space-y-2"><Label className="font-bold text-teal-600">Valor Recebido (R$)</Label><Input value={transactionValue} onChange={e => handleCurrencyInput(e.target.value, setTransactionValue)} className="text-2xl font-black h-14 rounded-xl border-slate-300" /></div>
             <Button className="w-full bg-teal-600 hover:bg-teal-700 font-bold h-14 rounded-2xl" onClick={() => handleProcessTransaction(selectedPatient, parseFloat(transactionValue.replace(/\./g, '').replace(',', '.')))}>Abater Dívidas</Button>
           </div>

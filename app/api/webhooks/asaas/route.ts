@@ -40,53 +40,34 @@ export async function POST(req: Request) {
 
       let profileToUpdate: any = null
 
-      // 🔎 Busca por ID
-      const { data: profileById, error: idError } = await supabaseAdmin
-        .from('profiles')
-        .select('id, email')
-        .eq('id', userId)
+      // 🔎 Busca por ID (Sua lógica original mantida)
+      const { data: profileById } = await supabaseAdmin
+        .from('professional_profile')
+        .select('user_id, email')
+        .eq('user_id', userId)
         .maybeSingle()
-
-      if (idError) {
-        console.error('❌ [WEBHOOK] Erro buscando por ID:', idError.message)
-      }
 
       if (profileById) {
         profileToUpdate = profileById
       }
 
-      // 🔎 Fallback por e-mail (caso necessário)
+      // 🔎 Fallback por e-mail (Sua lógica original mantida)
       if (!profileToUpdate && asaasCustomerId) {
         const customerResponse = await fetch(
           `${process.env.ASAAS_API_URL}/customers/${asaasCustomerId}`,
-          {
-            headers: {
-              access_token: process.env.ASAAS_API_KEY!
-            }
-          }
+          { headers: { access_token: process.env.ASAAS_API_KEY! } }
         )
-
         const customerData = await customerResponse.json()
         const currentAsaasEmail = customerData?.email?.toLowerCase()
 
         if (currentAsaasEmail) {
-          const { data: profileByEmail, error: emailError } =
-            await supabaseAdmin
-              .from('profiles')
-              .select('id, email')
-              .ilike('email', currentAsaasEmail)
-              .maybeSingle()
-
-          if (emailError) {
-            console.error(
-              '❌ [WEBHOOK] Erro buscando por email:',
-              emailError.message
-            )
-          }
-
-          if (profileByEmail) {
-            profileToUpdate = profileByEmail
-          }
+          const { data: userAuth } = await supabaseAdmin
+            .from('professional_profile')
+            .select('user_id, email')
+            .ilike('email', currentAsaasEmail)
+            .maybeSingle()
+          
+          if (userAuth) profileToUpdate = userAuth
         }
       }
 
@@ -95,40 +76,49 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      console.log(
-        `🚀 [WEBHOOK] Ativando usuário: ${profileToUpdate.email}`
-      )
+      console.log(`🚀 [WEBHOOK] Ativando assinatura profissional para: ${profileToUpdate.email}`)
 
-      // ✅ Atualiza profiles
-      const { error: updateError } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          plan_type: 'professional',
-          subscription_status: 'active',
-          role: 'professional',
-          trial_ends_at: null,
-          asaas_customer_id: asaasCustomerId
-        })
-        .eq('id', profileToUpdate.id)
+      // --- INÍCIO DA CIRURGIA PREMIUM ---
 
-      // ✅ Atualiza professional_profile
-      const { error: profError } = await supabaseAdmin
-        .from('professional_profile')
-        .update({
-          subscription_status: 'active',
+      // 1. Busca o ID do plano Professional
+      const { data: planPro } = await supabaseAdmin
+        .from('saas_plans')
+        .select('id')
+        .eq('slug', 'professional')
+        .single()
+
+      if (!planPro) throw new Error('Plano Professional não encontrado no banco.')
+
+      // 2. Cancela qualquer assinatura anterior (Trial ou outra) para este usuário
+      await supabaseAdmin
+        .from('subscriptions')
+        .update({ status: 'canceled', updated_at: new Date().toISOString() })
+        .eq('user_id', profileToUpdate.user_id)
+        .in('status', ['trialing', 'active'])
+
+      // 3. Insere a nova assinatura ativa na tabela correta
+      const { error: subError } = await supabaseAdmin
+        .from('subscriptions')
+        .insert({
+          user_id: profileToUpdate.user_id,
+          plan_id: planPro.id,
+          status: 'active',
+          current_period_start: new Date().toISOString(),
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // +30 dias
+          asaas_customer_id: asaasCustomerId,
+          asaas_subscription_id: payment.subscription || null,
+          billing_type: payment.billingType || 'CREDIT_CARD',
+          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
-        .eq('id', profileToUpdate.id)
 
-      if (updateError || profError) {
-        console.error(
-          '❌ [WEBHOOK] Erro ao atualizar:',
-          updateError?.message || profError?.message
-        )
+      if (subError) {
+        console.error('❌ [WEBHOOK] Erro ao criar assinatura:', subError.message)
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      console.log('✅ [WEBHOOK] Usuário ativado com sucesso.')
+      console.log('✅ [WEBHOOK] Assinatura Subscriptions ativada com sucesso.')
+      // --- FIM DA CIRURGIA PREMIUM ---
     }
 
     return NextResponse.json({ received: true }, { status: 200 })

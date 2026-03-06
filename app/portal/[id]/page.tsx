@@ -13,13 +13,15 @@ import {
   Frown, Meh, Smile, ThumbsDown, ThumbsUp, FileText, 
   CheckCircle, Eraser, Clock, Filter, MessageSquarePlus, 
   Youtube, Smartphone, RefreshCw, Upload, AlertTriangle,
-  Copy, Landmark, MessageCircle, Loader2, CheckCircle2, Video
+  Copy, Landmark, MessageCircle, Loader2, CheckCircle2, Video,
+  ChevronLeft, ChevronRight
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import SignatureCanvas from 'react-signature-canvas'
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function PatientPortalPage() {
   const params = useParams()
@@ -35,6 +37,8 @@ export default function PatientPortalPage() {
   const [appointments, setAppointments] = useState<any[]>([])
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('Agendado') // UX: Foco no futuro
   const [sessionAgenda, setSessionAgenda] = useState("")
   const [materials, setMaterials] = useState<any[]>([])
   
@@ -68,8 +72,8 @@ export default function PatientPortalPage() {
       const { data: patient } = await supabase.from('patients').select('*').eq('id', id).single()
 
       if (patient) {
-        const { data: profProfile } = await supabase.from('professional_profile').select('*').eq('id', patient.psychologist_id).single()
-        const { data: profileData } = await supabase.from('profiles').select('plan_type, subscription_status').eq('id', patient.psychologist_id).single()
+        const { data: profProfile } = await supabase.from('professional_profile').select('*').eq('user_id', patient.psychologist_id).single()
+        const { data: subData } = await supabase.from('subscriptions').select('status, current_period_end').eq('user_id', patient.psychologist_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
 
         setPatientData({ ...patient, professional_profile: profProfile })
         setSessionAgenda(patient.next_session_agenda || "")
@@ -77,7 +81,7 @@ export default function PatientPortalPage() {
         // BUSCA MULTIPLA: Procura tanto o assinado quanto o pendente
         const [settingsRes, aptsRes, matsRes, signedDocRes, pendingDocRes, proofRes] = await Promise.all([
           supabase.from('portal_settings').select('*').eq('patient_id', id).maybeSingle(),
-          supabase.from('appointments').select('*').eq('patient_id', id).order('start_time', { ascending: false }),
+          supabase.from('appointments').select('*').eq('patient_id', id).order('start_time', { ascending: true }), // UX: Mais próximos primeiro
           supabase.from('therapeutic_materials').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
           supabase.from('patient_documents').select('id').eq('patient_id', id).eq('status', 'Assinado').limit(1).maybeSingle(), // Procura Assinado
           supabase.from('patient_documents').select('*').eq('patient_id', id).in('status', ['Pendente', 'Gerado']).order('created_at', { ascending: false }).limit(1).maybeSingle(), // Procura Pendente
@@ -85,15 +89,14 @@ export default function PatientPortalPage() {
         ])
         
         if (settingsRes.data) {
-          const planType = profileData?.plan_type || 'starter'
-          const subStatus = profileData?.subscription_status || 'trialing'
+          const isSubActive = subData?.status === 'active' || subData?.status === 'trialing';
 
           setPermissions({
-            active: settingsRes.data.active,
-            journal: settingsRes.data.journal && canUseFeature(planType, subStatus, 'portalHasDiary'),
-            financials: settingsRes.data.financials && canUseFeature(planType, subStatus, 'portalHasFinancial'),
-            materials: settingsRes.data.materials && canUseFeature(planType, subStatus, 'portalHasMaterials'),
-            documents: settingsRes.data.documents && canUseFeature(planType, subStatus, 'portalHasDocs')
+            active: settingsRes.data.active && isSubActive,
+            journal: settingsRes.data.journal,
+            financials: settingsRes.data.financials,
+            materials: settingsRes.data.materials,
+            documents: settingsRes.data.documents
           })
         }
 
@@ -258,9 +261,56 @@ export default function PatientPortalPage() {
     window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
+  // 🧠 LÓGICA DA SALA (40 MIN)
+  const getMeetingStatus = () => {
+    if (!appointments.length) return null
+    const now = new Date()
+    
+    // Encontra o próximo agendamento 'Agendado' que ainda não terminou
+    const nextApt = appointments.find(a => {
+      if (a.status !== 'Agendado') return false
+      const start = new Date(a.start_time)
+      const end = a.end_time ? new Date(a.end_time) : new Date(start.getTime() + 60 * 60 * 1000)
+      return end > now
+    })
+
+    if (!nextApt) return null
+
+    const start = new Date(nextApt.start_time)
+    // Diferença em minutos (pode ser negativa se já começou, o que é bom)
+    const diffMinutes = (start.getTime() - now.getTime()) / (1000 * 60)
+    
+    return { canJoin: diffMinutes <= 40, appointment: nextApt, start }
+  }
+
+  // 🔄 RESET AUTOMÁTICO DE PAGINAÇÃO
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [startDate, endDate, statusFilter])
+
+  // 🔍 LÓGICA DE FILTRO E PAGINAÇÃO
   const filteredAppointments = appointments.filter(apt => {
-    return (!startDate || new Date(apt.start_time) >= new Date(startDate)) && (!endDate || new Date(apt.start_time) <= new Date(endDate + 'T23:59:59'))
+    // 1. Filtro de Data
+    const dateMatch = (!startDate || new Date(apt.start_time) >= new Date(startDate)) && 
+                      (!endDate || new Date(apt.start_time) <= new Date(endDate + 'T23:59:59'))
+    
+    // 2. Filtro de Status (Considerando Status Efetivo)
+    const now = new Date()
+    const isPast = now > new Date(apt.start_time)
+    const effectiveStatus = (apt.status === 'Agendado' && isPast) ? 'Realizada' : apt.status
+    const statusMatch = statusFilter === 'Todas' ? true : effectiveStatus === statusFilter
+
+    return dateMatch && statusMatch
+  }).sort((a, b) => {
+    // UX: Se for 'Agendado', mostra o mais próximo (asc). Se for histórico, mostra o mais recente (desc).
+    const dateA = new Date(a.start_time).getTime()
+    const dateB = new Date(b.start_time).getTime()
+    if (statusFilter === 'Agendado') return dateA - dateB
+    return dateB - dateA
   })
+
+  const totalPages = Math.ceil(filteredAppointments.length / 10) || 1
+  const paginatedAppointments = filteredAppointments.slice((currentPage - 1) * 10, currentPage * 10)
 
   if (!isMounted || !id) return null
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50 font-bold text-slate-400"><Loader2 className="animate-spin mr-2 h-6 w-6"/> Carregando Portal...</div>
@@ -276,6 +326,8 @@ export default function PatientPortalPage() {
       </div>
     )
   }
+
+  const meetingStatus = getMeetingStatus()
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 pt-8 max-w-lg mx-auto pb-24 space-y-6">
@@ -308,12 +360,23 @@ export default function PatientPortalPage() {
               <h3 className="font-bold text-teal-900 text-lg">Sua sala de atendimento online está pronta</h3>
               <p className="text-sm text-teal-700">Clique abaixo para entrar na videochamada.</p>
             </div>
-            <Button 
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-teal-100 transition-all hover:scale-[1.02]"
-              onClick={() => window.open(patientData.meeting_link, '_blank')}
-            >
-              <Video className="mr-2 h-5 w-5" /> ACESSAR CONSULTA AGORA
-            </Button>
+            
+            {meetingStatus?.canJoin ? (
+              <Button 
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-teal-100 transition-all hover:scale-[1.02] animate-pulse"
+                onClick={() => window.open(patientData.meeting_link, '_blank')}
+              >
+                <Video className="mr-2 h-5 w-5" /> ACESSAR CONSULTA AGORA
+              </Button>
+            ) : (
+              <div className="bg-white/60 border border-teal-200 p-3 rounded-xl text-center w-full">
+                <p className="text-xs font-bold text-teal-800 uppercase tracking-wide mb-1">Próxima Sessão</p>
+                <p className="text-sm font-black text-teal-900">
+                  {meetingStatus ? meetingStatus.start.toLocaleString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }) : "Nenhum agendamento próximo"}
+                </p>
+                {meetingStatus && <p className="text-[10px] text-teal-600 mt-1 font-medium">A sala abre 40 min antes do horário.</p>}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -396,12 +459,29 @@ export default function PatientPortalPage() {
               </CardContent>
             </Card>
           )}
-          <div className="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border mb-4">
-            <Filter size={14} className="text-slate-400 ml-2" />
-            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 border-none bg-slate-50 text-[10px] rounded-xl" />
-            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 border-none bg-slate-50 text-[10px] rounded-xl" />
+          
+          {/* BARRA DE FILTROS */}
+          <div className="flex flex-col sm:flex-row items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border mb-4">
+            <div className="flex items-center gap-2 w-full">
+              <Filter size={14} className="text-slate-400 ml-2" />
+              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none bg-slate-50 text-xs rounded-xl w-full" />
+              <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none bg-slate-50 text-xs rounded-xl w-full" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9 border-none bg-slate-50 text-xs font-bold rounded-xl w-full sm:w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todas">Todas</SelectItem>
+                <SelectItem value="Agendado">Agendadas</SelectItem>
+                <SelectItem value="Realizada">Realizadas</SelectItem>
+                <SelectItem value="Cancelado">Canceladas</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          {filteredAppointments.length === 0 ? <p className="text-center py-10 text-slate-400 text-xs italic font-medium">Nenhum agendamento encontrado.</p> : filteredAppointments.map(apt => {
+
+          {/* LISTA PAGINADA */}
+          {paginatedAppointments.length === 0 ? <p className="text-center py-10 text-slate-400 text-xs italic font-medium">Nenhum agendamento encontrado.</p> : paginatedAppointments.map(apt => {
             const now = new Date(); const aptTime = new Date(apt.start_time); const isPast = now > aptTime;
             const displayStatus = (apt.status === 'Agendado' && isPast) ? 'Realizada' : apt.status;
             const isPaid = Math.round(Number(apt.amount_paid || 0) * 100) >= Math.round(Number(apt.price || 0) * 100);
@@ -419,6 +499,15 @@ export default function PatientPortalPage() {
               </CardContent>
             </Card>
           )})}
+
+          {/* CONTROLES DE PAGINAÇÃO */}
+          {filteredAppointments.length > 0 && (
+            <div className="flex items-center justify-between pt-4 px-2">
+              <Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="text-slate-500 hover:text-teal-600 hover:bg-teal-50 h-8 text-xs font-bold rounded-xl"><ChevronLeft className="h-4 w-4 mr-1"/> Anterior</Button>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Página {currentPage} de {totalPages}</span>
+              <Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="text-slate-500 hover:text-teal-600 hover:bg-teal-50 h-8 text-xs font-bold rounded-xl">Próximo <ChevronRight className="h-4 w-4 ml-1"/></Button>
+            </div>
+          )}
         </TabsContent>
         )}
 

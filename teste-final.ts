@@ -24,13 +24,13 @@ async function executarTesteFinal() {
   console.log(`🔍 1. Buscando ID do usuário para: ${emailAlvo}`);
   
   const { data: user, error: userError } = await supabase
-    .from('profiles')
+    .from('professional_profile')
     .select('id')
     .eq('email', emailAlvo)
     .single();
 
   if (userError || !user) {
-    console.error('❌ Usuário não encontrado no banco profiles:', userError?.message);
+    console.error('❌ Usuário não encontrado no banco professional_profile:', userError?.message);
     return;
   }
 
@@ -53,14 +53,18 @@ async function executarTesteFinal() {
   // 3. Executar a Lógica de Atualização (Réplica exata do Webhook)
   console.log('🔄 3. Executando atualizações no Supabase...');
 
-  // Atualiza profiles
-  const { error: errProfile } = await supabase
-    .from('profiles')
-    .update({ subscription_status: 'active', plan_type: 'profissional', updated_at: new Date().toISOString() })
-    .eq('id', user.id);
+  // Simula o que o Webhook realmente deve fazer:
+  const { error: errSub } = await supabase
+    .from('subscriptions')
+    .upsert({ 
+      user_id: user.id, 
+      status: 'active', // minúsculo!
+      current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      billing_type: 'asaas'
+    });
 
-  if (errProfile) console.error('❌ Erro ao atualizar profiles:', errProfile);
-  else console.log('✅ Tabela "profiles" atualizada para ACTIVE.');
+  if (errSub) console.error('❌ Erro ao atualizar subscriptions:', errSub);
+  else console.log('✅ Tabela "subscriptions" atualizada para ACTIVE.');
 
   // Atualiza professional_profile
   const { error: errProf } = await supabase

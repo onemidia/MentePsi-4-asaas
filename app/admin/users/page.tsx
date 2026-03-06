@@ -49,12 +49,15 @@ export default function GestaoPsicologos() {
 
   async function fetchUsers() {
     setLoading(true)
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
+    // Query Unificada
+    const { data, error } = await supabase
+      .from('professional_profile')
+      .select('*, subscriptions(status, current_period_end)')
       .order('created_at', { ascending: false })
     
-    if (data) setUsers(data)
+    if (data) {
+      setUsers(data)
+    }
     setLoading(false)
   }
 
@@ -65,12 +68,12 @@ export default function GestaoPsicologos() {
   async function handleUpdateSubscription(userId: string, newStatus: string) {
     setProcessingId(userId)
     const { error } = await supabase
-      .from('profiles')
+      .from('subscriptions')
       .update({ 
-        subscription_status: newStatus,
-        plan_type: 'profissional' 
+        status: newStatus,
+        updated_at: new Date().toISOString()
       })
-      .eq('id', userId)
+      .eq('user_id', userId)
 
     if (!error) {
       toast({ title: "Status atualizado!", description: `Usuário agora está como ${newStatus}.` })
@@ -87,13 +90,13 @@ export default function GestaoPsicologos() {
     newTrialDate.setDate(newTrialDate.getDate() + 30)
 
     const { error } = await supabase
-      .from('profiles')
+      .from('subscriptions')
       .update({ 
-        subscription_status: 'trialing',
-        trial_ends_at: newTrialDate.toISOString(),
-        plan_type: 'profissional'
+        status: 'trialing',
+        current_period_end: newTrialDate.toISOString(),
+        updated_at: new Date().toISOString()
       })
-      .eq('id', userId)
+      .eq('user_id', userId)
 
     if (!error) {
       toast({ title: "Trial Renovado!", description: "Mais 30 dias de cortesia." })
@@ -162,11 +165,15 @@ export default function GestaoPsicologos() {
             {loading ? (
               <TableRow><TableCell colSpan={4} className="text-center py-24"><Loader2 className="animate-spin h-8 w-8 text-teal-600 mx-auto"/></TableCell></TableRow>
             ) : filteredUsers.map((user) => {
-              const trialDate = user.trial_ends_at ? new Date(user.trial_ends_at) : null
-              const isTrialExpired = trialDate && trialDate < new Date() && user.subscription_status === 'trialing'
+              const sub = Array.isArray(user.subscriptions) ? user.subscriptions[0] : user.subscriptions
+              const status = sub?.status || 'inactive'
+              const periodEnd = sub?.current_period_end
+
+              const trialDate = periodEnd ? new Date(periodEnd) : null
+              const isTrialExpired = trialDate && trialDate < new Date() && status === 'trialing'
 
               return (
-                <TableRow key={user.id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0">
+                <TableRow key={user.user_id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0">
                   <TableCell className="py-4 px-6">
                     <div className="font-black text-slate-800">{user.full_name || 'Cadastro Incompleto'}</div>
                     <div className="text-xs text-slate-400 flex items-center gap-1 font-medium italic">
@@ -176,13 +183,13 @@ export default function GestaoPsicologos() {
                   
                   <TableCell className="text-center">
                     <Badge className={
-                      user.subscription_status === 'active' 
+                      status === 'active' 
                         ? "bg-emerald-50 text-emerald-600 border border-emerald-100 px-4 font-black" 
                         : isTrialExpired
                         ? "bg-red-50 text-red-600 border border-red-100 px-4 font-black"
                         : "bg-blue-50 text-blue-600 border border-blue-100 px-4 font-black"
                     }>
-                      {user.subscription_status === 'active' ? 'ASSINANTE' : isTrialExpired ? 'EXPIRADO' : 'EM TESTE'}
+                      {status === 'active' ? 'ASSINANTE' : isTrialExpired ? 'EXPIRADO' : 'EM TESTE'}
                     </Badge>
                   </TableCell>
 
@@ -200,7 +207,7 @@ export default function GestaoPsicologos() {
                   </TableCell>
 
                   <TableCell className="text-right px-6">
-                    {processingId === user.id ? (
+                    {processingId === user.user_id ? (
                       <Loader2 className="h-5 w-5 animate-spin text-teal-600 ml-auto" />
                     ) : (
                       <DropdownMenu>
@@ -210,11 +217,11 @@ export default function GestaoPsicologos() {
                         <DropdownMenuContent align="end" className="w-64 bg-white shadow-2xl border-slate-200 rounded-2xl p-2 z-50">
                           <DropdownMenuLabel className="text-[10px] uppercase font-black text-slate-400 px-2 py-1 tracking-widest">Controle Master</DropdownMenuLabel>
                           
-                          <DropdownMenuItem onClick={() => handleUpdateSubscription(user.id, 'active')} className="rounded-lg text-emerald-600 font-bold focus:bg-emerald-50 focus:text-emerald-700 cursor-pointer">
+                          <DropdownMenuItem onClick={() => handleUpdateSubscription(user.user_id, 'active')} className="rounded-lg text-emerald-600 font-bold focus:bg-emerald-50 focus:text-emerald-700 cursor-pointer">
                             <UserCheck className="mr-3 h-4 w-4" /> Validar Pagamento
                           </DropdownMenuItem>
 
-                          <DropdownMenuItem onClick={() => handleExtendTrial(user.id)} className="rounded-lg text-blue-600 font-bold focus:bg-blue-50 cursor-pointer">
+                          <DropdownMenuItem onClick={() => handleExtendTrial(user.user_id)} className="rounded-lg text-blue-600 font-bold focus:bg-blue-50 cursor-pointer">
                             <History className="mr-3 h-4 w-4" /> Dar +30 Dias Grátis
                           </DropdownMenuItem>
 
@@ -224,7 +231,7 @@ export default function GestaoPsicologos() {
                             <KeyRound className="mr-3 h-4 w-4 text-slate-400"/> Enviar Link de Senha
                           </DropdownMenuItem>
 
-                          <DropdownMenuItem onClick={() => handleUpdateSubscription(user.id, 'canceled')} className="rounded-lg text-red-500 font-bold focus:bg-red-50 cursor-pointer">
+                          <DropdownMenuItem onClick={() => handleUpdateSubscription(user.user_id, 'canceled')} className="rounded-lg text-red-500 font-bold focus:bg-red-50 cursor-pointer">
                             <UserX className="mr-3 h-4 w-4" /> Revogar Acesso
                           </DropdownMenuItem>
                         </DropdownMenuContent>

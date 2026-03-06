@@ -15,7 +15,6 @@ import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
 // 1. Componente que contém toda a lógica da agenda
@@ -33,6 +32,7 @@ function AgendaContent() {
   const [currentView, setCurrentView] = useState("timeGridWeek")
   const supabase = createClient()
   const { toast } = useToast()
+  const [subscriptionStatus, setSubscriptionStatus] = useState('active') // Default to active to avoid blocking UI on first load
 
   const [formData, setFormData] = useState({
     patient_id: '',
@@ -53,9 +53,24 @@ function AgendaContent() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [aptRes, patRes] = await Promise.all([
-      supabase.from('appointments').select('id, start_time, end_time, status, patient_id, patients(full_name)').eq('psychologist_id', user.id),
-      supabase.from('patients').select('id, full_name, session_value').eq('psychologist_id', user.id).order('full_name')
+    // Lógica de Identificação de Papel (Admin / Assistente / Profissional)
+    let targetUserId = user.id
+    const email = user.email || ''
+    const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email)
+    let isAssistant = false
+
+    if (!isSuperAdmin) {
+       const { data: teamMember } = await supabase.from('clinic_team').select('psychologist_id').eq('email', email).eq('status', 'active').maybeSingle()
+       if (teamMember) {
+         targetUserId = teamMember.psychologist_id
+         isAssistant = true
+       }
+    }
+
+    const [aptRes, patRes, subRes] = await Promise.all([
+      supabase.from('appointments').select('id, start_time, end_time, status, patient_id, patients(full_name)').eq('psychologist_id', targetUserId),
+      supabase.from('patients').select('id, full_name, session_value').eq('psychologist_id', targetUserId).order('full_name'),
+      supabase.from('subscriptions').select('status').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).single()
     ])
     
     if (aptRes.data) {
@@ -73,10 +88,33 @@ function AgendaContent() {
       })))
     }
     if (patRes.data) setPatients(patRes.data)
+    
+    // Passe Livre para Admin e Assistente
+    if (isSuperAdmin || isAssistant) {
+      setSubscriptionStatus('active')
+    } else if (subRes.data?.status) {
+      setSubscriptionStatus(subRes.data.status)
+    } else {
+      setSubscriptionStatus('trialing') // Fallback for new users without a subscription record yet
+    }
     setLoading(false)
   }
 
-  useEffect(() => { fetchInitialData() }, [])
+  useEffect(() => { 
+    fetchInitialData() 
+
+    const channel = supabase
+      .channel('agenda-subscription-realtime')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'subscriptions' 
+      }, 
+      (payload) => { fetchInitialData() }
+    ).subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -133,7 +171,47 @@ function AgendaContent() {
     }
 
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({ variant: "destructive", title: "Erro de autenticação", description: "Sessão não encontrada." });
+      setLoading(false);
+      return;
+    }
+    
+    // Lógica de Identificação para Agendamento
+    let targetUserId = user.id
+    const email = user.email || ''
+    const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email)
+    let isAssistant = false
+
+    if (!isSuperAdmin) {
+       const { data: teamMember } = await supabase.from('clinic_team').select('psychologist_id').eq('email', email).eq('status', 'active').maybeSingle()
+       if (teamMember) {
+         targetUserId = teamMember.psychologist_id
+         isAssistant = true
+       }
+    }
+
+    // Validação de Acesso (Assinatura)
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('status, current_period_end')
+      .eq('user_id', targetUserId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const now = new Date();
+    const expirationDate = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
+    const hasActivePlan = subscription?.status === 'active';
+    const isTrialValid = subscription?.status === 'trialing' && expirationDate && expirationDate > now;
+
+    if (!hasActivePlan && !isTrialValid && !isSuperAdmin && !isAssistant) {
+      toast({ variant: "destructive", title: "Acesso Bloqueado", description: "Sua assinatura expirou. Regularize seu plano para agendar novas sessões." });
+      setLoading(false);
+      return;
+    }
+
     const startDate = new Date(`${formData.date}T${formData.time}:00`)
     
     const appointmentsToInsert = []
@@ -141,7 +219,6 @@ function AgendaContent() {
     const daysToAdd = formData.recurrence === 'Semanal' ? 7 : 
                       formData.recurrence === 'Quinzenal' ? 14 : 
                       formData.recurrence === 'Mensal' ? 30 : 0;
-
     const loopCount = formData.recurrence === 'Nenhuma' ? 1 : formData.repeat_count;
 
     for (let i = 0; i < loopCount; i++) {
@@ -156,7 +233,7 @@ function AgendaContent() {
       const end = new Date(currentStart.getTime() + parseInt(formData.duration) * 60000).toISOString()
 
       appointmentsToInsert.push({
-        psychologist_id: user?.id,
+        psychologist_id: targetUserId,
         patient_id: formData.patient_id,
         start_time: start,
         end_time: end,
@@ -252,18 +329,16 @@ function AgendaContent() {
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label className="font-bold text-slate-700">Paciente *</Label>
-              <Select onValueChange={(v) => setFormData({...formData, patient_id: v})}>
-                <SelectTrigger className="bg-white border-slate-300 shadow-sm h-11">
-                  <SelectValue placeholder="Selecione o paciente" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-slate-200 shadow-2xl z-[9999]">
-                  {patients.map(p => (
-                    <SelectItem key={p.id} value={p.id} className="hover:bg-slate-50 cursor-pointer">
-                      {p.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select 
+                value={formData.patient_id} 
+                onChange={(e) => setFormData({...formData, patient_id: e.target.value})}
+                className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+              >
+                <option value="" disabled>Selecione o paciente</option>
+                {patients.map(p => (
+                  <option key={p.id} value={p.id}>{p.full_name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -290,15 +365,16 @@ function AgendaContent() {
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
               <div className="space-y-2">
                 <Label className="font-bold flex items-center gap-2"><Repeat size={14}/> Frequência de Repetição</Label>
-                <Select value={formData.recurrence} onValueChange={v => setFormData({...formData, recurrence: v})}>
-                  <SelectTrigger className="bg-white border-slate-200 shadow-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 shadow-xl z-[999]">
-                    <SelectItem value="Nenhuma">Não repetir (Sessão única)</SelectItem>
-                    <SelectItem value="Semanal">Semanal</SelectItem>
-                    <SelectItem value="Quinzenal">Quinzenal</SelectItem>
-                    <SelectItem value="Mensal">Mensal</SelectItem>
-                  </SelectContent>
-                </Select>
+                <select 
+                  value={formData.recurrence} 
+                  onChange={(e) => setFormData({...formData, recurrence: e.target.value})}
+                  className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                >
+                  <option value="Nenhuma">Não repetir (Sessão única)</option>
+                  <option value="Semanal">Semanal</option>
+                  <option value="Quinzenal">Quinzenal</option>
+                  <option value="Mensal">Mensal</option>
+                </select>
               </div>
 
               {formData.recurrence !== 'Nenhuma' && (
@@ -320,16 +396,24 @@ function AgendaContent() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Tipo</Label>
-                <Select value={formData.type} onValueChange={v => setFormData({...formData, type: v})}>
-                  <SelectTrigger className="bg-white border-slate-200 shadow-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 shadow-xl z-[999]"><SelectItem value="Individual">Individual</SelectItem><SelectItem value="Casal">Casal</SelectItem></SelectContent>
-                </Select>
+                <select 
+                  value={formData.type} 
+                  onChange={(e) => setFormData({...formData, type: e.target.value})}
+                  className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                >
+                  <option value="Individual">Individual</option>
+                  <option value="Casal">Casal</option>
+                </select>
               </div>
               <div className="space-y-2"><Label>Duração</Label>
-                <Select defaultValue="50" onValueChange={v => setFormData({...formData, duration: v})}>
-                  <SelectTrigger className="bg-white border-slate-200 shadow-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 shadow-xl z-[999]"><SelectItem value="50">50 min</SelectItem><SelectItem value="90">90 min</SelectItem></SelectContent>
-                </Select>
+                <select 
+                  value={formData.duration} 
+                  onChange={(e) => setFormData({...formData, duration: e.target.value})}
+                  className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                >
+                  <option value="50">50 min</option>
+                  <option value="90">90 min</option>
+                </select>
               </div>
             </div>
             
@@ -341,10 +425,14 @@ function AgendaContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Valor (R$)</Label><Input value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="bg-white border-slate-200 focus:bg-white focus:ring-2 focus:ring-teal-500/20 shadow-sm" /></div>
               <div className="space-y-2"><Label>Pagamento</Label>
-                <Select value={formData.payment_status} onValueChange={v => setFormData({...formData, payment_status: v})}>
-                  <SelectTrigger className="bg-white border-slate-200 shadow-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 shadow-xl z-[999]"><SelectItem value="Pendente">Pendente</SelectItem><SelectItem value="Pago">Pago</SelectItem></SelectContent>
-                </Select>
+                <select 
+                  value={formData.payment_status} 
+                  onChange={(e) => setFormData({...formData, payment_status: e.target.value})}
+                  className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                >
+                  <option value="Pendente">Pendente</option>
+                  <option value="Pago">Pago</option>
+                </select>
               </div>
             </div>
 
@@ -396,7 +484,7 @@ function AgendaContent() {
           setCurrentTitle(arg.view.title)
           setCurrentView(arg.view.type)
         }}
-        editable={true}
+        editable={subscriptionStatus !== 'canceled'}
         dragRevertDuration={0}
         handleWindowResize={true}
         longPressDelay={50}

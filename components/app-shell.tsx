@@ -12,14 +12,16 @@ import { Loader2 } from "lucide-react"
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [loading, setLoading] = useState(true)
+  const [isMounted, setIsMounted] = useState(false)
   const [userData, setUserData] = useState<{ 
-    createdAt: string, 
+    trialEndsAt: string | Date, 
     status: string, 
     plan: string,
     isBlocked: boolean 
   } | null>(null)
 
   useEffect(() => {
+    setIsMounted(true)
     const supabase = createClient()
 
     const getData = async () => {
@@ -31,42 +33,62 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('created_at, subscription_status, plan_type, trial_ends_at')
-        .eq('id', user.id)
-        .single()
+      // 🛡️ PASSE LIVRE: Super Admins e Equipe (Sem bloqueios)
+      const admins = ['alvino@onemidia.tv.br', 'mentepsiclinic@gmail.com', 'onemidiamarketing@gmail.com']
+      const isAdmin = admins.includes(user.email || '')
 
-      // LÓGICA DE BLOQUEIO
-      const status = profile?.subscription_status || 'trialing'
-      const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null
+      const { data: teamMember } = await supabase
+        .from('clinic_team')
+        .select('status')
+        .eq('email', user.email)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (isAdmin || teamMember) {
+        setUserData({ isBlocked: false, status: 'active', plan: isAdmin ? 'Master' : 'Equipe', trialEndsAt: new Date() })
+        setLoading(false)
+        return
+      }
+
+      //  BUSCA REAL NA TABELA SUBSCRIPTIONS
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('status, current_period_end')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const status = sub?.status || 'trialing'
+      const periodEnd = sub?.current_period_end ? new Date(sub.current_period_end) : null
       const now = new Date()
       
-      // Bloqueia se: Não for 'active' E (não tiver data de trial ou trial já venceu)
-      const isPaid = status === 'active'
-      const isTrialValid = status === 'trialing' && trialEndsAt && trialEndsAt > now
-      const isBlocked = !isPaid && !isTrialValid
+      // Lógica de acesso rigorosa
+      const hasAccess = status === 'active' || (status === 'trialing' && periodEnd && periodEnd > now)
+      const isBlocked = !hasAccess
 
       setUserData({
-        createdAt: profile?.created_at || user.created_at,
+        // PRIORIDADE TOTAL AO BANCO: Se não houver data no banco, ele assume 'agora' (vencido)
+        trialEndsAt: periodEnd || new Date(), 
         status: status,
-        plan: profile?.plan_type || 'Profissional',
+        plan: 'Profissional',
         isBlocked: isBlocked
       })
       setLoading(false)
     }
 
     getData()
-  }, [pathname]) // Re-verifica ao mudar de página para garantir segurança
+  }, [])
 
   const hideSidebar =
     pathname === '/' ||
     pathname === '/login' ||
-    pathname?.startsWith('/portal/') ||
     pathname === '/planos' ||
-    pathname === '/registro'
+    pathname === '/registro' ||
+    (pathname?.startsWith('/portal/') && pathname !== '/portal')
 
-  // 1. Enquanto carrega, evita mostrar o sistema (segurança)
+  if (!isMounted) return null
+
   if (loading && !hideSidebar) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
@@ -75,8 +97,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // 2. SE ESTIVER BLOQUEADO (Trial vencido e não pago)
-  // E não for uma página pública, interrompemos tudo e mostramos o Overlay
   if (userData?.isBlocked && !hideSidebar) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -85,30 +105,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // 3. SE TIVER ACESSO (Trial ativo ou Pago), renderiza o sistema normal
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      
+    <div className="flex h-screen overflow-hidden bg-slate-50">
       {!hideSidebar && (
-        <aside className="hidden lg:block w-64 border-r relative bg-white">
+        <aside className="hidden lg:block w-64 border-r bg-white h-full flex-shrink-0">
           <Sidebar />
         </aside>
       )}
 
-      <div className="flex flex-col flex-1 min-w-0">
-
+      <div className="flex flex-col flex-1 min-w-0 h-full overflow-y-auto relative scroll-smooth">
         {!hideSidebar && <MobileNav />}
 
-        {!hideSidebar && userData && (
+        {/* ✅ BANNER ÚNICO E DISCRETO NO TOPO */}
+        {!hideSidebar && userData && userData.status === 'trialing' && (
           <TrialBanner
             key="global-trial-banner"
-            createdAt={userData.createdAt}
+            trialEndsAt={userData.trialEndsAt}
             status={userData.status}
             planName={userData.plan}
           />
         )}
 
-        <main className="flex-1 overflow-x-hidden">
+        <main className="flex-1 bg-slate-50">
           <div className="p-4 md:p-8">
             <div className="max-w-[1600px] mx-auto">
               {children}

@@ -1,11 +1,32 @@
 'use client'
 
-import Link from "next/link"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Lock, CreditCard, CheckCircle2, Zap } from "lucide-react"
 
 export function SubscriptionRequiredOverlay() {
+  const [checkoutUrl, setCheckoutUrl] = useState("/planos") // Fallback inicial
+  const router = useRouter()
+  const supabase = createClient()
+
+  useEffect(() => {
+    async function fetchSettings() {
+      const { data } = await supabase.from('global_settings').select('checkout_url').eq('id', 1).single()
+      if (data?.checkout_url) {
+        setCheckoutUrl(data.checkout_url)
+      }
+    }
+    fetchSettings()
+  }, [supabase])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 animate-in fade-in zoom-in duration-500">
       <Card className="w-full max-w-md shadow-2xl border-teal-100 bg-white overflow-hidden">
@@ -41,21 +62,21 @@ export function SubscriptionRequiredOverlay() {
 
         <CardFooter className="flex flex-col gap-3 pb-8 px-8">
           <Button className="w-full h-14 text-lg font-black bg-teal-600 hover:bg-teal-700 text-white shadow-lg shadow-teal-100 transition-all hover:scale-[1.02]" asChild>
-            <Link href="/planos">
+            <a href={checkoutUrl}>
               <CreditCard className="mr-2 h-5 w-5" /> ATIVAR PLANO PROFISSIONAL
-            </Link>
+            </a>
           </Button>
           
           <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
-            🔒 Pagamento 100% Seguro via Stripe
+            🔒 Pagamento 100% Seguro via Asaas
           </p>
         </CardFooter>
       </Card>
       
       {/* Botão sutil para logout caso ele queira trocar de conta */}
-      <Link href="/login" className="mt-8 text-sm font-medium text-slate-400 hover:text-teal-600 transition-colors">
+      <button onClick={handleLogout} className="mt-8 text-sm font-medium text-slate-400 hover:text-teal-600 transition-colors">
         Sair ou trocar de conta
-      </Link>
+      </button>
     </div>
   )
 }

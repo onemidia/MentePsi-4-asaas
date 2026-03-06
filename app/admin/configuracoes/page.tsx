@@ -40,14 +40,23 @@ export default function SaasSettings() {
   }, [supabase])
 
   const handleSave = async () => {
+    // Consistência de URL: Garante protocolo http/https
+    if (settings.checkout_url && !settings.checkout_url.startsWith('http://') && !settings.checkout_url.startsWith('https://')) {
+      toast({ variant: "destructive", title: "URL Inválida", description: "O link de pagamento deve começar com http:// ou https://" })
+      return
+    }
+
     setSaving(true)
+    
+    // Validação de Número: Evita negativos ou NaN
+    const trialDaysValue = Math.max(0, parseInt(settings.trial_days) || 30)
     
     const { error: globalError } = await supabase.from('global_settings').upsert({
       id: 1,
       whatsapp: settings.whatsapp_suporte,
       support_email: settings.email_contato,
-      checkout_url: settings.checkout_url,
-      trial_days: parseInt(settings.trial_days)
+      checkout_url: settings.checkout_url || null, // Garante null se vazio para evitar erro de tipo
+      trial_days: trialDaysValue
     })
 
     if (!globalError) {
@@ -132,7 +141,7 @@ export default function SaasSettings() {
       </div>
 
       <div className="flex justify-end pt-4 border-t border-slate-200">
-        <Button onClick={handleSave} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white px-10 h-12 font-black rounded-xl shadow-lg transition-all shadow-teal-100">
+        <Button onClick={handleSave} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white px-10 h-12 font-black rounded-xl shadow-lg transition-all active:scale-95 shadow-teal-100">
           {saving ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
           SALVAR CONFIGURAÇÕES
         </Button>

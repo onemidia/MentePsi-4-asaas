@@ -75,23 +75,22 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
       return
     }
 
-    // 🔒 TRAVA DE PLANO: Limite de Pacientes
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('plan_type')
-      .eq('id', user.id)
+    // 🔒 TRAVA DE PLANO: Validação de Assinatura Ativa
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('status, current_period_end')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single()
-    
-    const plan = profile?.plan_type?.toLowerCase() || 'iniciante'
-    const { count } = await supabase
-      .from('patients')
-      .select('*', { count: 'exact', head: true })
-      .eq('psychologist_id', user.id)
 
-    const currentCount = count || 0
+    const now = new Date()
+    const expirationDate = subscription?.current_period_end ? new Date(subscription.current_period_end) : null
+    const hasActivePlan = subscription?.status === 'active'
+    const isTrialValid = subscription?.status === 'trialing' && expirationDate && expirationDate > now
 
-    if (plan === 'iniciante' && currentCount >= 3) {
-      toast({ variant: "destructive", title: "Limite Atingido", description: `O plano gratuito permite apenas 3 pacientes. Faça upgrade para o Plano Profissional para acesso ilimitado.` })
+    if (!hasActivePlan && !isTrialValid) {
+      toast({ variant: "destructive", title: "Acesso Bloqueado", description: "Sua assinatura ou período de teste expirou. Regularize seu plano para continuar cadastrando pacientes." })
       setLoading(false)
       return
     }

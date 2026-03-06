@@ -14,16 +14,16 @@ export async function createManualSubscription({
   // cancela assinaturas ativas anteriores
   await supabaseAdmin
     .from('subscriptions')
-    .update({ status: 'CANCELED' })
+    .update({ status: 'canceled' })
     .eq('user_id', userId)
-    .eq('status', 'ACTIVE')
+    .eq('status', 'active')
 
   const { data, error } = await supabaseAdmin
     .from('subscriptions')
     .insert({
       user_id: userId,
       plan_id: planId,
-      status: 'ACTIVE',
+      status: 'active',
       billing_type: 'MANUAL',
       current_period_start: new Date().toISOString(),
       current_period_end: expiresAt,
@@ -53,16 +53,16 @@ export async function createAsaasSubscription({
   // cancela assinaturas ativas anteriores
   await supabaseAdmin
     .from('subscriptions')
-    .update({ status: 'CANCELED' })
+    .update({ status: 'canceled' })
     .eq('user_id', userId)
-    .eq('status', 'ACTIVE')
+    .eq('status', 'active')
 
   const { data, error } = await supabaseAdmin
     .from('subscriptions')
     .insert({
       user_id: userId,
       plan_id: planId,
-      status: 'PENDING',
+      status: 'pending',
       billing_type: 'ASAAS',
       asaas_customer_id: asaasCustomerId,
       asaas_subscription_id: asaasSubscriptionId,

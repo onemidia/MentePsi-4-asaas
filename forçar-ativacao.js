@@ -14,12 +14,12 @@ async function testarWebhook() {
   const token = 'whsec_hL9Z8Y8VYfU9ax_RLzZjCejBPSaJN0jQBkmvwl5u6sw';
 
   const payload = {
-    "event": "PAYMENT_CONFIRMED",
+    "event": "payment_confirmed",
     "payment": {
       "customer": "cus_000163882455",
       "value": 5.90,
       "status": "CONFIRMED",
-      // "externalReference": "ID_DO_USUARIO_AQUI" // <--- O BANCO SÓ ATUALIZA SE VOCÊ MANDAR O ID AQUI!
+      "externalReference": "COLOQUE_SEU_ID_DO_SUPABASE_AQUI"
     },
     "customerEmail": "marronmidia563@gmail.com"
   };

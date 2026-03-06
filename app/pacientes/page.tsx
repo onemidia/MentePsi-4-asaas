@@ -3,14 +3,11 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/client'
-import { getPlanLimit } from '@/lib/planLimits'
 import { 
   Search, 
   Phone,
   FileText,
   Calendar,
-  AlertTriangle,
-  Lock,
   ChevronLeft,
   ChevronRight,
   Trash2
@@ -31,13 +28,6 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { NewPatientModal } from '@/app/dashboard/new-patient-modal'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -52,8 +42,6 @@ export default function PatientsPage() {
   const [patients, setPatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [planLimit, setPlanLimit] = useState(0)
-  const [isLimitReached, setIsLimitReached] = useState(false)
   
   // Estados de Paginação e Filtro
   const [currentPage, setCurrentPage] = useState(0)
@@ -71,29 +59,14 @@ export default function PatientsPage() {
         return
       }
 
-      // Busca Pacientes e Dados do Plano em paralelo
-      const [patientsRes, profileRes] = await Promise.all([
-        supabase
-          .from('patients')
-          .select('*')
-          .eq('psychologist_id', user.id)
-          .order('full_name', { ascending: true }),
-        
-        supabase
-          .from('profiles')
-          .select('plan_type, subscription_status, created_at, trial_ends_at')
-          .eq('id', user.id)
-          .single()
-      ])
+      const { data } = await supabase
+        .from('patients')
+        .select('*')
+        .eq('psychologist_id', user.id)
+        .order('full_name', { ascending: true })
 
-      if (patientsRes.data) {
-        setPatients(patientsRes.data)
-        
-        // Lógica de Feature Gating
-        const currentCount = patientsRes.data.length
-        const limit = getPlanLimit(profileRes.data, 'maxPatients')
-        setPlanLimit(limit)
-        setIsLimitReached(currentCount >= limit)
+      if (data) {
+        setPatients(data)
       }
       setLoading(false)
   }, [])
@@ -157,37 +130,9 @@ export default function PatientsPage() {
             </Link>
           </Button>
           
-          {/* BLOQUEIO DE FEATURE: NOVO PACIENTE */}
-          {isLimitReached ? (
-            <Button disabled variant="secondary" className="w-full sm:w-auto opacity-80 cursor-not-allowed gap-2 bg-slate-200 text-slate-500">
-              <Lock className="h-4 w-4" />
-              Novo Paciente
-            </Button>
-          ) : (
-            <NewPatientModal onSuccess={fetchPatients} />
-          )}
+          <NewPatientModal onSuccess={fetchPatients} />
         </div>
       </div>
-
-      {/* BANNER DE LIMITE ATINGIDO */}
-      {isLimitReached && !loading && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-amber-100 rounded-full text-amber-700 mt-1 sm:mt-0">
-              <AlertTriangle className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-amber-900">Limite de Pacientes Atingido ({patients.length}/{planLimit})</h3>
-              <p className="text-sm text-amber-800 mt-1">
-                Sua assinatura não está ativa. Para cadastrar novos pacientes, por favor, regularize seu plano.
-              </p>
-            </div>
-          </div>
-          <Button asChild size="sm" className="bg-amber-600 hover:bg-amber-700 text-white whitespace-nowrap shadow-sm">
-            <Link href="/planos">Fazer Upgrade</Link>
-          </Button>
-        </div>
-      )}
 
       <Card className="border-slate-200 shadow-md bg-white">
         <CardHeader className="px-4 py-6">
@@ -276,20 +221,19 @@ export default function PatientsPage() {
 
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Select value={patient.status || 'Ativo'} onValueChange={(v) => handleStatusChange(patient.id, v)}>
-                          <SelectTrigger className={`w-[110px] h-8 text-xs font-bold border-none rounded-lg focus:ring-0 ${
+                        <select 
+                          value={patient.status || 'Ativo'} 
+                          onChange={(e) => handleStatusChange(patient.id, e.target.value)}
+                          className={`w-[110px] h-8 text-xs font-bold border-none rounded-lg focus:ring-0 focus:outline-none cursor-pointer ${
                             patient.status === 'Ativo' ? 'bg-emerald-100 text-emerald-700' : 
                             patient.status === 'Inativo' ? 'bg-slate-100 text-slate-600' : 
                             'bg-amber-100 text-amber-700'
-                          }`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Ativo">Ativo</SelectItem>
-                            <SelectItem value="Inativo">Inativo</SelectItem>
-                            <SelectItem value="Pendente">Pendente</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          }`}
+                        >
+                          <option value="Ativo">Ativo</option>
+                          <option value="Inativo">Inativo</option>
+                          <option value="Pendente">Pendente</option>
+                        </select>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg" onClick={() => setPatientToDelete(patient.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/client'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from '@/components/ui/button'
-import { Search, FileText, User, Printer, Loader2, Trash2, MessageCircle, ChevronLeft, ChevronRight, Plus } from "lucide-react"
+import { Search, FileText, User, Printer, Loader2, Trash2, MessageCircle, ChevronLeft, ChevronRight, Plus, Lock } from "lucide-react"
 import { NewDocumentModal } from '@/components/new-document-modal'
 import { useToast } from "@/hooks/use-toast"
 
@@ -56,6 +56,12 @@ export default function DocumentsPage() {
       .not('title', 'ilike', '%Comprovante%')
       .range(from, to)
 
+    // AÇÃO 2: Aplicar trava de segurança para assistentes
+    const role = localStorage.getItem('currentView');
+    if (role === 'assistant') {
+      query = query.eq('is_private', false);
+    }
+
     if (searchTerm) {
       query = query.ilike('title', `%${searchTerm}%`)
     }
@@ -84,7 +90,7 @@ export default function DocumentsPage() {
       const { data } = await supabase
         .from('professional_profile')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .single()
         
       if (data) setProfessionalData(data)
@@ -123,69 +129,81 @@ export default function DocumentsPage() {
     window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, '_blank')
   }
 
-  const handlePrint = (doc: any) => {
+    const handlePrint = (doc: any) => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
 
     let content = doc.content || ''
-    if (professionalData?.city) {
-      content = content.replace(/\[CIDADE\]/g, professionalData.city)
-    }
-
+    
+    // ✅ PRIORIDADE: Tenta pegar a logo do documento, se não tiver, pega do perfil carregado
+    const logoUrl = doc.clinic_logo_url || professionalData?.logo_url
+    const clinicName = doc.clinic_name || professionalData?.clinic_name || professionalData?.full_name || 'Documento Oficial'
+    
     const patientName = doc.patients?.full_name || 'Paciente'
     const patientCpf = doc.patients?.cpf || 'Não informado'
-
-    const clinicName = doc.clinic_name || professionalData?.clinic_name || professionalData?.full_name || 'Documento Oficial'
-    const logoUrl = doc.clinic_logo_url || professionalData?.logo_url
     const docTitle = doc.title || 'Documento'
 
     const signatureName = professionalData?.full_name || doc.professional_name || 'Profissional'
     const signatureCrp = professionalData?.crp || doc.professional_crp || ''
-    const signatureCpf = professionalData?.cpf || ''
 
     printWindow.document.write(`
       <html>
         <head>
           <title>${docTitle}</title>
           <style>
-            @page { size: A4; margin: 0; }
+            @page { size: A4; margin: 1.5cm; size: auto; }
             body { 
               font-family: 'Georgia', serif; 
               font-size: 12pt; 
               line-height: 1.6; 
               color: #1a1a1a;
-              margin: 1cm;
-              padding: 40px;
+              padding: 0;
+              margin: 0;
+              -webkit-print-color-adjust: exact;
             }
-            .header { text-align: center; margin-bottom: 60px; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; }
-            .header img { height: 80px; max-width: 200px; object-fit: contain; margin-bottom: 10px; mix-blend-mode: multiply; }
-            .header h1 { font-size: 20pt; margin: 0; color: #1f2937; text-transform: uppercase; letter-spacing: 1px; }
-            .patient-info { margin-bottom: 30px; font-size: 10pt; color: #666; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-            .content { text-align: justify; white-space: pre-wrap; min-height: 400px; }
-            .footer { margin-top: 60px; text-align: center; }
-            .signature-line { border-top: 1px solid #000; width: 300px; margin: 0 auto 10px; }
-            .prof-name { font-weight: bold; text-transform: uppercase; }
-            .prof-details { font-size: 10pt; color: #000; }
+            .document-container {
+              page-break-inside: avoid;
+              width: 100%;
+            }
+            .long-text {
+              page-break-after: auto;
+            }
+            .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #0d9488; padding-bottom: 20px; }
+            /* 🟢 AJUSTE DA LOGO: Forçamos a exibição se a URL existir */
+            .header img { height: 100px; max-width: 250px; object-fit: contain; margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto; }
+            .header h1 { font-size: 18pt; margin: 0; color: #111827; text-transform: uppercase; }
+            .patient-info { margin-bottom: 30px; font-size: 10pt; color: #4b5563; text-align: center; background: #f9fafb; padding: 10px; border-radius: 8px; }
+            .content { text-align: justify; white-space: pre-wrap; min-height: 500px; }
+            .footer { margin-top: 50px; text-align: center; }
+            .signature-line { border-top: 1px solid #000; width: 250px; margin: 0 auto 5px; }
+            .prof-name { font-weight: bold; }
           </style>
         </head>
         <body>
-          <div class="header">
-            ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : ''}
-            <h1>${clinicName}</h1>
-          </div>
-          <div class="patient-info">
-            <strong>Paciente:</strong> ${patientName} | <strong>CPF:</strong> ${patientCpf}
-          </div>
-          <div class="content">${content}</div>
-          <div class="footer">
-            <div class="signature-line"></div>
-            <div class="prof-name">${signatureName}</div>
-            <div class="prof-details">
-              ${signatureCrp ? `CRP: ${signatureCrp}` : ''}
-              ${signatureCpf ? ` • CPF: ${signatureCpf}` : ''}
+          <div class="document-container">
+            <div class="header">
+              ${logoUrl ? `<img src="${logoUrl}" alt="Logo" onerror="this.style.display='none'" />` : ''}
+              <h1>${clinicName}</h1>
+            </div>
+            <div class="patient-info">
+              <strong>Paciente:</strong> ${patientName} | <strong>CPF:</strong> ${patientCpf}
+            </div>
+            <div class="content long-text">${content}</div>
+            <div class="footer">
+              <div class="signature-line"></div>
+              <div class="prof-name">${signatureName}</div>
+              <div class="prof-details">CRP: ${signatureCrp}</div>
             </div>
           </div>
-          <script>window.onload = () => { window.print(); window.close(); }</script>
+          <script>
+            // Aguarda a imagem carregar antes de imprimir
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+                window.close();
+              }, 500);
+            };
+          </script>
         </body>
       </html>
     `)
@@ -243,12 +261,15 @@ export default function DocumentsPage() {
                       <FileText className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-bold text-slate-900 truncate max-w-[120px] sm:max-w-[200px] text-sm">{report.title || report.type}</p>
+                      <div className="flex items-center gap-2">
+                        {report.is_private && <Lock size={14} className='text-red-500 shrink-0' />}
+                        <p className="font-bold text-slate-900 truncate max-w-[120px] sm:max-w-[200px] text-sm">{report.title || report.type}</p>
+                      </div>
                       <div className="flex gap-2 text-xs text-slate-500 mt-0.5 items-center">
                         <span className="flex items-center gap-1 font-medium text-slate-700 truncate max-w-[120px] sm:max-w-[200px]">
                           <User className="h-3 w-3 shrink-0" /> {report.patients?.full_name}
                         </span>
-                        <span className="shrink-0 hidden sm:inline">•</span>
+                        <span className="shrink-0 hidden sm:inline"> • </span>
                         <span className="shrink-0 hidden sm:inline">Criado em {new Date(report.created_at).toLocaleDateString('pt-BR')}</span>
                       </div>
                     </div>

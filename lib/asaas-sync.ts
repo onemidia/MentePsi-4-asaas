@@ -2,11 +2,11 @@ import { supabaseAdmin } from './supabase-admin'
 
 export async function syncUserWithAsaas(userId: string, newData: { email?: string; name?: string; phone?: string }) {
   try {
-    // 1. Busca o ID do Asaas que guardamos no banco
+    // 1. Busca o ID do Asaas no Perfil Profissional
     const { data: profile } = await supabaseAdmin
-      .from('profiles')
+      .from('professional_profile')
       .select('asaas_customer_id, email')
-      .eq('id', userId)
+      .eq('user_id', userId)
       .single()
 
     if (!profile?.asaas_customer_id) {

@@ -14,7 +14,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Loader2, Sparkles, FileText, Lock } from "lucide-react"
 import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
@@ -56,7 +55,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const { toast } = useToast()
-  const { planLimits, loading: subscriptionLoading } = useSubscription()
+  const { loading: subscriptionLoading } = useSubscription()
   
   const [patients, setPatients] = useState<any[]>([])
   const [professional, setProfessional] = useState<any>(null)
@@ -66,7 +65,8 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
     patient_id: preSelectedPatientId || '',
     type: '',
     title: '',
-    content: ''
+    content: '',
+    is_private: false
   })
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const { data: prof } = await supabase.from('professional_profile').select('*').eq('id', user.id).single()
+        const { data: prof } = await supabase.from('professional_profile').select('*').eq('user_id', user.id).maybeSingle()
         if (prof) {
           setProfessional(prof)
           setHeaderTitle(prof.clinic_name || prof.full_name || "")
@@ -98,14 +98,16 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
     const patient = patients.find(p => p.id === patientId)
     const today = new Date().toLocaleDateString('pt-BR')
     
+    const safeReplace = (val: string | undefined | null) => val ? val.trim() : "_______"
+
     return template
-      .replace(/\[NOME\]/g, patient?.full_name || "...")
-      .replace(/\[CPF\]/g, patient?.cpf || "...")
-      .replace(/\[NOME DO PACIENTE\]/g, patient?.full_name || "...")
-      .replace(/\[CPF DO PACIENTE\]/g, patient?.cpf || "...")
-      .replace(/\[NOME DO PROFISSIONAL\]/g, professional?.full_name || "...")
-      .replace(/\[CRP\]/g, professional?.crp || "...")
-      .replace(/\[CIDADE\]/g, professional?.city || "Sua Cidade")
+      .replace(/\[NOME\]/g, safeReplace(patient?.full_name))
+      .replace(/\[CPF\]/g, safeReplace(patient?.cpf))
+      .replace(/\[NOME DO PACIENTE\]/g, safeReplace(patient?.full_name))
+      .replace(/\[CPF DO PACIENTE\]/g, safeReplace(patient?.cpf))
+      .replace(/\[NOME DO PROFISSIONAL\]/g, safeReplace(professional?.full_name))
+      .replace(/\[CRP\]/g, safeReplace(professional?.crp))
+      .replace(/\[CIDADE\]/g, safeReplace(professional?.city))
       .replace(/\[DATA\]/g, today)
   }
 
@@ -142,6 +144,13 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
         .limit(10);
 
       if (evolError) throw evolError;
+
+      if (!evolutions || evolutions.length === 0) {
+        toast({ 
+          title: "Aviso", 
+          description: "Nenhuma evolução encontrada para este paciente. O documento será gerado apenas com base no modelo padrão." 
+        });
+      }
 
       const { data, error } = await supabase.functions.invoke('generate-document-ia', {
         body: {
@@ -244,11 +253,12 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
       patient_id: formData.patient_id,
       title: formData.title,
       type: formData.type,
-      content: `${headerText}\n\n${formData.content}`,
+      content: `${headerText}\n\n${formData.content.trim()}`,
       professional_name: professional?.full_name, // Usa o nome pessoal para a assinatura
       professional_crp: professional?.crp,
-      clinic_logo_url: professional?.logo_url, // NOVO CAMPO: Salva a URL da logo no registro
-      clinic_name: headerTitle // NOVO CAMPO: Garante que o nome da clínica seja o personalizado
+      clinic_logo_url: professional?.logo_url, // Salva a logo atual no documento
+      clinic_name: headerTitle, // Salva o nome personalizado
+      is_private: formData.is_private
     })
 
     if (!error) {
@@ -277,27 +287,39 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Paciente</Label>
-              <Select onValueChange={handlePatientChange} value={formData.patient_id}>
-                <SelectTrigger><SelectValue placeholder="Selecione o paciente" /></SelectTrigger>
-                <SelectContent>
-                  {patients.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <select 
+                value={formData.patient_id} 
+                onChange={(e) => handlePatientChange(e.target.value)}
+                className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" disabled>Selecione o paciente</option>
+                {patients.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              </select>
             </div>
             <div className="space-y-2">
               <Label>Modelo de Documento</Label>
-              <Select onValueChange={handleTypeChange} value={formData.type}>
-                <SelectTrigger><SelectValue placeholder="Escolha o tipo..." /></SelectTrigger>
-                <SelectContent>
-                  {Object.keys(TEMPLATES).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <select 
+                value={formData.type} 
+                onChange={(e) => handleTypeChange(e.target.value)}
+                className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" disabled>Escolha o tipo...</option>
+                {Object.keys(TEMPLATES).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
           </div>
 
           <div className="space-y-2">
             <Label>Título do Arquivo</Label>
             <Input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+          </div>
+
+          <div className="flex items-center space-x-3 p-3 rounded-lg bg-red-50 border border-red-100 my-2">
+            <input id="is_private" type="checkbox" checked={formData.is_private || false} onChange={(e) => setFormData({...formData, is_private: e.target.checked})} className="w-5 h-5 text-red-600 border-red-300 rounded focus:ring-red-500 cursor-pointer accent-red-600" />
+            <Label htmlFor="is_private" className="text-sm font-bold text-red-700 flex items-center gap-2 cursor-pointer">
+              <Lock size={14} />
+              Marcar como Sigiloso (Invisível para o Assistente)
+            </Label>
           </div>
 
           <div className="space-y-0">

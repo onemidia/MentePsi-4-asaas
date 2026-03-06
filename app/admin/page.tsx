@@ -49,38 +49,60 @@ export default function AdminDashboard() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const pricingMap: { [key: string]: number } = {
-    'iniciante': 19.90,
-    'basico': 29.90,
-    'profissional': 49.90
-  }
-
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('profiles')
+      
+      // 1. Busca Perfis
+      const { data: profiles, error } = await supabase
+        .from('professional_profile')
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (data) setAllProfiles(data)
+      // 2. Busca Assinaturas
+      const { data: subs } = await supabase
+        .from('subscriptions')
+        .select('user_id, status, plan_id, current_period_end, saas_plans(slug, price_monthly)')
+
+      if (profiles) {
+        const mergedData = profiles.map(profile => {
+          const userSub = subs?.find(s => s.user_id === profile.user_id)
+          
+          return {
+            ...profile,
+            // Fallbacks de segurança para não sumir da tela
+            id: profile.user_id,
+            full_name: profile.full_name || 'Sem Nome',
+            email: profile.email || 'E-mail não sincronizado',
+            created_at: profile.created_at || new Date().toISOString(),
+            subscription_status: userSub?.status || 'trialing', 
+            plan_type: userSub?.saas_plans?.slug || 'professional',
+            plan_price: userSub?.saas_plans?.price_monthly || 59.90,
+          }
+        })
+        setAllProfiles(formattedData)
+      }
       setLoading(false)
     }
     fetchData()
   }, [])
 
-  // 🔥 LÓGICA DE FILTRAGEM (Busca + Data)
+  // 🔥 LÓGICA DE FILTRAGEM (Imune a campos nulos)
   const filteredData = allProfiles.filter(profile => {
+    const search = searchTerm.toLowerCase()
+    
     const matchesSearch = 
-      profile.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      profile.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      (profile.full_name || '').toLowerCase().includes(search) ||
+      (profile.email || '').toLowerCase().includes(search)
     
     let matchesDate = true
     if (startDate || endDate) {
-      const createdAt = new Date(profile.created_at)
+      // Se não houver data, assume uma data neutra para não filtrar pra fora
+      const createdAt = profile.created_at ? new Date(profile.created_at) : new Date(0)
       if (startDate && new Date(startDate) > createdAt) matchesDate = false
       if (endDate && new Date(endDate + 'T23:59:59') < createdAt) matchesDate = false
     }
+
     return matchesSearch && matchesDate
   })
 
@@ -91,18 +113,43 @@ export default function AdminDashboard() {
     trialing: filteredData.filter(p => p.subscription_status === 'trialing').length,
     mrr: filteredData
       .filter(p => p.subscription_status === 'active')
-      .reduce((acc, user) => acc + (pricingMap[user.plan_type || 'profissional'] || 49.90), 0)
+      .reduce((acc, user) => acc + (user.plan_price || 0), 0)
   }
 
   const updateSubscriptionStatus = async (userId: string, newStatus: string) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ subscription_status: newStatus })
-      .eq('id', userId)
+    // Atualiza ou Cria na tabela subscriptions
+    const { data: existingSub } = await supabase.from('subscriptions').select('id').eq('user_id', userId).single()
+    
+    let error;
+    
+    if (existingSub) {
+      const { error: updateError } = await supabase
+        .from('subscriptions')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+      error = updateError
+    } else {
+      // Busca o ID real do plano profissional
+      const { data: plan } = await supabase.from('saas_plans').select('id').eq('slug', 'professional').single()
+      
+      if (plan) {
+        const { error: insertError } = await supabase
+          .from('subscriptions')
+          .insert({ 
+            user_id: userId, 
+            status: newStatus, 
+            plan_id: plan.id,
+            updated_at: new Date().toISOString()
+          })
+        error = insertError
+      } else {
+        error = { message: "Plano profissional não encontrado." }
+      }
+    }
 
     if (!error) {
-      setAllProfiles(prev => prev.map(u => u.id === userId ? { ...u, subscription_status: newStatus } : u))
-      toast({ title: "Status atualizado!" })
+      setAllProfiles(prev => prev.map(u => u.user_id === userId ? { ...u, subscription_status: newStatus } : u))
+      toast({ title: "Status atualizado com sucesso!" })
     }
   }
 
@@ -213,6 +260,7 @@ export default function AdminDashboard() {
                     >
                       <option value="trialing">TRIAL</option>
                       <option value="active">PAGO</option>
+                      <option value="past_due">VENCIDO</option>
                       <option value="canceled">CANCELADO</option>
                     </select>
                   </TableCell>

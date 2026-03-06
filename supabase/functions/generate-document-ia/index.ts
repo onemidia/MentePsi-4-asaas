@@ -32,12 +32,13 @@ serve(async (req) => {
          REGRAS: 
          1. Utilize termos formais como 'Em observância ao', 'Pelo presente parecer', 'Sintomatologia'.
          2. Mantenha o sentido original, mas eleve o tom para Documento Oficial.
-         3. Retorne APENAS o texto revisado.`
+         3. Retorne APENAS o texto revisado.
+         4. Não utilize formatação Markdown (como # ou **). Retorne apenas texto puro.`
       : `Você é um Perito Psicólogo Sênior. 
          Sua tarefa é REDIGIR um [${documentType}] oficial.
          
          HISTÓRICO DO PACIENTE: ${evolutionContext}
-         DADOS: Paciente ${patientData.full_name}, CPF ${patientData.cpf}. Profissional ${professionalData.full_name}, CRP ${professionalData.crp}.
+         DADOS: Paciente ${patientData?.full_name || 'NOME NÃO INFORMADO'}, CPF ${patientData?.cpf || 'CPF NÃO INFORMADO'}. Profissional ${professionalData?.full_name || 'PROFISSIONAL NÃO INFORMADO'}, CRP ${professionalData?.crp || 'CRP NÃO INFORMADO'}.
          
          MODELO BASE: ${template}
 
@@ -45,16 +46,34 @@ serve(async (req) => {
          1. Substitua tags [NOME], [CPF], [DATA] por dados reais.
          2. Use gramática impecável e termos formais (Normas da ABNT e CFP).
          3. Não invente diagnósticos, baseie-se no histórico fornecido.
-         4. Retorne APENAS o texto final do documento.`;
+         4. Retorne APENAS o texto final do documento.
+         5. Não utilize formatação Markdown (como # ou **). Retorne apenas texto puro.`;
 
     // 4. Chamada para a API do Gemini
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2, // Baixa criatividade para documentos técnicos
+          topP: 0.8,
+          topK: 40,
+          maxOutputTokens: 2048,
+        },
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+        ]
       })
     })
+    clearTimeout(timeoutId)
 
         // ... (código anterior do fetch)
     const data = await response.json()
@@ -72,7 +91,9 @@ serve(async (req) => {
       )
     }
 
-    const generatedText = data.candidates[0].content.parts[0].text
+    let generatedText = data.candidates[0].content.parts[0].text
+    // Remove marcações de Markdown que a IA costuma colocar
+    generatedText = generatedText.replace(/```[a-z]*\n/g, '').replace(/```/g, '').trim();
 
     return new Response(JSON.stringify({ content: generatedText }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

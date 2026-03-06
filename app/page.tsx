@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, ArrowRight, LayoutDashboard, ShieldCheck, Calendar, Quote, Loader2 } from "lucide-react"
+import { CheckCircle, ArrowRight, LayoutDashboard, ShieldCheck, Calendar, Quote } from "lucide-react"
 
 export default function LandingPage() {
   return (
@@ -63,9 +63,9 @@ export default function LandingPage() {
                    <LayoutDashboard size={48} className="opacity-20" />
                 </div>
                 <Image 
-                  src="/foto-landingpage1.jpg" 
-                  alt="Preview do Dashboard MentePsi" 
-                  fill 
+                  src="/foto-page.jpg" 
+                  alt="Dashboard" 
+                  fill
                   className="object-cover object-top"
                   priority
                 />
@@ -121,10 +121,10 @@ export default function LandingPage() {
               <div className="relative w-64 h-64 lg:w-80 lg:h-80 rounded-3xl overflow-hidden shadow-2xl border-8 border-white ring-1 ring-slate-100">
                   <div className="absolute inset-0 bg-slate-200 animate-pulse" />
                   <Image 
-                    src="/aline-correa.png" 
+                    src="/foto-aline-correa.jpg" 
                     alt="Dra. Aline Correa" 
-                    fill 
-                    className="object-cover z-10"
+                    fill
+                    className="object-cover"
                   />
               </div>
             </div>
