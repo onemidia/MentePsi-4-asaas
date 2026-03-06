@@ -21,33 +21,17 @@ serve(async (req) => {
     const isRefinement = !!contentToRefine;
 
     const evolutionContext = evolutions?.map((e: any) => 
-      `Data: ${new Date(e.created_at).toLocaleDateString('pt-BR')}\nNota: ${e.content}`
-    ).join('\n\n') || "Sem histórico disponível.";
+      `Data: ${e.date || 'N/A'}\nNota: ${e.content}`
+    ).join('\n\n') || "Nenhum histórico de sessões encontrado.";
 
-    // 3. Prompt Blindado (Foco em Ortografia e Termos Legais)
-    const prompt = isRefinement 
-      ? `Aja como um revisor oficial de documentos psicológicos. 
-         TAREFA: Corrigir ortografia, gramática e aplicar terminologia técnica/legal ao texto abaixo.
-         TEXTO ORIGINAL: ${contentToRefine}
-         REGRAS: 
-         1. Utilize termos formais como 'Em observância ao', 'Pelo presente parecer', 'Sintomatologia'.
-         2. Mantenha o sentido original, mas eleve o tom para Documento Oficial.
-         3. Retorne APENAS o texto revisado.
-         4. Não utilize formatação Markdown (como # ou **). Retorne apenas texto puro.`
-      : `Você é um Perito Psicólogo Sênior. 
-         Sua tarefa é REDIGIR um [${documentType}] oficial.
-         
-         HISTÓRICO DO PACIENTE: ${evolutionContext}
-         DADOS: Paciente ${patientData?.full_name || 'NOME NÃO INFORMADO'}, CPF ${patientData?.cpf || 'CPF NÃO INFORMADO'}. Profissional ${professionalData?.full_name || 'PROFISSIONAL NÃO INFORMADO'}, CRP ${professionalData?.crp || 'CRP NÃO INFORMADO'}.
-         
-         MODELO BASE: ${template}
-
-         REGRAS DE OURO:
-         1. Substitua tags [NOME], [CPF], [DATA] por dados reais.
-         2. Use gramática impecável e termos formais (Normas da ABNT e CFP).
-         3. Não invente diagnósticos, baseie-se no histórico fornecido.
-         4. Retorne APENAS o texto final do documento.
-         5. Não utilize formatação Markdown (como # ou **). Retorne apenas texto puro.`;
+    const prompt = isRefinement
+      ? `Revisão Técnica: Corrija gramática e aplique termos oficiais ao texto: ${contentToRefine}`
+      : `Você é um Perito Psicólogo. Use o HISTÓRICO abaixo para preencher as lacunas '...' do MODELO BASE. HISTÓRICO: 
+         ${evolutionContext}. MODELO BASE:
+         ${template}. REGRAS: 
+         1. Substitua [NOME], [CPF] e as reticências '...' por dados reais das notas.
+         2. Use linguagem formal e técnica da psicologia.
+         3. Retorne apenas o texto puro, sem Markdown.`;
 
     // 4. Chamada para a API do Gemini
     const controller = new AbortController()
@@ -95,6 +79,14 @@ serve(async (req) => {
     // Remove marcações de Markdown que a IA costuma colocar
     generatedText = generatedText.replace(/```[a-z]*\n/g, '').replace(/```/g, '').trim();
 
-    return new Response(JSON.stringify({ content: generatedText }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+      return new Response(JSON.stringify({ content: generatedText }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+      
+      } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  });

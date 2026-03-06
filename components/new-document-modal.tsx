@@ -165,7 +165,10 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
             crp: professional?.crp || "Não informado",
             city: professional?.city || "Sua Cidade"
           },
-          evolutions: evolutions || [],
+          evolutions: evolutions?.map(e => ({
+            content: e.content,
+            date: new Date(e.created_at).toLocaleDateString('pt-BR')
+          })) || [],
           extraInstructions: "Utilize linguagem técnica e formal. Respeite as normas do CFP."
         }
       });

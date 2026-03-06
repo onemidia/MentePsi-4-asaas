@@ -10,7 +10,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import listPlugin from '@fullcalendar/list'
 import ptBrLocale from '@fullcalendar/core/locales/pt-br'
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Calendar as CalendarIcon, Video, MapPin, Repeat, Trash2, XCircle, ChevronLeft, ChevronRight } from "lucide-react" 
+import { Loader2, Plus, Calendar as CalendarIcon, Video, MapPin, Repeat, Trash2, XCircle, ChevronLeft, ChevronRight, Edit3, Save } from "lucide-react" 
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -33,6 +33,13 @@ function AgendaContent() {
   const supabase = createClient()
   const { toast } = useToast()
   const [subscriptionStatus, setSubscriptionStatus] = useState('active') // Default to active to avoid blocking UI on first load
+  const [isEditing, setIsEditing] = useState(false)
+  const [editFormData, setEditFormData] = useState({
+    date: '',
+    time: '',
+    modality: '',
+    price: ''
+  })
 
   const [formData, setFormData] = useState({
     patient_id: '',
@@ -68,7 +75,7 @@ function AgendaContent() {
     }
 
     const [aptRes, patRes, subRes] = await Promise.all([
-      supabase.from('appointments').select('id, start_time, end_time, status, patient_id, patients(full_name)').eq('psychologist_id', targetUserId),
+      supabase.from('appointments').select('id, start_time, end_time, status, patient_id, modality, price, patients(full_name)').eq('psychologist_id', targetUserId),
       supabase.from('patients').select('id, full_name, session_value').eq('psychologist_id', targetUserId).order('full_name'),
       supabase.from('subscriptions').select('status').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).single()
     ])
@@ -83,7 +90,9 @@ function AgendaContent() {
         borderColor: apt.status === 'Cancelado' ? '#ef4444' : '#14b8a6',
         extendedProps: { 
           status: apt.status,
-          patient_id: apt.patient_id 
+          patient_id: apt.patient_id,
+          modality: apt.modality,
+          price: apt.price
         }
       })))
     }
@@ -135,6 +144,47 @@ function AgendaContent() {
       }
     }
   }, [formData.patient_id, patients])
+
+  const handleEditClick = () => {
+    if (!selectedEvent) return
+    const start = selectedEvent.start
+    setEditFormData({
+      date: start.toISOString().split('T')[0],
+      time: start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      modality: selectedEvent.extendedProps.modality || 'Presencial',
+      price: selectedEvent.extendedProps.price ? Number(selectedEvent.extendedProps.price).toFixed(2).replace('.', ',') : '0,00'
+    })
+    setIsEditing(true)
+  }
+
+  const handleUpdateAppointment = async () => {
+    setLoading(true)
+    try {
+      const startDate = new Date(`${editFormData.date}T${editFormData.time}:00`)
+      const originalDuration = selectedEvent.end ? (selectedEvent.end.getTime() - selectedEvent.start.getTime()) : (50 * 60000)
+      const endDate = new Date(startDate.getTime() + originalDuration)
+
+      const numericPrice = parseFloat(String(editFormData.price).replace(/\./g, '').replace(',', '.')) || 0
+
+      const { error } = await supabase.from('appointments').update({
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+        modality: editFormData.modality,
+        price: numericPrice
+      }).eq('id', selectedEvent.id)
+
+      if (error) throw error
+
+      toast({ title: "Agendamento atualizado!" })
+      setOpenDetail(false)
+      setIsEditing(false)
+      fetchInitialData()
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro ao atualizar", description: error.message })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleDeleteAppointments = async (mode: 'single' | 'future') => {
     if (!selectedEvent) return
@@ -506,6 +556,7 @@ function AgendaContent() {
         eventClick={(info) => {
           setSelectedEvent(info.event)
           setOpenDetail(true)
+          setIsEditing(false)
         }}
       />
 
@@ -515,33 +566,80 @@ function AgendaContent() {
             <DialogTitle>Gerenciar Agendamento</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <div className="p-4 bg-teal-50 rounded-xl border border-teal-100">
-              <p className="text-sm font-bold text-teal-900">{selectedEvent?.title}</p>
-              <p className="text-xs text-teal-700 mt-1">
-                {selectedEvent?.start && new Date(selectedEvent.start).toLocaleString('pt-BR')}
-              </p>
-            </div>
+            {isEditing ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label>Data</Label>
+                    <Input type="date" value={editFormData.date} onChange={e => setEditFormData({...editFormData, date: e.target.value})} className="bg-white" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Hora</Label>
+                    <Input type="time" value={editFormData.time} onChange={e => setEditFormData({...editFormData, time: e.target.value})} className="bg-white" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                   <div className="space-y-1">
+                      <Label>Modalidade</Label>
+                      <select 
+                        value={editFormData.modality} 
+                        onChange={(e) => setEditFormData({...editFormData, modality: e.target.value})}
+                        className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      >
+                        <option value="Presencial">Presencial</option>
+                        <option value="Online">Online</option>
+                      </select>
+                   </div>
+                   <div className="space-y-1">
+                      <Label>Valor (R$)</Label>
+                      <Input value={editFormData.price} onChange={e => setEditFormData({...editFormData, price: e.target.value})} className="bg-white" />
+                   </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setIsEditing(false)} className="flex-1">Cancelar</Button>
+                  <Button onClick={handleUpdateAppointment} disabled={loading} className="flex-1 bg-teal-600 hover:bg-teal-700 text-white">
+                    {loading ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />} Salvar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="p-4 bg-teal-50 rounded-xl border border-teal-100">
+                  <p className="text-sm font-bold text-teal-900">{selectedEvent?.title}</p>
+                  <p className="text-xs text-teal-700 mt-1">
+                    {selectedEvent?.start && new Date(selectedEvent.start).toLocaleString('pt-BR')}
+                  </p>
+                  {selectedEvent?.extendedProps?.modality && (
+                     <p className="text-xs text-teal-600 mt-1 font-medium">{selectedEvent.extendedProps.modality} • R$ {Number(selectedEvent.extendedProps.price || 0).toFixed(2).replace('.', ',')}</p>
+                  )}
+                </div>
 
-            <div className="flex flex-col gap-3 pt-4 border-t">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Opções de Exclusão</Label>
-              <Button 
-                variant="outline" 
-                className="text-red-600 border-red-100 hover:bg-red-50 h-12"
-                onClick={() => handleDeleteAppointments('single')}
-                disabled={loading}
-              >
-                <Trash2 size={20} className="mr-2"/> Excluir apenas esta sessão
-              </Button>
+                <Button onClick={handleEditClick} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 mt-4">
+                    <Edit3 className="mr-2 h-4 w-4" /> Reagendar / Editar
+                </Button>
 
-              <Button 
-                variant="outline" 
-                className="text-red-700 border-red-200 bg-red-50 hover:bg-red-100 font-bold h-12"
-                onClick={() => handleDeleteAppointments('future')}
-                disabled={loading}
-              >
-                <XCircle size={20} className="mr-2"/> Excluir esta e as próximas
-              </Button>
-            </div>
+                <div className="flex flex-col gap-3 pt-4 border-t mt-4">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Opções de Exclusão</Label>
+                  <Button 
+                    variant="outline" 
+                    className="text-red-600 border-red-100 hover:bg-red-50 h-10"
+                    onClick={() => handleDeleteAppointments('single')}
+                    disabled={loading}
+                  >
+                    <Trash2 size={16} className="mr-2"/> Excluir apenas esta sessão
+                  </Button>
+
+                  <Button 
+                    variant="outline" 
+                    className="text-red-700 border-red-200 bg-red-50 hover:bg-red-100 font-bold h-10"
+                    onClick={() => handleDeleteAppointments('future')}
+                    disabled={loading}
+                  >
+                    <XCircle size={16} className="mr-2"/> Excluir esta e as próximas
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

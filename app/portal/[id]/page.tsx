@@ -53,6 +53,7 @@ export default function PatientPortalPage() {
   const [isMounted, setIsMounted] = useState(false)
   const [isSigning, setIsSigning] = useState(false)
   const [isSavingAgenda, setIsSavingAgenda] = useState(false)
+  const [currentTime, setCurrentTime] = useState(new Date())
 
   const [permissions, setPermissions] = useState({
     active: true,
@@ -130,6 +131,11 @@ export default function PatientPortalPage() {
     fetchPortalData()
     setIsMounted(true)
   }, [fetchPortalData])
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   // --- NOVA LÓGICA DE ASSINATURA BLINDADA ---
   const handleSaveSignature = async () => {
@@ -261,10 +267,10 @@ export default function PatientPortalPage() {
     window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  // 🧠 LÓGICA DA SALA (40 MIN)
+  // 🧠 LÓGICA DA SALA (10 MIN)
   const getMeetingStatus = () => {
     if (!appointments.length) return null
-    const now = new Date()
+    const now = currentTime
     
     // Encontra o próximo agendamento 'Agendado' que ainda não terminou
     const nextApt = appointments.find(a => {
@@ -277,10 +283,21 @@ export default function PatientPortalPage() {
     if (!nextApt) return null
 
     const start = new Date(nextApt.start_time)
-    // Diferença em minutos (pode ser negativa se já começou, o que é bom)
-    const diffMinutes = (start.getTime() - now.getTime()) / (1000 * 60)
+    const diffMs = start.getTime() - now.getTime()
+    const diffMinutes = diffMs / (1000 * 60)
     
-    return { canJoin: diffMinutes <= 40, appointment: nextApt, start }
+    return { canJoin: diffMinutes <= 10, appointment: nextApt, start, diffMs }
+  }
+
+  const formatCountdown = (ms: number) => {
+    if (ms < 0) return "00:00:00"
+    const seconds = Math.floor((ms / 1000) % 60)
+    const minutes = Math.floor((ms / (1000 * 60)) % 60)
+    const hours = Math.floor((ms / (1000 * 60 * 60)) % 24)
+    const days = Math.floor(ms / (1000 * 60 * 60 * 24))
+    
+    if (days > 0) return `${days}d ${hours}h ${minutes}m`
+    return `${hours}h ${minutes}m ${seconds}s`
   }
 
   // 🔄 RESET AUTOMÁTICO DE PAGINAÇÃO
@@ -356,26 +373,43 @@ export default function PatientPortalPage() {
             <div className="bg-teal-100 p-3 rounded-full text-teal-600">
               <Video size={24} />
             </div>
-            <div className="space-y-1">
-              <h3 className="font-bold text-teal-900 text-lg">Sua sala de atendimento online está pronta</h3>
-              <p className="text-sm text-teal-700">Clique abaixo para entrar na videochamada.</p>
-            </div>
             
             {meetingStatus?.canJoin ? (
-              <Button 
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-teal-100 transition-all hover:scale-[1.02] animate-pulse"
-                onClick={() => window.open(patientData.meeting_link, '_blank')}
-              >
-                <Video className="mr-2 h-5 w-5" /> ACESSAR CONSULTA AGORA
-              </Button>
+              <>
+                <div className="space-y-1">
+                  <h3 className="font-bold text-teal-900 text-lg">Sua sala de atendimento já está liberada!</h3>
+                  <p className="text-sm text-teal-700">Clique abaixo para entrar na videochamada.</p>
+                </div>
+                <Button 
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-teal-100 transition-all hover:scale-[1.02] animate-pulse"
+                  onClick={() => window.open(patientData.meeting_link, '_blank')}
+                >
+                  <Video className="mr-2 h-5 w-5" /> ACESSAR CONSULTA AGORA
+                </Button>
+              </>
             ) : (
-              <div className="bg-white/60 border border-teal-200 p-3 rounded-xl text-center w-full">
-                <p className="text-xs font-bold text-teal-800 uppercase tracking-wide mb-1">Próxima Sessão</p>
-                <p className="text-sm font-black text-teal-900">
-                  {meetingStatus ? meetingStatus.start.toLocaleString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }) : "Nenhum agendamento próximo"}
-                </p>
-                {meetingStatus && <p className="text-[10px] text-teal-600 mt-1 font-medium">A sala abre 40 min antes do horário.</p>}
-              </div>
+              <>
+                <div className="space-y-1">
+                  {meetingStatus ? (
+                    <>
+                      <h3 className="font-bold text-slate-700 text-lg">Sua próxima sessão será em {meetingStatus.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</h3>
+                      <p className="text-sm text-slate-500">A sala abre 10 min antes do horário.</p>
+                    </>
+                  ) : (
+                    <h3 className="font-bold text-slate-700 text-lg">Nenhum agendamento próximo</h3>
+                  )}
+                </div>
+                {meetingStatus && (
+                  <div className="bg-white/60 border border-teal-200 p-3 rounded-xl text-center w-full">
+                    <p className="text-xs font-bold text-teal-800 uppercase tracking-wide mb-1">Tempo Restante</p>
+                    <p className="text-2xl font-black text-teal-900 font-mono">{formatCountdown(meetingStatus.diffMs)}</p>
+                    <p className="text-[10px] text-teal-600 mt-1 font-medium">{meetingStatus.start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</p>
+                  </div>
+                )}
+                <Button disabled className="w-full bg-slate-200 text-slate-400 font-bold h-12 rounded-xl cursor-not-allowed">
+                  <Clock className="mr-2 h-5 w-5" /> Sala Fechada
+                </Button>
+              </>
             )}
           </CardContent>
         </Card>
