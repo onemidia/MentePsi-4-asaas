@@ -48,6 +48,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/' || 
     pathname === '/login' || 
     pathname === '/registro' || 
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password' ||
     pathname === '/auth/callback' ||
     pathname.startsWith('/planos')
 
