@@ -22,26 +22,35 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const url = request.nextUrl.clone()
-  const pathname = url.pathname
+  const pathname = request.nextUrl.pathname
   const email = user?.email || ''
 
-  const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email)
-  
-  // 1. REGRA DE DIRECIONAMENTO (PRIORIDADE MÁXIMA)
-  if (user && (pathname === '/login' || pathname === '/')) {
-    // Caso A: É um dos dois Super Admins -> Vai para o HUB
-    if (isSuperAdmin) {
-      return NextResponse.redirect(new URL('/hub', request.url))
-    }
-
-    // Caso B: É um profissional comum logado -> Vai direto para o DASHBOARD
-    // Isso impede que ele caia na Landing Page (/) ou fique na tela de login
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+  // 🚀 REGRA 0: Se o usuário está tentando resetar a senha, NÃO INTERFIRA.
+  // Isso impede que o sistema o jogue no Dashboard antes de ele trocar a senha.
+  if (pathname === '/reset-password') {
+    return response
   }
 
-  // Se já estiver logado e NÃO for uma das rotas acima, apenas segue (Passe Livre)
-  if (isSuperAdmin) return response
+  // 1. REGRA DE DIRECIONAMENTO PARA LOGADOS (Login e Home)
+  if (user && (pathname === '/login' || pathname === '/')) {
+    const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email)
+    
+    if (isSuperAdmin) return NextResponse.redirect(new URL('/hub', request.url))
+
+    // Verifica se é assistente antes de mandar para o dashboard
+    const { data: assistant } = await supabase
+      .from('clinic_team')
+      .select('active')
+      .eq('member_email', email)
+      .eq('active', true)
+      .maybeSingle()
+
+    if (assistant) {
+      return NextResponse.redirect(new URL('/dashboard/assistente', request.url))
+    }
+
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
 
   // 2. EXCEÇÕES PÚBLICAS
   const isPublicRoute = 

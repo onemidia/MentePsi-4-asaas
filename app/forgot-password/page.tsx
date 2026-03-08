@@ -11,23 +11,42 @@ import { useToast } from "@/hooks/use-toast"
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isSent, setIsSent] = useState(false)
   const supabase = createClient()
   const { toast } = useToast()
 
   const handleReset = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+    e.preventDefault(); setLoading(true)
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // Use /auth/callback que é o padrão que vimos no seu arquivo de rota
       redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
     })
 
-    if (error) {
-      toast({ variant: 'destructive', title: 'Erro', description: error.message })
+    if (!error) {
+      setIsSent(true) // Isso deve ativar uma mensagem fixa na tela
+      toast({ title: "Link enviado com sucesso!" })
     } else {
-      toast({ title: 'E-mail enviado!', description: 'Verifique sua caixa de entrada.' })
+      toast({ variant: "destructive", title: "Erro", description: error.message })
     }
     setLoading(false)
+  }
+
+  if (isSent) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md text-center p-6 border-teal-200 bg-teal-50 shadow-xl">
+          <CardHeader>
+            <CardTitle className="text-teal-800">Verifique seu e-mail</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-teal-700 mb-4">
+              Enviamos um link de redefinição para <strong>{email}</strong>. 
+              Verifique sua caixa de entrada e lixo eletrônico.
+            </p>
+            <Button onClick={() => setIsSent(false)} variant="link" className="text-teal-600">Tentar outro e-mail</Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

@@ -42,7 +42,8 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // Se a troca de código funcionou, redireciona para a página final (ex: /reset-password)
+      // Se o link veio do 'forgot-password', o 'next' será '/reset-password'
+      // O middleware agora vai permitir que ele chegue lá.
       return NextResponse.redirect(`${requestUrl.origin}${next}`)
     }
 
