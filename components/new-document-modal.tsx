@@ -60,6 +60,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
   const [patients, setPatients] = useState<any[]>([])
   const [professional, setProfessional] = useState<any>(null)
   const [headerTitle, setHeaderTitle] = useState("")
+  const [aiInstruction, setAiInstruction] = useState(""); // Novo estado para o chat
   
   const [formData, setFormData] = useState({
     patient_id: preSelectedPatientId || '',
@@ -129,14 +130,30 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
       return;
     }
 
-    setGenerating(true)
-    const supabase = createClient()
+    setGenerating(true);
+    const supabase = createClient();
     
     try {
-      const selectedPatient = patients.find(p => p.id === formData.patient_id);
-      if (!selectedPatient) throw new Error("Paciente não selecionado corretamente.");
+      // 1. VERIFICA E INCREMENTA COTA NO BANCO
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: hasQuota } = await supabase.rpc('check_and_increment_ai_usage', {
+        prof_id: user?.id
+      });
 
-      const { data: evolutions, error: evolError } = await supabase
+      if (hasQuota === false) {
+        toast({ 
+          variant: "destructive", 
+          title: "Limite Atingido", 
+          description: "Você atingiu o limite de 30 documentos mensais. Sua cota será renovada em breve." 
+        });
+        setGenerating(false);
+        return;
+      }
+
+      const selectedPatient = patients.find(p => p.id === formData.patient_id);
+      
+      // BUSCA AS EVOLUÇÕES NO BANCO
+      const { data: evolutionsData, error: evolError } = await supabase
         .from('clinical_evolutions')
         .select('content, created_at')
         .eq('patient_id', formData.patient_id)
@@ -145,57 +162,37 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
 
       if (evolError) throw evolError;
 
-      if (!evolutions || evolutions.length === 0) {
-        toast({ 
-          title: "Aviso", 
-          description: "Nenhuma evolução encontrada para este paciente. O documento será gerado apenas com base no modelo padrão." 
-        });
-      }
-
-      const { data, error } = await supabase.functions.invoke('generate-document-ia', {
-        body: {
-          documentType: formData.type,
-          template: TEMPLATES[formData.type] || "",
-          patientData: {
-            full_name: selectedPatient.full_name || "Não informado",
-            cpf: selectedPatient.cpf || "Não informado"
-          },
-          professionalData: {
-            full_name: professional?.full_name || "Não informado",
-            crp: professional?.crp || "Não informado",
-            city: professional?.city || "Sua Cidade"
-          },
-          evolutions: evolutions?.map(e => ({
+      // CHAMADA PARA A NOSSA API ROUTE DO NEXT.JS
+      const res = await fetch('/api/ai/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: formData.type,
+          dadosPaciente: `Nome: ${selectedPatient?.full_name}, CPF: ${selectedPatient?.cpf}`,
+          // AQUI ESTÁ A CORREÇÃO: usamos 'evolutionsData' que acabamos de buscar
+          evolucoes: evolutionsData?.map(e => ({
             content: e.content,
             date: new Date(e.created_at).toLocaleDateString('pt-BR')
           })) || [],
-          extraInstructions: "Utilize linguagem técnica e formal. Respeite as normas do CFP."
-        }
+          instrucoes: aiInstruction
+        })
       });
 
-      if (error) {
-        console.error("ERRO SUPABASE:", error);
-        throw error;
-      }
+      const data = await res.json();
 
-      // O erro pode estar aqui: a IA as vezes retorna uma string direta ou um objeto
-      const generatedContent = data?.content || data?.generatedText || (typeof data === 'string' ? data : null);
-
-      if (generatedContent) {
-        setFormData(prev => ({ 
-          ...prev, 
-          content: generatedContent 
-        }));
+      if (data.content) {
+        setFormData(prev => ({ ...prev, content: data.content }));
+        setAiInstruction(""); // Limpa o chat após gerar
         toast({ title: "✨ Sucesso!", description: "O documento foi preenchido pela IA." });
       } else {
-        throw new Error("A IA respondeu, mas o conteúdo veio vazio.");
+        throw new Error(data.error || "A IA não retornou conteúdo.");
       }
     } catch (error: any) {
-      console.error("Erro detalhado na IA:", error);
+      console.error("Erro na geração:", error);
       toast({ 
         variant: "destructive", 
         title: "Erro na IA", 
-        description: error.message || "A Edge Function falhou (Status 500)." 
+        description: error.message || "Verifique o console do VS Code." 
       });
     } finally {
       setGenerating(false);
@@ -204,75 +201,91 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
 
   const handleRefineWithAI = async () => {
     if (!formData.content || formData.content.length < 10) {
-      toast({ variant: "destructive", title: "Texto muito curto", description: "Digite algo para a IA poder refinar." });
+      toast({ variant: "destructive", title: "Texto muito curto", description: "O documento precisa de conteúdo para ser refinado." });
       return;
     }
 
     setGenerating(true);
-    const supabase = createClient();
     
     try {
-      const { data, error } = await supabase.functions.invoke('generate-document-ia', {
-        body: {
-          documentType: "Refinamento",
-          contentToRefine: formData.content, // Passamos o conteúdo atual
-          extraInstructions: `
-            Aja como um revisor jurídico e clínico. 
-            1. Corrija gramática e ortografia.
-            2. Aplique termos oficiais (ex: 'Em observância ao', 'Declaro para os devidos fins', 'Pelo presente parecer').
-            3. Mantenha o conteúdo original, mas eleve o tom para formal/premium.
-            4. Respeite as normas do CFP e a estrutura de documentos oficiais.
-          `
-        }
+      // Usamos a mesma rota da API, mas enviamos o conteúdo atual para refinar
+      const res = await fetch('/api/ai/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: formData.type + " (Refinamento)",
+          dadosPaciente: formData.title,
+          evolucoes: [], // Não precisa de evoluções para refinar o que já foi escrito
+          instrucaoEspecial: `Aja como um revisor clínico. Corrija gramática e eleve o tom para formal/premium. Instrução específica: ${aiInstruction}`,
+          contentToRefine: formData.content // Enviamos o texto atual para a IA trabalhar em cima dele
+        })
       });
 
-      if (error) throw error;
-      if (data?.content) {
+      const data = await res.json();
+
+      if (data.content) {
         setFormData(prev => ({ ...prev, content: data.content }));
+        setAiInstruction(""); // Limpa o campo após o refinamento
         toast({ title: "✨ Documento Refinado!", description: "Termos oficiais aplicados com sucesso." });
+      } else {
+        throw new Error(data.error || "Erro ao refinar texto.");
       }
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro no Refinamento", description: "Verifique sua conexão ou créditos da IA." });
+      toast({ 
+        variant: "destructive", 
+        title: "Erro no Refinamento", 
+        description: "Certifique-se de que a rota da API está ativa." 
+      });
     } finally {
       setGenerating(false);
     }
   };
 
   const handleSubmit = async () => {
-    setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    setLoading(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    // 1. Constrói o cabeçalho textual para o corpo do documento
-    const headerText = [
-      headerTitle.toUpperCase(),
-      [professional?.city, professional?.crp ? `CRP: ${professional.crp}` : ""].filter(Boolean).join(" • ")
-    ].filter(Boolean).join("\n")
+    // 1. Pega os dados reais para substituição
+    const nomeReal = professional?.full_name || "";
+    const crpReal = professional?.crp || "";
 
-    // 2. Importante: Inserimos a URL da LOGO e o NOME DA CLÍNICA como campos separados
-    // para que o gerador de PDF consiga renderizar a imagem e não o nome do SAAS.
+    // 2. LIMPEZA SEGURA: Substitui apenas os termos entre colchetes
+    // Não usamos mais o comando que apaga tudo do final para não perder conteúdo
+    let conteudoFinal = formData.content
+      .replace(/\[Nome do Psicólogo\]/gi, nomeReal)
+      .replace(/\[Número do CRP\]/gi, crpReal)
+      .replace(/\[CRP\]/gi, crpReal)
+      .replace(/\[DATA\]/g, new Date().toLocaleDateString('pt-BR'))
+      // Remove apenas se houver uma assinatura IDENTICA à que vamos colocar ou placeholders
+      .replace(/Nome: {nomeReal}/g, '')
+      .replace(/CRP: {crpReal}/g, '')
+      .trim();
+
+    // 3. Salvamento
+    // Salvamos exatamente o que está no editor (já limpo de colchetes)
     const { error } = await supabase.from('official_reports').insert({
       psychologist_id: user?.id,
       patient_id: formData.patient_id,
       title: formData.title,
       type: formData.type,
-      content: `${headerText}\n\n${formData.content.trim()}`,
-      professional_name: professional?.full_name, // Usa o nome pessoal para a assinatura
-      professional_crp: professional?.crp,
-      clinic_logo_url: professional?.logo_url, // Salva a logo atual no documento
-      clinic_name: headerTitle, // Salva o nome personalizado
+      content: conteudoFinal, 
+      professional_name: nomeReal,
+      professional_crp: crpReal,
+      clinic_logo_url: professional?.logo_url,
+      clinic_name: professional?.clinic_name || headerTitle,
       is_private: formData.is_private
-    })
+    });
 
     if (!error) {
-      toast({ title: "Documento arquivado com sucesso!" })
-      if (onDocumentCreated) onDocumentCreated()
-      setOpen(false)
+      toast({ title: "✨ Documento arquivado com sucesso!" });
+      if (onDocumentCreated) onDocumentCreated();
+      setOpen(false);
     } else {
-      toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
+      toast({ variant: "destructive", title: "Erro ao salvar", description: error.message });
     }
-    setLoading(false)
-  }
+    setLoading(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -323,6 +336,23 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
               <Lock size={14} />
               Marcar como Sigiloso (Invisível para o Assistente)
             </Label>
+          </div>
+
+          <div className="space-y-2 mb-4 bg-teal-50/50 p-3 rounded-lg border border-teal-100">
+            <Label className="text-teal-800 font-bold flex items-center gap-2">
+              <Sparkles size={16} /> Instruções Especiais para a IA
+            </Label>
+            <div className="flex gap-2">
+              <Input 
+                placeholder="Ex: Foque na queixa de insônia e use tom mais formal..." 
+                value={aiInstruction}
+                onChange={(e) => setAiInstruction(e.target.value)}
+                className="bg-white border-teal-200 focus:ring-teal-500"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 italic">
+              Limite: 30 documentos/mês. Use este campo para refinar o resultado.
+            </p>
           </div>
 
           <div className="space-y-0">

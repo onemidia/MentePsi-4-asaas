@@ -262,6 +262,10 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     setCurrentPage(1)
   }, [startDate, endDate, sessaoFilter])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeTab])
+
   // 🔔 EFEITO: Navegação Inteligente via URL
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
@@ -709,8 +713,20 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
     })
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
-  const totalPages = Math.ceil(filteredAppointments.length / 10) || 1
   const paginatedAppointments = filteredAppointments.slice((currentPage - 1) * 10, currentPage * 10)
+
+  const PaginationControls = ({ totalCount }: { totalCount: number }) => {
+    const totalPages = Math.ceil(totalCount / 10) || 1
+    if (totalCount <= 10) return null
+    
+    return (
+      <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50 w-full rounded-b-[24px]">
+        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-xl font-bold text-xs h-8"><ChevronLeft className="h-3 w-3 mr-1"/> Anterior</Button>
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Página {currentPage} de {totalPages}</span>
+        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-xl font-bold text-xs h-8">Próximo <ChevronRight className="h-3 w-3 ml-1"/></Button>
+      </div>
+    )
+  }
 
   // 🛡️ BLINDAGEM DA ABA DOCS: Exibe apenas uploads e comprovantes, ignorando documentos gerados pelo sistema
   const receivedFiles = documents.filter(doc => 
@@ -914,13 +930,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
             </CardContent>
             
             {/* CONTROLES DE PAGINAÇÃO */}
-            {filteredAppointments.length > 0 && (
-              <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-xl font-bold text-xs h-8"><ChevronLeft className="h-3 w-3 mr-1"/> Anterior</Button>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Página {currentPage} de {totalPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-xl font-bold text-xs h-8">Próximo <ChevronRight className="h-3 w-3 ml-1"/></Button>
-              </div>
-            )}
+            <PaginationControls totalCount={filteredAppointments.length} />
           </Card>
         </div>
       )}
@@ -961,7 +971,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               </Card>
               <div className="space-y-4">
                 <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5 ml-2">Histórico Cronológico</Label>
-                {evolutions.map((evo) => (
+                {evolutions.slice((currentPage - 1) * 10, currentPage * 10).map((evo) => (
                   <Card key={evo.id} className="border border-slate-200 shadow-md rounded-[24px] border-l-4 border-l-teal-500 bg-white">
                     <div className="bg-slate-50 px-4 md:px-6 py-3 border-b border-slate-200 text-[10px] font-bold text-slate-500 flex justify-between">
                       <span><CalendarIcon size={12} className="inline mr-1"/> {new Date(evo.created_at).toLocaleString('pt-BR')}</span>
@@ -969,6 +979,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     <CardContent className="p-4 md:p-6 text-xs italic text-slate-500 leading-relaxed whitespace-pre-wrap">{evo.content}</CardContent>
                   </Card>
                 ))}
+                <PaginationControls totalCount={evolutions.length} />
               </div>
             </>
         </div>
@@ -1171,7 +1182,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       {activeTab === 'emocoes' && (
         <div className="w-full block clear-both animate-in fade-in">
             <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-4 md:p-6 space-y-4">
-              {emotions.map(e => {
+              {emotions.slice((currentPage - 1) * 10, currentPage * 10).map(e => {
                 const MoodIcon = getMoodIcon(Number(e.mood_score));
                 return (
                   <div key={e.id} className="flex gap-4 p-4 border border-slate-200 rounded-2xl bg-slate-50 transition-all hover:bg-white">
@@ -1180,6 +1191,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </div>
                 )
               })}
+              <PaginationControls totalCount={emotions.length} />
               {emotions.length === 0 && <div className="p-10 text-center text-slate-400 italic">Nenhum registro de emoção ainda.</div>}
             </CardContent></Card>
         </div>
@@ -1206,7 +1218,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-                {documents.map(doc => (
+                {documents.slice((currentPage - 1) * 10, currentPage * 10).map(doc => (
                   <Card key={doc.id} className="p-4 border border-slate-200 shadow-md text-left relative rounded-[24px] group">
                     <div className="flex justify-between items-start mb-2">
                       <Badge className={`text-[10px] border-none ${doc.status === 'Assinado' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{doc.status}</Badge>
@@ -1219,6 +1231,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </Card>
                 ))}
               </div>
+              <PaginationControls totalCount={documents.length} />
             </CardContent></Card>
         </div>
       )}
@@ -1265,7 +1278,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   {filteredMetas.length === 0 ? (
                     <div className="text-center py-10 text-slate-400 italic text-sm border-2 border-dashed border-slate-200 rounded-2xl">Nenhuma meta encontrada neste status.</div>
                   ) : (
-                    filteredMetas.map(goal => (
+                    filteredMetas.slice((currentPage - 1) * 10, currentPage * 10).map(goal => (
                       <div key={goal.id} className="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col gap-3">
                         <div className="flex justify-between items-start">
                           <div className="flex items-start gap-3">
@@ -1290,6 +1303,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     ))
                   )}
                 </div>
+                <PaginationControls totalCount={filteredMetas.length} />
               </CardContent>
             </Card>
         </div>

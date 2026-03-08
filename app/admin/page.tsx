@@ -80,7 +80,7 @@ export default function AdminDashboard() {
             plan_price: userSub?.saas_plans?.price_monthly || 59.90,
           }
         })
-        setAllProfiles(formattedData)
+        setAllProfiles(mergedData)
       }
       setLoading(false)
     }

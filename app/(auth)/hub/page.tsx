@@ -10,17 +10,30 @@ import { Badge } from "@/components/ui/badge"
 export default function AdminHubPage() {
   const router = useRouter()
   const [isAuthorized, setIsAuthorized] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
   useEffect(() => {
     const checkAccess = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       
-      const admins = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br', 'onemidiamarketing@gmail.com']
+      // ✅ AÇÃO 1: Lista de Super Admins atualizada (Apenas os dois)
+      const admins = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br']
+      const email = user?.email?.toLowerCase() || ''
+      setUserEmail(email)
+
+      // ✅ AÇÃO 2: Busca o role do banco para garantir
+      const { data: profile } = await supabase
+        .from('professional_profile')
+        .select('role')
+        .eq('user_id', user?.id)
+        .maybeSingle()
       
-      if (user && admins.includes(user.email || '')) {
+      // Libera se for um dos e-mails OU se tiver role admin no banco
+      if (user && (admins.includes(email) || profile?.role === 'admin')) {
         setIsAuthorized(true)
       } else {
+        // Se não for nenhum dos dois, manda pro dashboard comum
         router.push('/dashboard')
       }
     }
@@ -30,6 +43,9 @@ export default function AdminHubPage() {
   if (!isAuthorized) {
     return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-teal-600" size={40} /></div>
   }
+
+  // ✅ AÇÃO 3: Lógica para remover a etiqueta "Restrito" visualmente para você e Alvino
+  const isMaster = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(userEmail || '')
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -41,7 +57,6 @@ export default function AdminHubPage() {
           <p className="text-slate-600 text-lg font-medium">Selecione o ambiente de trabalho</p>
         </div>
 
-        {/* Grid com 3 colunas iguais */}
         <div className="grid md:grid-cols-3 gap-8">
           
           {/* AMBIENTE ADMINISTRATIVO */}
@@ -56,7 +71,8 @@ export default function AdminHubPage() {
               </div>
               <CardTitle className="text-2xl font-bold text-slate-800 flex items-center justify-center gap-2">
                 Painel Gestor
-                <Badge className="bg-red-500 hover:bg-red-600 border-none text-white">Restrito</Badge>
+                {/* Remove a badge de restrito se você for o Master */}
+                {!isMaster && <Badge className="bg-red-500 hover:bg-red-600 border-none text-white">Restrito</Badge>}
               </CardTitle>
               <CardDescription className="mt-2 text-slate-500">
                 Gestão estratégica: métricas do SaaS, faturamento e controle de assinaturas.
@@ -101,7 +117,7 @@ export default function AdminHubPage() {
         </div>
         
         <div className="mt-12 text-center">
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Acesso Restrito ao Administrador</p>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Acesso Master Liberado</p>
         </div>
       </div>
     </div>

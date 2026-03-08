@@ -34,8 +34,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }
 
       // 🛡️ PASSE LIVRE: Super Admins e Equipe (Sem bloqueios)
-      const admins = ['alvino@onemidia.tv.br', 'mentepsiclinic@gmail.com', 'onemidiamarketing@gmail.com']
-      const isAdmin = admins.includes(user.email || '')
+      // 🛡️ PASSE LIVRE ATUALIZADO (Apenas os dois e-mails autorizados)
+      const admins = ['alvino@onemidia.tv.br', 'mentepsiclinic@gmail.com']
+      const isAdmin = admins.includes(user.email?.toLowerCase() || '')
 
       const { data: teamMember } = await supabase
         .from('clinic_team')
@@ -45,7 +46,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         .maybeSingle()
 
       if (isAdmin || teamMember) {
-        setUserData({ isBlocked: false, status: 'active', plan: isAdmin ? 'Master' : 'Equipe', trialEndsAt: new Date() })
+        setUserData({ 
+          isBlocked: false, 
+          status: 'active', 
+          plan: 'Master', 
+          trialEndsAt: new Date() 
+        })
         setLoading(false)
         return
       }

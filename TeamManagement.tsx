@@ -11,9 +11,9 @@ import { Loader2, UserPlus, Trash2 } from 'lucide-react'
 
 interface TeamMember {
   id: string;
-  member_email: string; // ✅ CORRETO: Nome da coluna no seu banco
+  email: string;
   role: string;
-  active: boolean;      // ✅ CORRETO: Tipo boolean no seu banco
+  status: string;
   created_at: string;
 }
 
@@ -35,9 +35,9 @@ export function TeamManagement() {
         .eq('owner_id', user.id)
 
       if (error) {
-        toast({ variant: 'destructive', title: 'Erro ao carregar', description: error.message })
+        toast({ variant: 'destructive', title: 'Erro ao carregar equipe', description: error.message })
       } else if (data) {
-        setMembers(data as TeamMember[])
+        setMembers(data)
       }
     }
     setLoading(false)
@@ -48,32 +48,39 @@ export function TeamManagement() {
   }, [fetchMembers])
 
   const handleSendInvite = async () => {
-    if (!formData.email) return
+    if (!formData.email) {
+      toast({ variant: 'destructive', title: 'E-mail é obrigatório' })
+      return
+    }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
+      toast({ variant: 'destructive', title: 'Sessão expirada.' })
       setSaving(false)
       return
     }
 
-    // 🚀 INSERÇÃO CIRÚRGICA DE ACORDO COM A AUDITORIA:
+    // 🚀 CORREÇÃO CIRÚRGICA DE COLUNAS:
     const { error } = await supabase
       .from('clinic_team')
       .insert({
         owner_id: user.id,
-        member_email: formData.email, // Coluna correta
-        role: 'assistant',
-        active: true,                 // Tipo booleano correto
+        member_email: formData.email,
+        active: true, // Mudar de 'status' para 'active' e de texto para true
         can_manage_calendar: true,
         can_edit_appointments: true
       })
 
     if (error) {
-      console.error("ERRO SUPABASE:", error)
-      toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
+      console.error("Erro Supabase:", error)
+      toast({ 
+        variant: "destructive", 
+        title: "Erro ao salvar no banco", 
+        description: `Verifique se a coluna 'member_email' existe. Erro: ${error.message}` 
+      })
     } else {
-      toast({ title: "Sucesso!", description: "Assistente adicionado à equipe." })
+      toast({ title: "Assistente adicionado!", description: `${formData.email} agora faz parte da sua equipe.` })
       setFormData({ email: '' })
       await fetchMembers()
     }
@@ -81,10 +88,16 @@ export function TeamManagement() {
   }
 
   const handleDeleteMember = async (memberId: string) => {
-    if (!window.confirm("Remover este membro?")) return
+    if (!window.confirm("Tem certeza que deseja remover este membro da equipe?")) return
+
     setSaving(true)
     const { error } = await supabase.from('clinic_team').delete().eq('id', memberId)
-    if (!error) await fetchMembers()
+    if (error) {
+      toast({ variant: 'destructive', title: 'Erro ao remover membro', description: error.message })
+    } else {
+      toast({ title: 'Membro removido com sucesso!' })
+      await fetchMembers()
+    }
     setSaving(false)
   }
 
@@ -98,10 +111,10 @@ export function TeamManagement() {
         <div className="flex flex-col sm:flex-row gap-2 items-end p-4 bg-slate-50 rounded-xl border border-slate-200">
           <div className="w-full space-y-1.5">
             <Label htmlFor="email">E-mail do Assistente</Label>
-            <Input id="email" type="email" placeholder="email@exemplo.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+            <Input id="email" type="email" placeholder="email@exemplo.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="border-slate-300" />
           </div>
-          <Button onClick={handleSendInvite} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white">
-            {saving ? <Loader2 className="animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+          <Button onClick={handleSendInvite} disabled={saving} className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white">
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
             Enviar Convite
           </Button>
         </div>
@@ -113,9 +126,8 @@ export function TeamManagement() {
           ) : (
             members.map(member => (
               <div key={member.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-200">
-                {/* ✅ EXIBIÇÃO CORRIGIDA PARA member_email */}
-                <p className="text-sm font-medium text-slate-700">{member.member_email}</p>
-                <Button onClick={() => handleDeleteMember(member.id)} variant="ghost" size="sm" className="text-red-500"><Trash2 size={14} /></Button>
+                <p className="text-sm font-medium text-slate-700">{member.email}</p>
+                <Button onClick={() => handleDeleteMember(member.id)} disabled={saving} variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 size={14} /></Button>
               </div>
             ))
           )}
