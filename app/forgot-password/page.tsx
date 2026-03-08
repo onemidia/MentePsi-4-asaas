@@ -17,8 +17,8 @@ export default function ForgotPasswordPage() {
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    // 🚀 O SEGREDO: Mandamos para o callback avisando que o próximo passo é o reset-password
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Use /auth/callback que é o padrão que vimos no seu arquivo de rota
       redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
     })
 
