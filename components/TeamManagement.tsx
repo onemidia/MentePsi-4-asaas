@@ -50,33 +50,43 @@ export function TeamManagement() {
   const handleSendInvite = async () => {
     if (!formData.email) return
     setSaving(true)
+
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       setSaving(false)
       return
     }
 
-    // 🚀 INSERÇÃO CIRÚRGICA DE ACORDO COM A AUDITORIA:
-    const { error } = await supabase
-      .from('clinic_team')
-      .insert({
-        owner_id: user.id,
-        member_email: formData.email, // Coluna correta
-        role: 'assistant',
-        active: true,                 // Tipo booleano correto
-        can_manage_calendar: true,
-        can_edit_appointments: true
+    const response = await fetch("/api/invite-assistant", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email: formData.email,
+        ownerId: user.id
+      })
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: result.error
+      })
+    } else {
+      toast({
+        title: "Convite enviado",
+        description: "O assistente receberá um email para criar senha."
       })
 
-    if (error) {
-      console.error("ERRO SUPABASE:", error)
-      toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
-    } else {
-      toast({ title: "Sucesso!", description: "Assistente adicionado à equipe." })
-      setFormData({ email: '' })
+      setFormData({ email: "" })
       await fetchMembers()
     }
+
     setSaving(false)
   }
 
