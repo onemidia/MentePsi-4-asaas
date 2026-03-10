@@ -2,9 +2,13 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from '@/lib/client';
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +17,62 @@ function CheckoutContent() {
   const { toast } = useToast();
   const [status, setStatus] = useState('processing');
   const [errorMessage, setErrorMessage] = useState('');
+  const [needsInfo, setNeedsInfo] = useState(false);
+  const [infoData, setInfoData] = useState({ cpf: '', phone: '', name: '' });
+  const [userId, setUserId] = useState('');
+  const [userEmail, setUserEmail] = useState('');
   const supabase = createClient();
+
+  // Função isolada para processar o pagamento
+  const executeCharge = async (userData: any, extraData: any = {}) => {
+    try {
+      const params = Object.fromEntries(searchParams.entries());
+      
+      // Prevenir Loop Infinito (Timeout de 15s)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      // Limpeza de dados (remove máscaras)
+      const cleanCpf = (extraData.cpf || userData.cpf || '').replace(/\D/g, '');
+      const cleanPhone = (extraData.phone || userData.phone || '').replace(/\D/g, '');
+
+      const response = await fetch('/api/asaas/create-charge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userData.id,
+          email: userData.email,
+          name: extraData.name || userData.full_name,
+          cpf: cleanCpf,
+          phone: cleanPhone,
+          ...params
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha na comunicação com o servidor.');
+      }
+
+      const data = await response.json();
+      console.log('✅ [Checkout] Sucesso:', data);
+      setStatus('success');
+      
+      if (data.invoiceUrl) {
+           window.location.href = data.invoiceUrl;
+      } else {
+           toast({ title: 'Sucesso', description: 'Cobrança gerada com sucesso.' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [Checkout] Erro:', error);
+      setStatus('error');
+      setErrorMessage(error.message || 'Erro desconhecido.');
+    }
+  };
 
   useEffect(() => {
     // Debug de Parâmetros
@@ -28,57 +87,35 @@ function CheckoutContent() {
           throw new Error('Usuário não autenticado.');
         }
 
-        // Prevenir Loop Infinito (Timeout de 10s)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        setUserId(user.id);
+        setUserEmail(user.email || '');
 
-        // Verificar a URL do Fetch
-        const response = await fetch('/api/asaas/create-charge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.id,
-            email: user.email,
-            name: user.user_metadata?.full_name,
-            ...params // Passa os parâmetros da URL (ex: planId)
-          }),
-          signal: controller.signal
-        });
+        // Verifica se tem perfil completo
+        const { data: profile } = await supabase
+          .from('professional_profile')
+          .select('cpf, phone, full_name')
+          .eq('user_id', user.id)
+          .single();
 
-        clearTimeout(timeoutId);
-
-        // Tratar Erros de Rede
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Falha na comunicação com o servidor.');
+        // Se faltar CPF ou Telefone, pede para preencher
+        if (!profile?.cpf || !profile?.phone) {
+          setInfoData({
+            cpf: profile?.cpf || '',
+            phone: profile?.phone || '',
+            name: profile?.full_name || user.user_metadata?.full_name || ''
+          });
+          setNeedsInfo(true);
+          setStatus('waiting_info');
+          return;
         }
 
-        const data = await response.json();
-        console.log('✅ [Checkout] Sucesso:', data);
-        setStatus('success');
-        
-        // Redirecionamento ou mensagem de sucesso
-        if (data.invoiceUrl) {
-             window.location.href = data.invoiceUrl;
-        } else {
-             toast({ title: 'Sucesso', description: 'Cobrança gerada com sucesso.' });
-        }
+        // Se tiver tudo, processa direto
+        await executeCharge({ id: user.id, email: user.email, ...profile });
 
       } catch (error: any) {
         console.error('❌ [Checkout] Erro:', error);
         setStatus('error');
-        
-        if (error.name === 'AbortError') {
-          setErrorMessage('Tempo esgotado. O servidor demorou muito para responder.');
-        } else {
-          setErrorMessage(error.message || 'Erro desconhecido.');
-        }
-        
-        toast({ 
-          variant: 'destructive', 
-          title: 'Erro no Checkout', 
-          description: error.message 
-        });
+        setErrorMessage(error.message);
       }
     };
 
@@ -88,6 +125,72 @@ function CheckoutContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleInfoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus('processing');
+    
+    // Salva no perfil para não pedir de novo
+    await supabase.from('professional_profile').upsert({
+      user_id: userId,
+      cpf: infoData.cpf,
+      phone: infoData.phone,
+      full_name: infoData.name,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+
+    // Executa a cobrança com os dados do formulário
+    await executeCharge({ id: userId, email: userEmail }, infoData);
+  };
+
+  if (status === 'waiting_info') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <Card className="w-full max-w-md shadow-xl border-teal-100">
+          <CardHeader className="text-center">
+            <div className="mx-auto bg-teal-50 p-3 rounded-full w-fit mb-2 text-teal-600">
+              <ShieldCheck size={32} />
+            </div>
+            <CardTitle>Finalizar Cadastro</CardTitle>
+            <CardDescription>Precisamos de alguns dados para emitir sua nota fiscal.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleInfoSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nome Completo</Label>
+                <Input 
+                  value={infoData.name} 
+                  onChange={e => setInfoData({...infoData, name: e.target.value})} 
+                  required 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>CPF</Label>
+                <Input 
+                  value={infoData.cpf} 
+                  onChange={e => setInfoData({...infoData, cpf: e.target.value})} 
+                  placeholder="000.000.000-00"
+                  required 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Celular / WhatsApp</Label>
+                <Input 
+                  value={infoData.phone} 
+                  onChange={e => setInfoData({...infoData, phone: e.target.value})} 
+                  placeholder="(00) 00000-0000"
+                  required 
+                />
+              </div>
+              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 font-bold mt-4">
+                Continuar para Pagamento
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (status === 'error') {
     return (

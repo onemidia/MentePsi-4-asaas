@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Check, Loader2, Star, AlertTriangle, Shield, Zap, Heart, Brain, MessageSquare, ClipboardCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { useToast } from "@/hooks/use-toast"
 
 export default function PlanosPage() {
   const [loading, setLoading] = useState(true)
@@ -16,6 +17,7 @@ export default function PlanosPage() {
   
   const supabase = createClient()
   const router = useRouter()
+  const { toast } = useToast()
 
   useEffect(() => {
     async function init() {
@@ -44,6 +46,14 @@ export default function PlanosPage() {
     if (!user) {
       // Se não tem usuário, manda registrar para o teste grátis
       router.push('/registro?plan=professional')
+    } else if (['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(user.email?.toLowerCase())) {
+      // 🛡️ BYPASS DE ADMIN
+      toast({ 
+        title: "ACESSO ADMIN LIBERADO", 
+        description: "Você possui permissão total ao sistema.",
+        duration: 5000
+      })
+      router.push('/dashboard')
     } else if (subStatus !== 'active') {
       // Se está logado mas não pagou (está em trial ou vencido), vai pro checkout
       // Envia o ID do plano para garantir a integração correta

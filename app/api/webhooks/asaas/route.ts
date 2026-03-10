@@ -89,17 +89,11 @@ export async function POST(req: Request) {
 
       if (!planPro) throw new Error('Plano Professional não encontrado no banco.')
 
-      // 2. Cancela qualquer assinatura anterior (Trial ou outra) para este usuário
-      await supabaseAdmin
-        .from('subscriptions')
-        .update({ status: 'canceled', updated_at: new Date().toISOString() })
-        .eq('user_id', profileToUpdate.user_id)
-        .in('status', ['trialing', 'active'])
-
-      // 3. Insere a nova assinatura ativa na tabela correta
+      // 2. UPSERT: Atualiza ou Cria a assinatura ativa
+      // Isso substitui a lógica de cancelar anterior + inserir nova
       const { error: subError } = await supabaseAdmin
         .from('subscriptions')
-        .insert({
+        .upsert({
           user_id: profileToUpdate.user_id,
           plan_id: planPro.id,
           status: 'active',
@@ -108,9 +102,8 @@ export async function POST(req: Request) {
           asaas_customer_id: asaasCustomerId,
           asaas_subscription_id: payment.subscription || null,
           billing_type: payment.billingType || 'CREDIT_CARD',
-          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        })
+        }, { onConflict: 'user_id' })
 
       if (subError) {
         console.error('❌ [WEBHOOK] Erro ao criar assinatura:', subError.message)
