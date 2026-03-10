@@ -23,7 +23,6 @@ export async function POST(req: Request) {
     const finalCpf = cpf || cpfCnpj
     const finalValue = value || price
 
-
     const asaasKey = (process.env.ASAAS_API_KEY || '').trim().replace(/['"]+/g, '');
     const asaasUrl = (process.env.ASAAS_API_URL || '').trim().replace(/['"]+/g, '');
 

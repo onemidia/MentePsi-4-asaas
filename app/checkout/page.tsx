@@ -32,7 +32,7 @@ function CheckoutContent() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      // Limpeza de dados (remove máscaras)
+      // Limpeza de dados (remove máscaras) e garante que os dados do formulário tenham prioridade
       const cleanCpf = (extraData.cpf || userData.cpf || '').replace(/\D/g, '');
       const cleanPhone = (extraData.phone || userData.phone || '').replace(/\D/g, '');
 
@@ -40,9 +40,10 @@ function CheckoutContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: userData.id,
-          email: userData.email,
-          name: extraData.name || userData.full_name,
+          // Garante que os dados corretos sejam enviados
+          userId: userData.id || userId,
+          email: userData.email || userEmail,
+          name: extraData.name || userData.full_name, // Prioriza nome do formulário
           cpf: cleanCpf,
           phone: cleanPhone,
           ...params
@@ -99,12 +100,12 @@ function CheckoutContent() {
 
         // Se faltar CPF ou Telefone, pede para preencher
         if (!profile?.cpf || !profile?.phone) {
-          setInfoData({
+          setInfoData(prev => ({
+            ...prev,
             cpf: profile?.cpf || '',
             phone: profile?.phone || '',
             name: profile?.full_name || user.user_metadata?.full_name || ''
-          });
-          setNeedsInfo(true);
+          }));
           setStatus('waiting_info');
           return;
         }
