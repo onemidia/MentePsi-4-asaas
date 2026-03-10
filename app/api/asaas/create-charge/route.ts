@@ -23,6 +23,9 @@ export async function POST(req: Request) {
     const finalCpf = cpf || cpfCnpj
     const finalValue = value || price
 
+    // Limpeza de segurança: remove tudo que não for número do CPF
+    const cleanCpf = finalCpf?.replace(/\D/g, '');
+
     const asaasKey = (process.env.ASAAS_API_KEY || '').trim().replace(/['"]+/g, '');
     const asaasUrl = (process.env.ASAAS_API_URL || '').trim().replace(/['"]+/g, '');
 
@@ -37,7 +40,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         name: name || 'Usuário MentePsi',
         email: email,
-        cpfCnpj: finalCpf, // ✅ Agora enviamos o CPF correto
+        cpfCnpj: cleanCpf, // ✅ Agora enviamos o CPF limpo (apenas números)
         phone: phone,
         externalReference: userId
       })
