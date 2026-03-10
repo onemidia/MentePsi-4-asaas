@@ -72,6 +72,13 @@ function CheckoutContent() {
       console.error('❌ [Checkout] Erro:', error);
       setStatus('error');
       setErrorMessage(error.message || 'Erro desconhecido.');
+      
+      // Feedback Visual: Toast com a mensagem real
+      toast({ 
+        variant: "destructive", 
+        title: "Erro ao processar", 
+        description: error.message 
+      });
     }
   };
 
@@ -91,15 +98,15 @@ function CheckoutContent() {
         setUserId(user.id);
         setUserEmail(user.email || '');
 
-        // Verifica se tem perfil completo
+        // 1. Busque os dados do perfil logado
         const { data: profile } = await supabase
           .from('professional_profile')
-          .select('cpf, phone, full_name')
+          .select('full_name, email, cpf, phone')
           .eq('user_id', user.id)
           .single();
 
-        // Se faltar CPF ou Telefone, pede para preencher
-        if (!profile?.cpf || !profile?.phone) {
+        // 2. Antes de chamar a API, verifique se o CPF existe
+        if (!profile?.cpf) {
           setInfoData(prev => ({
             ...prev,
             cpf: profile?.cpf || '',
@@ -110,13 +117,20 @@ function CheckoutContent() {
           return;
         }
 
-        // Se tiver tudo, processa direto
-        await executeCharge({ id: user.id, email: user.email, ...profile });
+        // 3. Envie os dados REAIS para a API
+        await executeCharge({ 
+            id: user.id, 
+            email: profile.email || user.email, 
+            full_name: profile.full_name,
+            cpf: profile.cpf,
+            phone: profile.phone
+        });
 
       } catch (error: any) {
         console.error('❌ [Checkout] Erro:', error);
         setStatus('error');
         setErrorMessage(error.message);
+        toast({ variant: "destructive", title: "Erro", description: error.message });
       }
     };
 
@@ -131,17 +145,23 @@ function CheckoutContent() {
     e.preventDefault();
     setStatus('processing');
     
-    // Salva no perfil para não pedir de novo
-    await supabase.from('professional_profile').upsert({
-      user_id: userId,
-      cpf: infoData.cpf,
-      phone: infoData.phone,
-      full_name: infoData.name,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' });
+    try {
+      // Salva no perfil para não pedir de novo
+      const { error } = await supabase.from('professional_profile').upsert({
+        user_id: userId,
+        cpf: infoData.cpf,
+        phone: infoData.phone,
+        full_name: infoData.name,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
 
-    // Executa a cobrança com os dados do formulário
-    await executeCharge({ id: userId, email: userEmail }, infoData);
+      // Executa a cobrança com os dados do formulário (mesmo se falhar o save do perfil, tenta cobrar)
+      await executeCharge({ id: userId, email: userEmail }, infoData);
+    } catch (error: any) {
+       setStatus('error');
+       setErrorMessage(error.message);
+       toast({ variant: "destructive", title: "Erro", description: error.message });
+    }
   };
 
   if (status === 'waiting_info') {
