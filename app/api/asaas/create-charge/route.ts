@@ -23,8 +23,9 @@ export async function POST(req: Request) {
     const finalCpf = cpf || cpfCnpj
     const finalValue = value || price
 
-    const asaasKey = process.env.ASAAS_API_KEY
-    const asaasUrl = process.env.ASAAS_API_URL
+
+    const asaasKey = (process.env.ASAAS_API_KEY || '').trim().replace(/['"]+/g, '');
+    const asaasUrl = (process.env.ASAAS_API_URL || '').trim().replace(/['"]+/g, '');
 
     if (!asaasKey || !asaasUrl) {
       return NextResponse.json({ error: 'Configuração do Asaas ausente.' }, { status: 500 })
