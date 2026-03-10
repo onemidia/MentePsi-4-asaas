@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
-    const authToken =
     const supabaseAdmin = createAdminClient()
+    const authToken =
       req.headers.get('asaas-access-token') ||
       req.headers.get('asaas-token') ||
       req.headers.get('Asaas-Token')
