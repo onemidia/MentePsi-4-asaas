@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createAdminClient } from '@/lib/supabase-admin'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   try {
     const authToken =
+    const supabaseAdmin = createAdminClient()
       req.headers.get('asaas-access-token') ||
       req.headers.get('asaas-token') ||
       req.headers.get('Asaas-Token')

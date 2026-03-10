@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createAdminClient } from '@/lib/supabase-admin'
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
+    const supabaseAdmin = createAdminClient()
     
     // CORREÇÃO: Pegamos 'cpf' (do seu botão) e 'cpfCnpj' para garantir
     const { 
