@@ -8,9 +8,14 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
+  
+  // 🚀 REDIRECIONAMENTO INTELIGENTE
+  // Se houver um parâmetro 'next' (ex: vindo de reset de senha), usamos ele.
+  // Caso contrário, mandamos para a raiz '/' para o seu Middleware decidir
+  // se o usuário vai para o /hub, /dashboard ou /dashboard/assistente.
   const next = requestUrl.searchParams.get('next') ?? '/dashboard'
 
-  // Proteção de Variáveis: Verifica se as chaves do Supabase existem
+  // Validação de segurança das chaves
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return NextResponse.redirect(`${requestUrl.origin}/login?error=ServerConfigurationError`)
   }
@@ -32,27 +37,35 @@ export async function GET(request: Request) {
                 cookieStore.set(name, value, options)
               )
             } catch {
-              // O middleware pode lidar com isso se necessário
+              // Middleware assume o controle se houver erro de escrita de cookie aqui
             }
           },
         },
       }
     )
 
+    // Troca o código temporário do Google pela sessão permanente
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // Se o link veio do 'forgot-password', o 'next' será '/reset-password'
-      // O middleware agora vai permitir que ele chegue lá.
+      // 🛡️ VERIFICAÇÃO DE ADMIN PARA REDIRECIONAMENTO (GOOGLE LOGIN)
+      const { data: { user } } = await supabase.auth.getUser()
+      const adminEmails = ['alvino@onemidia.tv.br', 'mentepsiclinic@gmail.com', 'onemidiamarketing@gmail.com'];
+      
+      if (user && adminEmails.includes(user.email?.toLowerCase() || '')) {
+         return NextResponse.redirect(`${requestUrl.origin}/auth/hub`)
+      }
+
+      // Redireciona para a URL final (limpando os parâmetros de código da barra de busca)
       return NextResponse.redirect(`${requestUrl.origin}${next}`)
     }
 
-    // Tratamento de Erro Detalhado
     if (error) {
+      console.error('Erro no Callback:', error.message)
       return NextResponse.redirect(`${requestUrl.origin}/login?error=${encodeURIComponent(error.message)}`)
     }
   }
 
-  // Se algo der errado ou não houver código, volta para o login com uma mensagem
+  // Se chegar aqui sem código, algo falhou no fluxo do Google
   return NextResponse.redirect(`${requestUrl.origin}/login?error=InvalidToken`)
 }

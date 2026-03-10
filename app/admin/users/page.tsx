@@ -43,20 +43,38 @@ export default function GestaoPsicologos() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState('todos')
+  const [currentPage, setCurrentPage] = useState(0)
+  const itemsPerPage = 10
   
   const supabase = createClient()
   const { toast } = useToast()
 
   async function fetchUsers() {
     setLoading(true)
-    // Query Unificada
-    const { data, error } = await supabase
-      .from('professional_profile')
-      .select('*, subscriptions(status, current_period_end)')
-      .order('created_at', { ascending: false })
     
-    if (data) {
-      setUsers(data)
+    // 1. Busca Perfis (igual ao Dashboard Master)
+    const { data: profiles, error } = await supabase
+      .from('professional_profile')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    // 2. Busca Assinaturas para unificar
+    const { data: subs } = await supabase
+      .from('subscriptions')
+      .select('user_id, status, current_period_end')
+    
+    if (profiles) {
+      // 3. Unifica os dados em um só objeto, garantindo que todos tenham status
+      const mergedData = profiles.map(profile => {
+        const userSub = subs?.find(s => s.user_id === profile.user_id)
+        return {
+          ...profile,
+          subscription_status: userSub?.status || 'trialing', // Default para 'trialing' para consistência
+          current_period_end: userSub?.current_period_end || null,
+        }
+      })
+      setUsers(mergedData)
     }
     setLoading(false)
   }
@@ -110,14 +128,19 @@ export default function GestaoPsicologos() {
       user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase())
     
+    const matchesStatus = statusFilter === 'todos' || user.subscription_status === statusFilter
+
     let matchesDate = true
     if (startDate || endDate) {
       const userDate = new Date(user.created_at)
       if (startDate && new Date(startDate) > userDate) matchesDate = false
       if (endDate && new Date(endDate + 'T23:59:59') < userDate) matchesDate = false
     }
-    return matchesSearch && matchesDate
+    return matchesSearch && matchesDate && matchesStatus
   })
+
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage)
+  const currentUsers = filteredUsers.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage)
 
   return (
     <div className="p-6 space-y-6 bg-slate-50/50 min-h-screen">
@@ -130,7 +153,7 @@ export default function GestaoPsicologos() {
           <p className="text-slate-500 font-medium">Controle de acesso ao Plano Único Profissional.</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+        <div className="flex flex-col xl:flex-row gap-3 w-full xl:w-auto items-center">
           <div className="flex items-center bg-slate-100/50 border border-slate-200 rounded-xl px-3 gap-2 shadow-inner">
             <Filter size={14} className="text-slate-400" />
             <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none bg-transparent focus-visible:ring-0 text-xs w-[115px]" />
@@ -146,6 +169,13 @@ export default function GestaoPsicologos() {
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
             />
+          </div>
+
+          <div className="flex gap-1 bg-white border rounded-xl p-1 shadow-sm w-full sm:w-auto">
+            <Button size="sm" variant={statusFilter === 'todos' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('todos'); setCurrentPage(0); }} className="text-xs h-7">Todos</Button>
+            <Button size="sm" variant={statusFilter === 'active' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('active'); setCurrentPage(0); }} className="text-xs h-7">Assinantes</Button>
+            <Button size="sm" variant={statusFilter === 'trialing' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('trialing'); setCurrentPage(0); }} className="text-xs h-7">Em Teste</Button>
+            <Button size="sm" variant={statusFilter === 'canceled' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('canceled'); setCurrentPage(0); }} className="text-xs h-7">Cancelados</Button>
           </div>
         </div>
       </div>
@@ -164,10 +194,9 @@ export default function GestaoPsicologos() {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={4} className="text-center py-24"><Loader2 className="animate-spin h-8 w-8 text-teal-600 mx-auto"/></TableCell></TableRow>
-            ) : filteredUsers.map((user) => {
-              const sub = Array.isArray(user.subscriptions) ? user.subscriptions[0] : user.subscriptions
-              const status = sub?.status || 'inactive'
-              const periodEnd = sub?.current_period_end
+            ) : currentUsers.map((user) => {
+              const status = user.subscription_status
+              const periodEnd = user.current_period_end
 
               const trialDate = periodEnd ? new Date(periodEnd) : null
               const isTrialExpired = trialDate && trialDate < new Date() && status === 'trialing'
@@ -243,6 +272,20 @@ export default function GestaoPsicologos() {
             })}
           </TableBody>
         </Table>
+        <div className="flex items-center justify-between p-4 border-t">
+          <span className="text-xs text-slate-500">
+            Total de <strong>{filteredUsers.length}</strong> usuários.
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}>
+              Anterior
+            </Button>
+            <span className="text-xs font-medium">Página {currentPage + 1} de {totalPages > 0 ? totalPages : 1}</span>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}>
+              Próximo
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )

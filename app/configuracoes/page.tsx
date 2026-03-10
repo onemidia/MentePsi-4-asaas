@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import TrialBanner from './TrialBanner' // 🟢 Importa o novo banner
+import { TrialBanner } from '@/components/trial-banner' // 🟢 Importa o novo banner
 import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"

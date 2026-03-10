@@ -2,7 +2,7 @@
 
 import { ShieldCheck, LayoutDashboard, UserCog, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/client"
 import { Badge } from "@/components/ui/badge"
@@ -10,30 +10,36 @@ import { Badge } from "@/components/ui/badge"
 export default function AdminHubPage() {
   const router = useRouter()
   const [isAuthorized, setIsAuthorized] = useState(false)
-  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
 
   useEffect(() => {
     const checkAccess = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       
-      // ✅ AÇÃO 1: Lista de Super Admins atualizada (Apenas os dois)
-      const admins = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br']
-      const email = user?.email?.toLowerCase() || ''
-      setUserEmail(email)
+      if (!user) {
+        router.push('/login')
+        return
+      }
 
-      // ✅ AÇÃO 2: Busca o role do banco para garantir
+      // 🛡️ MUDANÇA CHAVE: Buscamos o papel (role) direto no banco. 
+      // Se for 'admin' na professional_profile, ele entra, independente do e-mail.
       const { data: profile } = await supabase
         .from('professional_profile')
         .select('role')
         .eq('user_id', user?.id)
         .maybeSingle()
       
-      // Libera se for um dos e-mails OU se tiver role admin no banco
-      if (user && (admins.includes(email) || profile?.role === 'admin')) {
+      const role = profile?.role || ''
+      setUserRole(role)
+
+      // Lista de e-mails "Master" que sempre entram por segurança (Backdoor)
+      const masterEmails = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br']
+      const isMasterEmail = masterEmails.includes(user.email?.toLowerCase() || '')
+
+      if (isMasterEmail || role === 'admin') {
         setIsAuthorized(true)
       } else {
-        // Se não for nenhum dos dois, manda pro dashboard comum
         router.push('/dashboard')
       }
     }
@@ -41,11 +47,12 @@ export default function AdminHubPage() {
   }, [router])
 
   if (!isAuthorized) {
-    return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-teal-600" size={40} /></div>
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <Loader2 className="animate-spin text-teal-600" size={40} />
+      </div>
+    )
   }
-
-  // ✅ AÇÃO 3: Lógica para remover a etiqueta "Restrito" visualmente para você e Alvino
-  const isMaster = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(userEmail || '')
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -71,8 +78,10 @@ export default function AdminHubPage() {
               </div>
               <CardTitle className="text-2xl font-bold text-slate-800 flex items-center justify-center gap-2">
                 Painel Gestor
-                {/* Remove a badge de restrito se você for o Master */}
-                {!isMaster && <Badge className="bg-red-500 hover:bg-red-600 border-none text-white">Restrito</Badge>}
+                {/* Se não for admin no banco, mostra a etiqueta de restrito */}
+                {userRole !== 'admin' && (
+                  <Badge className="bg-red-500 hover:bg-red-600 border-none text-white">Restrito</Badge>
+                )}
               </CardTitle>
               <CardDescription className="mt-2 text-slate-500">
                 Gestão estratégica: métricas do SaaS, faturamento e controle de assinaturas.
@@ -92,7 +101,7 @@ export default function AdminHubPage() {
               </div>
               <CardTitle className="text-2xl font-bold text-slate-800">Modo Profissional</CardTitle>
               <CardDescription className="mt-2 text-slate-500">
-                Operação clínica: agenda pessoal, prontuários de pacientes e evoluções com IA.
+                Operação clínica: agenda pessoal, prontuários e evoluções com IA.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -117,7 +126,9 @@ export default function AdminHubPage() {
         </div>
         
         <div className="mt-12 text-center">
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Acesso Master Liberado</p>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
+            {userRole === 'admin' ? "Acesso Gestor Liberado" : "Acesso Restrito ao Operacional"}
+          </p>
         </div>
       </div>
     </div>

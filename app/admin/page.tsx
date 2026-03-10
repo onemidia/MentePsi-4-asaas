@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/client'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { 
   Users, 
   Activity, 
@@ -31,7 +31,7 @@ import { useRouter } from 'next/navigation'
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
+  SheetDescription,  
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
@@ -43,6 +43,9 @@ export default function AdminDashboard() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [statusFilter, setStatusFilter] = useState('todos')
+  const [currentPage, setCurrentPage] = useState(0)
+  const itemsPerPage = 10
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   const supabase = createClient()
@@ -95,6 +98,8 @@ export default function AdminDashboard() {
       (profile.full_name || '').toLowerCase().includes(search) ||
       (profile.email || '').toLowerCase().includes(search)
     
+    const matchesStatus = statusFilter === 'todos' || profile.subscription_status === statusFilter
+
     let matchesDate = true
     if (startDate || endDate) {
       // Se não houver data, assume uma data neutra para não filtrar pra fora
@@ -103,7 +108,7 @@ export default function AdminDashboard() {
       if (endDate && new Date(endDate + 'T23:59:59') < createdAt) matchesDate = false
     }
 
-    return matchesSearch && matchesDate
+    return matchesSearch && matchesDate && matchesStatus
   })
 
   // 🎯 MÉTRICAS DINÂMICAS (Recalculam conforme o filtro)
@@ -158,6 +163,8 @@ export default function AdminDashboard() {
     router.push('/dashboard')
   }
 
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
+
   return (
     <div className="p-6 space-y-6 bg-slate-50/50 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -167,7 +174,7 @@ export default function AdminDashboard() {
         
         {/* BARRA DE BUSCA E FILTRO */}
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center bg-white border rounded-xl px-3 py-1 shadow-sm w-full sm:w-auto">
+          <div className="flex items-center bg-white border rounded-xl px-3 py-1 shadow-sm w-full sm:w-auto flex-wrap">
             <Filter size={14} className="text-slate-400 mr-2" />
             <Input 
               type="date" 
@@ -192,6 +199,14 @@ export default function AdminDashboard() {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
+          </div>
+
+          <div className="flex gap-1 bg-white border rounded-xl p-1 shadow-sm w-full sm:w-auto">
+            <Button size="sm" variant={statusFilter === 'todos' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('todos'); setCurrentPage(0); }} className="text-xs h-7">Todos</Button>
+            <Button size="sm" variant={statusFilter === 'active' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('active'); setCurrentPage(0); }} className="text-xs h-7">Ativos</Button>
+            <Button size="sm" variant={statusFilter === 'trialing' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('trialing'); setCurrentPage(0); }} className="text-xs h-7">Trial</Button>
+            <Button size="sm" variant={statusFilter === 'canceled' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('canceled'); setCurrentPage(0); }} className="text-xs h-7">Cancelados</Button>
+            <Button size="sm" variant={statusFilter === 'past_due' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('past_due'); setCurrentPage(0); }} className="text-xs h-7">Vencidos</Button>
           </div>
 
           {(searchTerm || startDate || endDate) && (
@@ -241,7 +256,7 @@ export default function AdminDashboard() {
                 <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin h-8 w-8 text-teal-600 mx-auto" /></TableCell></TableRow>
               ) : filteredData.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-20 text-slate-400">Nenhum resultado para os filtros aplicados.</TableCell></TableRow>
-              ) : filteredData.slice(0, 50).map((user) => (
+              ) : filteredData.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage).map((user) => (
                 <TableRow key={user.id} className="hover:bg-slate-50 transition-colors">
                   <TableCell 
                     className="font-black text-slate-800 cursor-pointer hover:text-teal-600 underline decoration-dotted underline-offset-4" 
@@ -277,6 +292,20 @@ export default function AdminDashboard() {
             </TableBody>
           </Table>
         </CardContent>
+        <CardFooter className="flex items-center justify-between p-4 border-t">
+          <span className="text-xs text-slate-500">
+            Total de <strong>{filteredData.length}</strong> usuários.
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}>Anterior</Button>
+            <span className="text-xs font-medium">
+              Página {currentPage + 1} de {totalPages > 0 ? totalPages : 1}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}>
+              Próximo
+            </Button>
+          </div>
+        </CardFooter>
       </Card>
 
       {/* FICHA DO USUÁRIO (SHEET) - Código original preservado aqui dentro */}

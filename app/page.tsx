@@ -27,10 +27,10 @@ export default function LandingPage() {
 
           <div className="flex gap-4">
             <Button variant="ghost" asChild className="text-slate-600 hover:text-teal-600">
-              <Link href="/login">Entrar</Link>
+              <Link href="/auth/login">Entrar</Link>
             </Button>
             <Button asChild className="bg-teal-600 hover:bg-teal-700 text-white shadow-lg shadow-teal-200/50">
-              <Link href="/planos">Começar Grátis</Link>
+              <Link href="/auth/registro">Começar Grátis</Link>
             </Button>
           </div>
         </div>
@@ -48,7 +48,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Button size="lg" asChild className="h-14 px-8 text-lg bg-teal-600 hover:bg-teal-700 text-white shadow-xl shadow-teal-200">
-              <Link href="/planos">Criar Conta Gratuita <ArrowRight className="ml-2 h-5 w-5" /></Link>
+              <Link href="/auth/registro">Criar Conta Gratuita <ArrowRight className="ml-2 h-5 w-5" /></Link>
             </Button>
             <Button size="lg" variant="outline" asChild className="h-14 px-8 text-lg border-slate-300 text-slate-700 hover:bg-slate-50">
               <a href="#recursos">Ver Recursos</a>

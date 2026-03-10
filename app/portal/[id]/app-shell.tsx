@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
-import { MobileNav } from "@/components/MobileNav"
+import { MobileNav } from "./MobileNav"
 import { TrialBanner } from "@/components/trial-banner"
 import { SubscriptionRequiredOverlay } from "@/components/subscription-required-overlay"
 import { useEffect, useState } from "react"
@@ -33,7 +33,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return
       }
 
-      // 1. Busca na tabela de assinaturas (Onde a Trigger deve atuar)
+      // 🛡️ PASSE LIVRE: Super Admins e Equipe (Sem bloqueios)
+      // 🛡️ PASSE LIVRE ATUALIZADO (Apenas os dois e-mails autorizados)
+      const admins = ['alvino@onemidia.tv.br', 'mentepsiclinic@gmail.com']
+      const isAdmin = admins.includes(user.email?.toLowerCase() || '')
+
+      const { data: teamMember } = await supabase
+        .from('clinic_team')
+        .select('status')
+        .eq('email', user.email)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (isAdmin || teamMember) {
+        setUserData({ 
+          isBlocked: false, 
+          status: 'active', 
+          plan: 'Master', 
+          trialEndsAt: new Date() 
+        })
+        setLoading(false)
+        return
+      }
+
+      //  BUSCA REAL NA TABELA SUBSCRIPTIONS
       const { data: sub } = await supabase
         .from('subscriptions')
         .select('status, current_period_end')
@@ -46,13 +69,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const periodEnd = sub?.current_period_end ? new Date(sub.current_period_end) : null
       const now = new Date()
       
-      // 🛡️ Super Admins com passe livre total
-      const isSuperAdmin = ['alvino@onemidia.tv.br', 'mentepsiclinic@gmail.com'].includes(user.email?.toLowerCase() || '')
-      
-      const hasAccess = isSuperAdmin || status === 'active' || (status === 'trialing' && periodEnd && periodEnd > now)
+      // Lógica de acesso rigorosa
+      const hasAccess = status === 'active' || (status === 'trialing' && periodEnd && periodEnd > now)
       const isBlocked = !hasAccess
 
       setUserData({
+        // PRIORIDADE TOTAL AO BANCO: Se não houver data no banco, ele assume 'agora' (vencido)
         trialEndsAt: periodEnd || new Date(), 
         status: status,
         plan: 'Profissional',
@@ -64,19 +86,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     getData()
   }, [])
 
-  // ✅ ROTAS QUE NÃO MOSTRAM SIDEBAR/NAV (Branding Limpo)
   const hideSidebar =
     pathname === '/' ||
     pathname === '/login' ||
     pathname === '/planos' ||
     pathname === '/registro' ||
-    pathname === '/hub' ||
-    pathname.startsWith('/auth') || // Cobre /auth/callback, /auth/reset-password, etc.
     (pathname?.startsWith('/portal/') && pathname !== '/portal')
 
   if (!isMounted) return null
 
-  // Loader centralizado
   if (loading && !hideSidebar) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
@@ -85,7 +103,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Overlay de Bloqueio (Só aparece se não for rota pública e estiver bloqueado)
   if (userData?.isBlocked && !hideSidebar) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -105,7 +122,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col flex-1 min-w-0 h-full overflow-y-auto relative scroll-smooth">
         {!hideSidebar && <MobileNav />}
 
-        {/* ✅ BANNER DE TRIAL NO TOPO */}
+        {/* ✅ BANNER ÚNICO E DISCRETO NO TOPO */}
         {!hideSidebar && userData && userData.status === 'trialing' && (
           <TrialBanner
             key="global-trial-banner"

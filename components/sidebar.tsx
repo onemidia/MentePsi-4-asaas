@@ -14,9 +14,11 @@ import {
   DollarSign,
   Settings2,
   HeadphonesIcon,
-  UserCog
-} from "lucide-react"
-import { cn } from "@/lib/utils"
+  UserCog,
+  HelpCircle,
+  Video
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { createClient } from '@/lib/client'
@@ -168,14 +170,14 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   }, [supabase, pathname]) // Adicionei pathname aqui para ele re-checar ao mudar de página
 
   // 🟢 Só some se for rota de paciente (/portal/ID), mas APARECE no seu gerenciador (/portal)
-  if (pathname === '/' || pathname === '/login' || pathname === '/hub' || (pathname?.startsWith('/portal/') && pathname !== '/portal')) {
+  if (pathname === '/' || pathname.startsWith('/auth') || (pathname?.startsWith('/portal/') && pathname !== '/portal')) {
     return null
   }
 
   const handleLogout = async () => {
     localStorage.removeItem('currentView')
     await supabase.auth.signOut()
-    window.location.href = '/login'
+    window.location.href = '/auth/login'
   }
 
   const handleAdminReturn = () => {
@@ -262,7 +264,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
               <UserCog size={18} />
             </button>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => router.push('/hub')} className="w-full h-7 text-[10px] font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-200 uppercase tracking-wider rounded-lg">Voltar ao Hub</Button>
+          <Button variant="ghost" size="sm" onClick={() => router.push('/auth/hub')} className="w-full h-7 text-[10px] font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-200 uppercase tracking-wider rounded-lg">Voltar ao Hub</Button>
         </div>
       )}
 
@@ -290,14 +292,26 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         
         {/* BOTÃO DE SUPORTE - Visível apenas para Profissionais */}
         {!pathname?.startsWith('/admin') && !pathname?.startsWith('/dashboard/assistente') && (
-          <Button 
-            variant="outline" 
-            onClick={handleSupportClick}
-            className="w-full justify-start gap-3 text-teal-700 border-teal-200 bg-white hover:bg-teal-50 h-10 shadow-sm font-bold transition-all"
-          >
-            <HeadphonesIcon className="h-4 w-4 text-teal-500" />
-            Ajuda & Suporte
-          </Button>
+          <div className="space-y-2">
+            <Button 
+              variant="ghost" 
+              asChild
+              className="w-full justify-start gap-3 text-slate-600 hover:text-teal-600 hover:bg-teal-50 h-10 font-medium transition-all"
+            >
+              <Link href="/tutoriais">
+                <Video className="h-4 w-4" />
+                Central de Tutoriais
+              </Link>
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleSupportClick}
+              className="w-full justify-start gap-3 text-teal-700 border-teal-200 bg-white hover:bg-teal-50 h-10 shadow-sm font-bold transition-all"
+            >
+              <HeadphonesIcon className="h-4 w-4 text-teal-500" />
+              Falar com Suporte
+            </Button>
+          </div>
         )}
 
         <div className="flex items-center gap-3 px-2">

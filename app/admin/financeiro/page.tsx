@@ -14,7 +14,7 @@ import {
   Search,
   Filter
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -33,31 +33,39 @@ export default function FinanceiroGlobal() {
   const [searchTerm, setSearchTerm] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-
+  const [statusFilter, setStatusFilter] = useState('todos')
+  const [currentPage, setCurrentPage] = useState(0)
+  const itemsPerPage = 10
+  
+  const PLAN_PRICE = 49.90
   const supabase = createClient()
 
   useEffect(() => {
     async function fetchFinanceData() {
       setLoading(true)
-      // Query Unificada
-      const { data } = await supabase
+      
+      // 1. Busca Perfis
+      const { data: allProfiles } = await supabase
         .from('professional_profile')
-        .select('*, subscriptions(status, saas_plans(price_monthly, name))')
+        .select('*')
         .order('created_at', { ascending: false })
 
-      if (data) {
-        const formattedData = data.map(profile => {
-          const sub = Array.isArray(profile.subscriptions) ? profile.subscriptions[0] : profile.subscriptions
+      // 2. Busca Assinaturas para unificar status real
+      const { data: subs } = await supabase
+        .from('subscriptions')
+        .select('user_id, status, current_period_end')
+
+      if (allProfiles) {
+        const mergedData = allProfiles.map(profile => {
+          const userSub = subs?.find(s => s.user_id === profile.user_id)
           return {
             ...profile,
-            id: profile.user_id,
-            subscription_status: sub?.status || 'trialing',
-            plan_price: sub?.saas_plans?.price_monthly || 49.90
+            subscription_status: userSub?.status || 'trialing',
+            current_period_end: userSub?.current_period_end || null
           }
         })
-        setProfiles(formattedData)
+        setProfiles(mergedData)
       }
-      
       setLoading(false)
     }
     fetchFinanceData()
@@ -69,15 +77,20 @@ export default function FinanceiroGlobal() {
       profile.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       profile.email?.toLowerCase().includes(searchTerm.toLowerCase())
     
+    const matchesStatus = statusFilter === 'todos' || profile.subscription_status === statusFilter
+
     let matchesDate = true
     if (startDate || endDate) {
       const createdAt = new Date(profile.created_at)
       if (startDate && new Date(startDate) > createdAt) matchesDate = false
       if (endDate && new Date(endDate + 'T23:59:59') < createdAt) matchesDate = false
     }
-    
-    return matchesSearch && matchesDate
+
+    return matchesSearch && matchesDate && matchesStatus
   })
+
+  const totalPages = Math.ceil(filteredProfiles.length / itemsPerPage)
+  const currentProfiles = filteredProfiles.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage)
 
   // Cálculos baseados nos dados filtrados
   const stats = {
@@ -86,13 +99,21 @@ export default function FinanceiroGlobal() {
     trialCount: filteredProfiles.filter(p => p.subscription_status === 'trialing').length,
   }
 
-  // Cálculo de MRR: Usa o preço vindo da tabela de planos para cada usuário ativo
-  const mrr = filteredProfiles.filter(p => p.subscription_status === 'active').reduce((acc, curr) => acc + (curr.plan_price || 0), 0)
-  // Cálculo de Pendente: Usa o preço vindo da tabela de planos para inadimplentes (assumindo preço do plano que tentaram assinar)
-  const pendingRev = filteredProfiles.filter(p => p.subscription_status === 'past_due' || p.subscription_status === 'canceled').reduce((acc, curr) => acc + (curr.plan_price || 0), 0)
+  const mrr = stats.activeCount * PLAN_PRICE
+  const pendingRev = stats.pendingCount * PLAN_PRICE
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  }
+
+  const translateStatus = (status: string) => {
+    switch (status) {
+      case 'active': return 'ATIVO'
+      case 'trialing': return 'EM TESTE'
+      case 'past_due': return 'VENCIDO'
+      case 'canceled': return 'CANCELADO'
+      default: return 'SEM STATUS'
+    }
   }
 
   return (
@@ -118,6 +139,14 @@ export default function FinanceiroGlobal() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+
+        <div className="flex gap-1 bg-white border rounded-xl p-1 shadow-sm w-full sm:w-auto">
+          <Button size="sm" variant={statusFilter === 'todos' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('todos'); setCurrentPage(0); }} className="text-xs h-7">Todos</Button>
+          <Button size="sm" variant={statusFilter === 'active' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('active'); setCurrentPage(0); }} className="text-xs h-7">Ativos</Button>
+          <Button size="sm" variant={statusFilter === 'trialing' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('trialing'); setCurrentPage(0); }} className="text-xs h-7">Trial</Button>
+          <Button size="sm" variant={statusFilter === 'canceled' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('canceled'); setCurrentPage(0); }} className="text-xs h-7">Cancelados</Button>
+          <Button size="sm" variant={statusFilter === 'past_due' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('past_due'); setCurrentPage(0); }} className="text-xs h-7">Vencidos</Button>
         </div>
         
         <div className="flex items-center gap-2 w-full lg:w-auto">
@@ -210,7 +239,7 @@ export default function FinanceiroGlobal() {
                   <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin h-8 w-8 text-teal-600 mx-auto" /></TableCell></TableRow>
                 ) : filteredProfiles.length === 0 ? (
                   <TableRow><TableCell colSpan={4} className="text-center py-20 text-slate-400 font-medium">Nenhum resultado encontrado para o filtro.</TableCell></TableRow>
-                ) : filteredProfiles.map((profile) => (
+                ) : currentProfiles.map((profile) => (
                   <TableRow key={profile.id} className="hover:bg-slate-50 transition-colors border-b">
                     <TableCell className="py-4">
                       <div className="font-bold text-slate-800">{profile.full_name || 'Usuário Incompleto'}</div>
@@ -224,11 +253,11 @@ export default function FinanceiroGlobal() {
                           ? "bg-blue-100 text-blue-700 border-none px-3 font-bold"
                           : "bg-red-50 text-red-600 border border-red-100 px-3 font-bold"
                       }>
-                        {profile.subscription_status === 'trialing' ? 'PERÍODO DE TESTE' : profile.subscription_status === 'active' ? 'ASSINANTE ATIVO' : profile.subscription_status?.toUpperCase() || 'SEM STATUS'}
+                        {translateStatus(profile.subscription_status)}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-black text-slate-700">
-                      {profile.subscription_status === 'active' ? formatCurrency(profile.plan_price) : '---'}
+                      {profile.subscription_status === 'active' ? formatCurrency(PLAN_PRICE) : '---'}
                     </TableCell>
                     <TableCell className="text-right px-8 text-slate-500 font-mono text-sm">
                       {new Date(profile.created_at).toLocaleDateString('pt-BR')}
@@ -239,6 +268,20 @@ export default function FinanceiroGlobal() {
             </Table>
           </div>
         </CardContent>
+        <CardFooter className="flex items-center justify-between p-4 border-t">
+          <span className="text-xs text-slate-500">
+            Total de <strong>{filteredProfiles.length}</strong> resultados.
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}>
+              Anterior
+            </Button>
+            <span className="text-xs font-medium">Página {currentPage + 1} de {totalPages > 0 ? totalPages : 1}</span>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}>
+              Próximo
+            </Button>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   )

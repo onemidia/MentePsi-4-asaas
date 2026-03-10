@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/client"
+import { createClient } from '@/lib/client'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Lock, CreditCard, CheckCircle2, Zap } from "lucide-react"
@@ -24,7 +24,7 @@ export function SubscriptionRequiredOverlay() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push('/login')
+    router.push('/auth/login')
   }
 
   return (
