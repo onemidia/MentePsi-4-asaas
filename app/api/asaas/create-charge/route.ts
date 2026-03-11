@@ -1,3 +1,5 @@
+console.log(">>> TESTE DE CONEXÃO ASAAS V4 <<<");
+
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
