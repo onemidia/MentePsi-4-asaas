@@ -120,16 +120,26 @@ export async function POST(req: Request) {
       }),
     })
 
-    const payment = await paymentResponse.json()
+    const subscription = await paymentResponse.json()
 
     if (!paymentResponse.ok) {
-      console.error(payment)
-      throw new Error("Erro ao criar cobrança no Asaas")
+      console.error(subscription)
+      throw new Error("Erro ao criar assinatura")
     }
 
+    // 🔥 BUSCAR A FATURA DA ASSINATURA PARA O REDIRECIONAMENTO
+    // Vamos listar as cobranças dessa assinatura que acabamos de criar
+    const paymentsRes = await fetch(`${asaasUrl}/subscriptions/${subscription.id}/payments`, {
+      headers: { access_token: asaasKey }
+    })
+    const paymentsData = await paymentsRes.json()
+
+    // Pegamos a URL da primeira fatura disponível
+    const firstInvoiceUrl = paymentsData.data?.[0]?.invoiceUrl || subscription.invoiceUrl
+
     return NextResponse.json({
-      invoiceUrl: payment.invoiceUrl,
-      payment_id: payment.id
+      invoiceUrl: firstInvoiceUrl, // Agora o frontend terá para onde ir!
+      subscriptionId: subscription.id
     })
 
   } catch (error: any) {

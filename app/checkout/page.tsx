@@ -17,107 +17,88 @@ function CheckoutContent() {
   const { toast } = useToast();
   const [status, setStatus] = useState('processing');
   const [errorMessage, setErrorMessage] = useState('');
-  const [needsInfo, setNeedsInfo] = useState(false);
   const [infoData, setInfoData] = useState({ cpf: '', phone: '', name: '' });
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const supabase = createClient();
 
-  // Função isolada para processar o pagamento
   const executeCharge = async (userData: any, extraData: any = {}) => {
     try {
       const params = Object.fromEntries(searchParams.entries());
-      
-      // Prevenir Loop Infinito (Timeout de 15s)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-      // Limpeza de dados (remove máscaras) e garante que os dados do formulário tenham prioridade
-      const cleanCpf = (extraData.cpf || userData.cpf || '').replace(/\D/g, '');
-      const cleanPhone = (extraData.phone || userData.phone || '').replace(/\D/g, '');
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s para assinaturas
 
       const response = await fetch('/api/asaas/create-charge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // Garante que os dados corretos sejam enviados
           userId: userData.id || userId,
           email: userData.email || userEmail,
-          name: extraData.name || userData.full_name, // Prioriza nome do formulário
-          cpf: cleanCpf,
-          phone: cleanPhone,
+          name: extraData.name || userData.full_name,
+          cpf: (extraData.cpf || userData.cpf || '').replace(/\D/g, ''),
+          phone: (extraData.phone || userData.phone || '').replace(/\D/g, ''),
           ...params
         }),
         signal: controller.signal
       });
 
       clearTimeout(timeoutId);
+      const data = await response.json();
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha na comunicação com o servidor.');
+        throw new Error(data.error || 'Falha ao processar assinatura.');
       }
 
-      const data = await response.json();
-      console.log('✅ [Checkout] Sucesso:', data);
-      setStatus('success');
-      
-      if (data.invoiceUrl) {
-           window.location.href = data.invoiceUrl;
+      console.log('✅ [Checkout] Resposta da API:', data);
+
+      // 🔥 CAPTURA DE URL MULTI-CAMPO (Para PIX ou Assinatura)
+      const finalUrl = data.invoiceUrl || data.checkoutUrl || data.paymentUrl;
+
+      if (finalUrl) {
+        setStatus('success');
+        window.location.href = finalUrl;
       } else {
-           toast({ title: 'Sucesso', description: 'Cobrança gerada com sucesso.' });
+        // Caso o Asaas demore a gerar a fatura da assinatura
+        throw new Error('Assinatura criada, mas o link de pagamento ainda não está disponível. Verifique seu e-mail ou tente em instantes.');
       }
 
     } catch (error: any) {
       console.error('❌ [Checkout] Erro:', error);
       setStatus('error');
-      setErrorMessage(error.message || 'Erro desconhecido.');
-      
-      // Feedback Visual: Toast com a mensagem real
+      setErrorMessage(error.message || 'Erro inesperado no checkout.');
       toast({ 
         variant: "destructive", 
-        title: "Erro ao processar", 
+        title: "Erro no processamento", 
         description: error.message 
       });
     }
   };
 
   useEffect(() => {
-    // Debug de Parâmetros
-    const params = Object.fromEntries(searchParams.entries());
-    console.log('🔍 [Checkout] Search Params:', params);
-
     const processCheckout = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          throw new Error('Usuário não autenticado.');
-        }
+        if (!user) throw new Error('Usuário não autenticado.');
 
         setUserId(user.id);
         setUserEmail(user.email || '');
 
-        // 1. Busque os dados do perfil logado
         const { data: profile } = await supabase
           .from('professional_profile')
           .select('full_name, email, cpf, phone')
           .eq('user_id', user.id)
           .single();
 
-        // 2. Antes de chamar a API, verifique se o CPF existe
-        if (!profile?.cpf) {
-          setInfoData(prev => ({
-            ...prev,
+        if (!profile?.cpf || !profile?.phone) {
+          setInfoData({
             cpf: profile?.cpf || '',
             phone: profile?.phone || '',
             name: profile?.full_name || user.user_metadata?.full_name || ''
-          }));
+          });
           setStatus('waiting_info');
           return;
         }
 
-        // 3. Envie os dados REAIS para a API
         await executeCharge({ 
             id: user.id, 
             email: profile.email || user.email, 
@@ -127,27 +108,20 @@ function CheckoutContent() {
         });
 
       } catch (error: any) {
-        console.error('❌ [Checkout] Erro:', error);
         setStatus('error');
         setErrorMessage(error.message);
-        toast({ variant: "destructive", title: "Erro", description: error.message });
       }
     };
 
-    // Executa apenas uma vez na montagem
-    if (status === 'processing') {
-        processCheckout();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (status === 'processing') processCheckout();
   }, []);
 
   const handleInfoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus('processing');
-    
     try {
-      // Salva no perfil para não pedir de novo
-      const { error } = await supabase.from('professional_profile').upsert({
+      // Salva dados no perfil para evitar nova solicitação
+      await supabase.from('professional_profile').upsert({
         user_id: userId,
         cpf: infoData.cpf,
         phone: infoData.phone,
@@ -155,15 +129,14 @@ function CheckoutContent() {
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' });
 
-      // Executa a cobrança com os dados do formulário (mesmo se falhar o save do perfil, tenta cobrar)
       await executeCharge({ id: userId, email: userEmail }, infoData);
     } catch (error: any) {
        setStatus('error');
        setErrorMessage(error.message);
-       toast({ variant: "destructive", title: "Erro", description: error.message });
     }
   };
 
+  // UI de Espera por Informações
   if (status === 'waiting_info') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
@@ -172,40 +145,24 @@ function CheckoutContent() {
             <div className="mx-auto bg-teal-50 p-3 rounded-full w-fit mb-2 text-teal-600">
               <ShieldCheck size={32} />
             </div>
-            <CardTitle>Finalizar Cadastro</CardTitle>
-            <CardDescription>Precisamos de alguns dados para emitir sua nota fiscal.</CardDescription>
+            <CardTitle>Dados de Faturamento</CardTitle>
+            <CardDescription>Confirme seus dados para ativar o plano recorrente.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleInfoSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label>Nome Completo</Label>
-                <Input 
-                  value={infoData.name} 
-                  onChange={e => setInfoData({...infoData, name: e.target.value})} 
-                  required 
-                />
+                <Input value={infoData.name} onChange={e => setInfoData({...infoData, name: e.target.value})} required />
               </div>
               <div className="space-y-2">
                 <Label>CPF</Label>
-                <Input 
-                  value={infoData.cpf} 
-                  onChange={e => setInfoData({...infoData, cpf: e.target.value})} 
-                  placeholder="000.000.000-00"
-                  required 
-                />
+                <Input value={infoData.cpf} onChange={e => setInfoData({...infoData, cpf: e.target.value})} placeholder="000.000.000-00" required />
               </div>
               <div className="space-y-2">
-                <Label>Celular / WhatsApp</Label>
-                <Input 
-                  value={infoData.phone} 
-                  onChange={e => setInfoData({...infoData, phone: e.target.value})} 
-                  placeholder="(00) 00000-0000"
-                  required 
-                />
+                <Label>Celular</Label>
+                <Input value={infoData.phone} onChange={e => setInfoData({...infoData, phone: e.target.value})} placeholder="(00) 00000-0000" required />
               </div>
-              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 font-bold mt-4">
-                Continuar para Pagamento
-              </Button>
+              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 font-bold mt-4">Pagar Assinatura</Button>
             </form>
           </CardContent>
         </Card>
@@ -213,39 +170,27 @@ function CheckoutContent() {
     );
   }
 
+  // UI de Erro
   if (status === 'error') {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center space-y-4 bg-slate-50 p-4">
-        <div className="bg-red-100 p-4 rounded-full">
-          <AlertCircle className="h-8 w-8 text-red-600" />
-        </div>
-        <h1 className="text-xl font-bold text-slate-800">Não foi possível concluir</h1>
-        <p className="text-slate-500 text-center max-w-md">{errorMessage}</p>
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800"
-        >
-          Tentar Novamente
-        </button>
+        <AlertCircle className="h-12 w-12 text-red-600" />
+        <h1 className="text-xl font-bold text-slate-800">Erro no Checkout</h1>
+        <p className="text-slate-500 text-center max-w-sm">{errorMessage}</p>
+        <Button onClick={() => window.location.reload()} variant="outline">Tentar Novamente</Button>
       </div>
     );
   }
 
-  if (status === 'success') {
-      return (
-        <div className="flex h-screen w-screen flex-col items-center justify-center space-y-4 bg-slate-50">
-            <Loader2 className="h-12 w-12 animate-spin text-teal-600" />
-            <p className="text-slate-500">Redirecionando para pagamento...</p>
-        </div>
-      )
-  }
-
+  // UI de Sucesso / Carregamento
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center space-y-4 bg-slate-50">
       <Loader2 className="h-12 w-12 animate-spin text-teal-600" />
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-slate-800">Processando Checkout...</h1>
-        <p className="text-slate-500">Aguarde, estamos preparando seu ambiente.</p>
+        <h1 className="text-2xl font-bold text-slate-800">
+          {status === 'success' ? 'Redirecionando...' : 'Finalizando sua Assinatura...'}
+        </h1>
+        <p className="text-slate-500">Estamos conectando com o Asaas...</p>
       </div>
     </div>
   );
@@ -253,9 +198,7 @@ function CheckoutContent() {
 
 export default function CheckoutPage() {
   return (
-    <Suspense fallback={
-      <div className="flex h-screen w-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-teal-600" /></div>
-    }>
+    <Suspense fallback={<div className="flex h-screen w-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-teal-600" /></div>}>
       <CheckoutContent />
     </Suspense>
   );
