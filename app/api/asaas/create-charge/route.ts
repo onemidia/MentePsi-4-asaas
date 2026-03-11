@@ -1,117 +1,141 @@
-import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-admin'
+import { NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
+
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(req: Request) {
   try {
+
     const body = await req.json()
-    // CORREÇÃO: Pegamos 'cpf' (do seu botão) e 'cpfCnpj' para garantir
-    const { 
-      userId, 
-      value, 
-      price, 
-      type, 
-      name, 
-      email, 
-      cpf,      // Nome vindo do seu formulário
-      cpfCnpj,  // Nome padrão da API
-      phone, 
-      creditCard, 
-      creditCardHolderInfo 
-    } = body 
 
-    // Define qual CPF usar (prioriza o que não estiver vazio)
-    const finalCpf = cpf || cpfCnpj
-    const finalValue = value || price
+    const userId = body.userId
+    const email = body.email
+    const name = body.name
+    const cpf = body.cpf
+    const phone = body.phone
 
-    // 1. Limpeza Radical: Garante que SÓ números cheguem no Asaas
-    const cleanCpf = (finalCpf || '').replace(/\D/g, '');
-
-    const asaasKey = (process.env.ASAAS_API_KEY || '').trim().replace(/['"]+/g, '');
-    const asaasUrl = (process.env.ASAAS_API_URL || '').trim().replace(/['"]+/g, '');
-
-    if (!asaasKey || !asaasUrl) {
-      return NextResponse.json({ error: 'Configuração do Asaas ausente.' }, { status: 500 })
+    if (!userId) {
+      return NextResponse.json(
+        { error: "userId obrigatório" },
+        { status: 400 }
+      )
     }
 
-    // 1. CRIAR OU IDENTIFICAR O CLIENTE NO ASAAS
-    const customerResponse = await fetch(`${asaasUrl}/customers`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'access_token': asaasKey },
-      body: JSON.stringify({
-        name: name || 'Usuário MentePsi',
-        email: email,
-        cpfCnpj: cleanCpf, // <--- Use exatamente 'cpfCnpj' e o CPF limpo
-        phone: phone,
-        externalReference: userId
-      })
-    })
-    
-    const customerData = await customerResponse.json()
-    
-    // Captura o ID do cliente (seja novo ou já existente)
-    const customerId = customerData.id || customerData.errors?.[0]?.description?.match(/cus_[a-zA-Z0-9]+/)?.[0];
-
-    if (!customerId) {
-       console.error('❌ Falha ao processar cliente:', customerData)
-       return NextResponse.json({ error: 'CPF inválido ou não informado.' }, { status: 400 })
-    }
-
-    // 2. CRIAR A COBRANÇA
-    const response = await fetch(`${asaasUrl}/payments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'access_token': asaasKey },
-      body: JSON.stringify({
-        customer: customerId, 
-        billingType: type || 'CREDIT_CARD',
-        value: finalValue,
-        dueDate: new Date().toISOString().split('T')[0],
-        externalReference: userId,
-        description: `Assinatura MentePsi - Plano Profissional Ilimitado`,
-        redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-        creditCard: creditCard,
-        creditCardHolderInfo: creditCardHolderInfo,
-        remoteIp: req.headers.get('x-forwarded-for') || '127.0.0.1'
-      })
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      console.error('❌ Erro na cobrança:', data)
-      return NextResponse.json({ error: data.errors?.[0]?.description }, { status: 400 })
-    }
-
-    // 3. ATUALIZAÇÃO PREVENTIVA DA ASSINATURA (Libera acesso imediato enquanto processa)
-    // Busca o ID do plano Professional
-    const { data: planPro } = await supabaseAdmin
-      .from('saas_plans')
-      .select('id')
-      .eq('slug', 'professional')
+    // Buscar perfil
+    const { data: profile, error: profileError } = await supabase
+      .from("professional_profile")
+      .select("*")
+      .eq("user_id", userId)
       .single()
 
-    if (planPro) {
-      const { error: upsertError } = await supabaseAdmin
-        .from('subscriptions')
-        .upsert({
-          user_id: userId,
-          plan_id: planPro.id,
-          status: 'active', // Libera acesso preventivamente
-          current_period_start: new Date().toISOString(),
-          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // +30 dias
-          asaas_customer_id: customerId,
-          asaas_subscription_id: data.id,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' })
-
-      if (upsertError) {
-        console.error('⚠️ Erro ao atualizar assinatura preventiva:', upsertError)
-      }
+    if (profileError) {
+      console.error(profileError)
     }
 
-    return NextResponse.json(data)
+    // Buscar plano
+    const { data: plan, error: planError } = await supabase
+      .from("saas_plans")
+      .select("*")
+      .eq("slug", "professional")
+      .single()
+
+    if (!plan) {
+      return NextResponse.json(
+        { error: "Plano não encontrado" },
+        { status: 404 }
+      )
+    }
+
+    // 1. Limpeza de dados (Obrigatório para evitar Erro 400)
+    const cleanCpf = cpf?.replace(/\D/g, "")
+    const cleanPhone = phone?.replace(/\D/g, "")
+    const asaasUrl = (
+      process.env.ASAAS_API_URL || "https://sandbox.asaas.com/api/v3"
+    )
+      .trim()
+      .replace(/['"]+/g, "")
+    const asaasKey = (process.env.ASAAS_API_KEY || "")
+      .trim()
+      .replace(/['"]+/g, "")
+
+    // 2. Garantir cliente Asaas (Corrigido para usar a URL dinâmica)
+    let customerId = profile?.asaas_customer_id
+
+    if (!customerId) {
+      const customerResponse = await fetch(`${asaasUrl}/customers`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          access_token: asaasKey,
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          cpfCnpj: cleanCpf,
+          mobilePhone: cleanPhone,
+        }),
+      })
+
+      const customer = await customerResponse.json()
+
+      if (!customerResponse.ok) {
+        console.error(customer)
+        throw new Error("Erro ao criar cliente no Asaas")
+      }
+
+      customerId = customer.id
+
+      await supabase.from("professional_profile").update({
+        asaas_customer_id: customerId,
+      }).eq("user_id", userId)
+    }
+
+    // Data vencimento
+    const dueDate = new Date()
+    dueDate.setDate(dueDate.getDate() + 1)
+
+    // 3. Criar pagamento (Corrigido para usar a URL dinâmica)
+    const paymentResponse = await fetch(`${asaasUrl}/payments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        access_token: asaasKey,
+      },
+      body: JSON.stringify({
+        customer: customerId,
+        billingType: "PIX",
+        value: plan.price_monthly,
+        description: `Plano ${plan.name} - MentePsi`,
+        dueDate: dueDate.toISOString().split("T")[0],
+        externalReference: userId, // Crucial para o Webhook!
+      }),
+    })
+
+    const payment = await paymentResponse.json()
+
+    if (!paymentResponse.ok) {
+      console.error(payment)
+      throw new Error("Erro ao criar cobrança no Asaas")
+    }
+
+    return NextResponse.json({
+      invoiceUrl: payment.invoiceUrl,
+      payment_id: payment.id
+    })
 
   } catch (error: any) {
-    console.error('💥 Erro interno:', error)
-    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
+
+    console.error("Erro create-charge:", error)
+
+    return NextResponse.json(
+      { error: error.message || "Erro ao criar cobrança" },
+      { status: 500 }
+    )
   }
 }
