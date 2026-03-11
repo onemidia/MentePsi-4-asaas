@@ -102,8 +102,8 @@ export async function POST(req: Request) {
     const dueDate = new Date()
     dueDate.setDate(dueDate.getDate() + 1)
 
-    // 3. Criar pagamento (Corrigido para usar a URL dinâmica)
-    const paymentResponse = await fetch(`${asaasUrl}/payments`, {
+    // 1. Mude o endpoint de /payments para /subscriptions
+    const paymentResponse = await fetch(`${asaasUrl}/subscriptions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -111,11 +111,12 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         customer: customerId,
-        billingType: "PIX",
+        billingType: "CREDIT_CARD", // <--- MUDANÇA AQUI
         value: plan.price_monthly,
-        description: `Plano ${plan.name} - MentePsi`,
-        dueDate: dueDate.toISOString().split("T")[0],
-        externalReference: userId, // Crucial para o Webhook!
+        nextDueDate: dueDate.toISOString().split("T")[0],
+        cycle: "MONTHLY", // <--- ISSO GERA A RECORRÊNCIA MENSAL
+        description: `Assinatura Plano ${plan.name} - MentePsi`,
+        externalReference: userId,
       }),
     })
 
