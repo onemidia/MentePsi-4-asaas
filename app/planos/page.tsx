@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, Loader2, Star, AlertTriangle, Shield, Zap, Heart, Brain, MessageSquare, ClipboardCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +17,8 @@ export default function PlanosPage() {
   
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const motivo = searchParams.get('motivo')
   const { toast } = useToast()
 
   useEffect(() => {
@@ -70,15 +72,31 @@ export default function PlanosPage() {
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       {/* HEADER ATRAVATIVO */}
       <div className="text-center max-w-3xl mx-auto mb-16">
-        <div className="inline-flex items-center gap-2 bg-teal-50 border border-teal-100 px-3 py-1 rounded-full text-teal-700 text-xs font-bold uppercase tracking-wider mb-6">
-          <Zap size={14} className="fill-teal-700" /> O Futuro da Psicologia Clínica
-        </div>
-        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-6">
-          Tudo o que você precisa em <span className="text-teal-600">um único lugar.</span>
-        </h1>
-        <p className="text-xl text-slate-600 leading-relaxed">
-          Chega de várias ferramentas. Automatize seus prontuários, lembretes e financeiro com a Inteligência Artificial da MentePsi.
-        </p>
+        {motivo ? (
+          motivo === 'inadimplente' ? (
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-red-600">Assinatura Suspensa</h1>
+              <p className="text-gray-600">Detectamos uma pendência no seu último pagamento. Regularize para recuperar o acesso aos seus dados.</p>
+            </div>
+          ) : (
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-blue-600">Seu período de teste acabou</h1>
+              <p className="text-gray-600">Escolha o melhor plano para continuar evoluindo sua clínica.</p>
+            </div>
+          )
+        ) : (
+          <>
+            <div className="inline-flex items-center gap-2 bg-teal-50 border border-teal-100 px-3 py-1 rounded-full text-teal-700 text-xs font-bold uppercase tracking-wider mb-6">
+              <Zap size={14} className="fill-teal-700" /> O Futuro da Psicologia Clínica
+            </div>
+            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-6">
+              Tudo o que você precisa em <span className="text-teal-600">um único lugar.</span>
+            </h1>
+            <p className="text-xl text-slate-600 leading-relaxed">
+              Chega de várias ferramentas. Automatize seus prontuários, lembretes e financeiro com a Inteligência Artificial da MentePsi.
+            </p>
+          </>
+        )}
       </div>
 
       {isTrial && (

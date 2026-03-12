@@ -55,7 +55,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // LÓGICA DO PLANO ÚNICO (Via Subscriptions)
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('status, current_period_end')
+    .select('status, current_period_end, grace_period_until')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -63,14 +63,27 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const now = new Date()
   const trialEndsAt = subscription?.current_period_end ? new Date(subscription.current_period_end) : null
+  const gracePeriodEnd = subscription?.grace_period_until ? new Date(subscription.grace_period_until) : null
   
   const isTrialValid = subscription?.status === 'trialing' && trialEndsAt && trialEndsAt > now
   const isPaid = subscription?.status === 'active'
+  const isInGracePeriod = subscription?.status === 'overdue' && gracePeriodEnd && gracePeriodEnd > now
 
   // BLOQUEIO TOTAL se não estiver pago ou em trial
-  if (!isTrialValid && !isPaid) {
+  if (!isTrialValid && !isPaid && !isInGracePeriod) {
     return <SubscriptionRequiredOverlay />
   }
 
-  return <>{children}</> // 🟢 Retorno limpo para usuários comuns também
+  return (
+    <>
+      {subscription?.status === 'overdue' && (
+        <div className="bg-amber-100 border-b border-amber-200 p-3 text-amber-800 text-center text-sm font-medium">
+          ⚠️ <strong>Atenção:</strong> Identificamos um atraso no seu pagamento. 
+          Seu acesso está garantido pela carência até {new Date(subscription.grace_period_until).toLocaleDateString()}. 
+          <a href="/planos" className="underline ml-2">Regularizar agora</a>
+        </div>
+      )}
+      {children}
+    </>
+  )
 }

@@ -62,7 +62,7 @@ export default function GestaoPsicologos() {
     // 2. Busca Assinaturas para unificar
     const { data: subs } = await supabase
       .from('subscriptions')
-      .select('user_id, status, current_period_end')
+      .select('user_id, status, current_period_end, grace_period_until')
     
     if (profiles) {
       // 3. Unifica os dados em um só objeto, garantindo que todos tenham status
@@ -72,6 +72,7 @@ export default function GestaoPsicologos() {
           ...profile,
           subscription_status: userSub?.status || 'trialing', // Default para 'trialing' para consistência
           current_period_end: userSub?.current_period_end || null,
+          grace_period_until: userSub?.grace_period_until || null,
         }
       })
       setUsers(mergedData)
@@ -118,6 +119,33 @@ export default function GestaoPsicologos() {
 
     if (!error) {
       toast({ title: "Trial Renovado!", description: "Mais 30 dias de cortesia." })
+      fetchUsers() 
+    }
+    setProcessingId(null)
+  }
+
+  async function handleGiveGracePeriod(userId: string) {
+    setProcessingId(userId)
+    
+    // 1. Busca configuração de dias ou usa padrão
+    const { data: config } = await supabase.from('saas_config').select('grace_period_days').single()
+    const days = config?.grace_period_days || 10
+    
+    const graceDate = new Date()
+    graceDate.setDate(graceDate.getDate() + days)
+
+    // 2. Atualiza status para overdue e define data limite
+    const { error } = await supabase
+      .from('subscriptions')
+      .update({ 
+        status: 'overdue',
+        grace_period_until: graceDate.toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+
+    if (!error) {
+      toast({ title: "Carência Aplicada!", description: `Acesso liberado por mais ${days} dias (Status: Overdue).` })
       fetchUsers() 
     }
     setProcessingId(null)
@@ -224,11 +252,18 @@ export default function GestaoPsicologos() {
 
                   <TableCell className="text-slate-600 font-medium">
                     {trialDate ? (
-                      <div className="flex items-center gap-2 text-sm">
-                        <CalendarDays className={`h-4 w-4 ${isTrialExpired ? 'text-red-400' : 'text-slate-300'}`} />
-                        <span className={isTrialExpired ? 'text-red-600 font-bold' : ''}>
-                           {trialDate.toLocaleDateString('pt-BR')}
-                        </span>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 text-sm">
+                          <CalendarDays className={`h-4 w-4 ${isTrialExpired ? 'text-red-400' : 'text-slate-300'}`} />
+                          <span className={isTrialExpired ? 'text-red-600 font-bold' : ''}>
+                            {trialDate.toLocaleDateString('pt-BR')}
+                          </span>
+                        </div>
+                        {user.grace_period_until && (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 w-fit text-[10px] px-2">
+                            Carência: {new Date(user.grace_period_until).toLocaleDateString('pt-BR')}
+                          </Badge>
+                        )}
                       </div>
                     ) : (
                       <span className="text-slate-300 text-xs">Assinatura Vitalícia/Ativa</span>
@@ -252,6 +287,10 @@ export default function GestaoPsicologos() {
 
                           <DropdownMenuItem onClick={() => handleExtendTrial(user.user_id)} className="rounded-lg text-blue-600 font-bold focus:bg-blue-50 cursor-pointer">
                             <History className="mr-3 h-4 w-4" /> Dar +30 Dias Grátis
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem onClick={() => handleGiveGracePeriod(user.user_id)} className="rounded-lg text-amber-600 font-bold focus:bg-amber-50 cursor-pointer">
+                            <ShieldAlert className="mr-3 h-4 w-4" /> Dar +10 dias de Carência
                           </DropdownMenuItem>
 
                           <DropdownMenuSeparator className="my-2" />

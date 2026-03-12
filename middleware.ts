@@ -99,14 +99,15 @@ export async function middleware(request: NextRequest) {
                         expirationDate && expirationDate > now;
     const isGracePeriodValid = subscription?.status === 'overdue' && 
                                gracePeriodDate && gracePeriodDate > now;
+    const isFirstLogin = !subscription;
 
-    // 🚀 A REGRA DE OURO: Se qualquer um desses for verdadeiro, ele ENTRA.
-    if (hasActivePlan || isTrialValid || isGracePeriodValid || !subscription) {
-      return response;
+    if (!hasActivePlan && !isTrialValid && !isGracePeriodValid && !isFirstLogin) {
+      if (pathname !== '/planos') {
+        // 💡 Se o status for overdue, enviamos um motivo específico
+        const reason = subscription?.status === 'overdue' ? 'inadimplente' : 'trial_vencido';
+        return NextResponse.redirect(new URL(`/planos?motivo=${reason}`, request.url));
+      }
     }
-
-    // Caso contrário, se não for nenhuma das opções acima, manda para /planos
-    return NextResponse.redirect(new URL('/planos', request.url));
   }
 
   return response

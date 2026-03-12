@@ -65,7 +65,7 @@ export default function AdminDashboard() {
       // 2. Busca Assinaturas
       const { data: subs } = await supabase
         .from('subscriptions')
-        .select('user_id, status, plan_id, current_period_end, saas_plans(slug, price_monthly)')
+        .select('user_id, status, plan_id, current_period_end, grace_period_until, saas_plans(slug, price_monthly)')
 
       if (profiles) {
         const mergedData = profiles.map(profile => {
@@ -81,6 +81,7 @@ export default function AdminDashboard() {
             subscription_status: userSub?.status || 'trialing', 
             plan_type: userSub?.saas_plans?.slug || 'professional',
             plan_price: userSub?.saas_plans?.price_monthly || 59.90,
+            grace_period_until: userSub?.grace_period_until,
           }
         })
         setAllProfiles(mergedData)
@@ -155,6 +156,26 @@ export default function AdminDashboard() {
     if (!error) {
       setAllProfiles(prev => prev.map(u => u.user_id === userId ? { ...u, subscription_status: newStatus } : u))
       toast({ title: "Status atualizado com sucesso!" })
+    }
+  }
+
+  const updateGracePeriod = async (userId: string, newDate: string) => {
+    // Se a data vier vazia, removemos a carência (null)
+    const val = newDate ? new Date(newDate).toISOString() : null
+    
+    const { error } = await supabase
+      .from('subscriptions')
+      .update({ grace_period_until: val, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+
+    if (!error) {
+      toast({ title: "Carência atualizada!" })
+      setAllProfiles(prev => prev.map(u => u.user_id === userId ? { ...u, grace_period_until: val } : u))
+      if (selectedUser?.user_id === userId) {
+        setSelectedUser((prev: any) => ({ ...prev, grace_period_until: val }))
+      }
+    } else {
+      toast({ variant: "destructive", title: "Erro ao atualizar", description: error.message })
     }
   }
 
@@ -323,7 +344,24 @@ export default function AdminDashboard() {
                       <p className="text-slate-400 font-medium">{selectedUser.email}</p>
                    </div>
                 </div>
-                {/* Detalhes... */}
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Controle de Carência</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-slate-600">Fim do acesso extra:</span>
+                    <Badge variant="outline" className="font-mono">
+                      {selectedUser?.grace_period_until ? new Date(selectedUser.grace_period_until).toLocaleDateString('pt-BR') : 'Sem carência'}
+                    </Badge>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <Input 
+                      type="date" 
+                      className="h-8 text-xs bg-white" 
+                      defaultValue={selectedUser?.grace_period_until ? new Date(selectedUser.grace_period_until).toISOString().split('T')[0] : ''}
+                      onChange={(e) => updateGracePeriod(selectedUser.user_id, e.target.value)}
+                    />
+                  </div>
+                </div>
              </div>
            )}
         </SheetContent>

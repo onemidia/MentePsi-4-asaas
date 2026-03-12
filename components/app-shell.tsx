@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       // 1. Busca na tabela de assinaturas (Onde a Trigger deve atuar)
       const { data: sub } = await supabase
         .from('subscriptions')
-        .select('status, current_period_end')
+        .select('status, current_period_end, grace_period_until')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -49,7 +49,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       // 🛡️ Super Admins com passe livre total
       const isSuperAdmin = ['alvino@onemidia.tv.br', 'mentepsiclinic@gmail.com'].includes(user.email?.toLowerCase() || '')
       
-      const hasAccess = isSuperAdmin || status === 'active' || (status === 'trialing' && periodEnd && periodEnd > now)
+      const gracePeriodEnd = sub?.grace_period_until ? new Date(sub.grace_period_until) : null
+      const isGraceValid = gracePeriodEnd && gracePeriodEnd > now
+
+      const hasAccess = isSuperAdmin || status === 'active' || (status === 'trialing' && periodEnd && periodEnd > now) || isGraceValid
       const isBlocked = !hasAccess
 
       setUserData({
