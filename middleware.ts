@@ -29,11 +29,15 @@ export async function middleware(request: NextRequest) {
   const publicAuthRoutes = ['/auth/login', '/auth/registro', '/auth/callback', '/auth/set-password']
   const isPublicRoute =
     pathname === '/' ||
-    pathname === '/ajuda' || // Nova rota pública para tutoriais
+    pathname === '/ajuda' ||
+    pathname === '/termos' ||      // ✅ Inserido cirurgicamente
+    pathname === '/privacidade' ||  // ✅ Inserido cirurgicamente
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     publicAuthRoutes.includes(pathname) ||
     pathname.startsWith('/planos')
+
+  if (isPublicRoute) return response
 
   const isFinancialRoute =
     pathname.startsWith('/checkout') ||

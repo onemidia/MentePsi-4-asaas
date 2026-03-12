@@ -24,6 +24,8 @@ export default function RootLayout({
     pathname === "/forgot-password" ||
     pathname === "/reset-password" ||
     pathname === "/checkout" ||
+    pathname === "/termos" ||      // ✅ ADICIONADO
+    pathname === "/privacidade" ||  // ✅ ADICIONADO
     (pathname?.startsWith("/portal/") && pathname !== "/portal") ||
     pathname?.startsWith("/callback");
 

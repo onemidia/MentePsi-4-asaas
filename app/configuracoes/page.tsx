@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { TrialBanner } from '@/components/trial-banner' // 🟢 Importa o novo banner
+import TrialBanner from './TrialBanner' // 🟢 Importa o novo banner
 import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
@@ -612,6 +612,22 @@ export default function SettingsPage() {
                   </p>
                 </div>
               </div>
+
+              {/* BOTÃO SÓ APARECE SE NÃO ESTIVER ATIVO */}
+              {subscription?.status?.toLowerCase() !== 'active' && (
+                <div className="p-6 rounded-xl border-2 border-dashed border-teal-200 bg-teal-50 flex flex-col items-center text-center space-y-4">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-teal-900">Ative sua conta profissional</h4>
+                    <p className="text-sm text-teal-700">Identificamos que seu plano ainda não consta como ativo em nosso sistema.</p>
+                  </div>
+                  <Button 
+                    onClick={() => window.location.href = '/planos'} 
+                    className="bg-teal-600 hover:bg-teal-700 text-white"
+                  >
+                    Ir para Pagamento
+                  </Button>
+                </div>
+              )}
 
               {/* ZONA DE PERIGO / CANCELAMENTO (MOVIDO PARA CÁ) */}
               {subscription?.status?.toLowerCase() === 'active' && (
