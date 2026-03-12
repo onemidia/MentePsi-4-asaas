@@ -75,8 +75,8 @@ export default function PlanosPage() {
         {motivo ? (
           motivo === 'inadimplente' ? (
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-red-600">Assinatura Suspensa</h1>
-              <p className="text-gray-600">Detectamos uma pendência no seu último pagamento. Regularize para recuperar o acesso aos seus dados.</p>
+              <h1 className="text-2xl font-bold text-amber-600">Atenção: Pagamento Pendente</h1>
+              <p className="text-slate-600 mt-2 font-medium">Sua conta está em período de carência. Regularize o pagamento para manter seu acesso ilimitado.</p>
             </div>
           ) : (
             <div className="text-center">
@@ -194,7 +194,9 @@ export default function PlanosPage() {
               >
                 {subStatus === 'active'
                   ? 'SEU PLANO ESTÁ ATIVO'
-                  : user
+                  : motivo === 'inadimplente'
+                    ? 'REGULARIZAR MINHA CONTA'
+                    : user
                     ? 'ATIVAR ASSINATURA AGORA'
                     : 'COMEÇAR TESTE GRÁTIS DE 30 DIAS'}
               </Button>
