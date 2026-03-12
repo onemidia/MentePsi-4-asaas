@@ -25,13 +25,13 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const email = user?.email || ''
 
-  // 🚀 1. ROTAS PÚBLICAS (Garante que /auth/callback e /planos fiquem livres)
+  // 🚀 1. ROTAS PÚBLICAS
   const publicAuthRoutes = ['/auth/login', '/auth/registro', '/auth/callback', '/auth/set-password']
   const isPublicRoute =
     pathname === '/' ||
     pathname === '/ajuda' ||
-    pathname === '/termos' ||      // ✅ Inserido cirurgicamente
-    pathname === '/privacidade' ||  // ✅ Inserido cirurgicamente
+    pathname === '/termos' ||
+    pathname === '/privacidade' ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     publicAuthRoutes.includes(pathname) ||
@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
   const isFinancialRoute =
     pathname.startsWith('/checkout') ||
     pathname.startsWith('/api/asaas') ||
-    pathname.startsWith('/api/webhooks') // Abrange qualquer webhook
+    pathname.startsWith('/api/webhooks')
 
   if (isFinancialRoute) return response
 
@@ -52,17 +52,9 @@ export async function middleware(request: NextRequest) {
 
   // 🚀 2. REDIRECIONAMENTO INTELIGENTE (Pós-Login)
   if (user && (pathname === '/auth/login' || pathname === '/')) {
-    // Super Admins vão para o HUB
-    const isSuperAdmin = [
-      'mentepsiclinic@gmail.com',
-      'alvino@onemidia.tv.br'
-    ].includes(email.toLowerCase())
+    const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email.toLowerCase())
+    if (isSuperAdmin) return NextResponse.redirect(new URL('/auth/hub', request.url))
 
-    if (isSuperAdmin) {
-      return NextResponse.redirect(new URL('/auth/hub', request.url))
-    }
-
-    // Verifica se é assistente
     const { data: assistant } = await supabase
       .from('clinic_team')
       .select('active, status')
@@ -70,9 +62,7 @@ export async function middleware(request: NextRequest) {
       .maybeSingle()
 
     if (assistant) {
-      // Se o assistente está pendente, ativa a conta no primeiro login.
       if (assistant.status === 'pending') {
-        // Aguardamos a atualização para garantir que ele entre já ativo
         await supabase
           .from('clinic_team')
           .update({ active: true, status: 'active' })
@@ -80,48 +70,39 @@ export async function middleware(request: NextRequest) {
       }
       return NextResponse.redirect(new URL('/dashboard/assistente', request.url))
     }
-
-    // Padrão: vai para o dashboard (o AppShell cuidará do bloqueio se necessário)
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // 🚀 3. VERIFICAÇÃO DE ASSINATURA (Para quem já está dentro)
+  // 🚀 3. VERIFICAÇÃO DE ASSINATURA E CARÊNCIA
   if (user && !isPublicRoute) {
-    if (pathname === '/dashboard') {
-      return response
-    }
-
     const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email.toLowerCase())
-    if (isSuperAdmin) return response
+    if (isSuperAdmin || pathname === '/dashboard') return response
 
     const [profileRes, teamRes, subRes] = await Promise.all([
       supabase.from('professional_profile').select('role').eq('user_id', user.id).maybeSingle(),
       supabase.from('clinic_team').select('active').eq('member_email', email).eq('active', true).maybeSingle(),
-      supabase.from('subscriptions').select('status, current_period_end').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      supabase.from('subscriptions').select('status, current_period_end, grace_period_until').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
     ])
 
-    const isAdmin = profileRes.data?.role === 'admin'
-    const isAssistant = !!teamRes.data
+    if (profileRes.data?.role === 'admin' || !!teamRes.data) return response
+
     const subscription = subRes.data
-
-    if (isAdmin || isAssistant) return response
-
-    // Controle de Assinatura Trial
     const now = new Date()
-    let expirationDate = null
-    if (subscription?.current_period_end) {
-      expirationDate = new Date(subscription.current_period_end)
-    }
-
-    const hasActivePlan = subscription?.status === 'active'
-    // IMPORTANTE: Aqui garantimos que o status 'trialing' vindo da Trigger libere o acesso
+    
+    // Validação de Trial
+    let expirationDate = subscription?.current_period_end ? new Date(subscription.current_period_end) : null
     const isTrialValid = (subscription?.status === 'trialing' || subscription?.status === 'trial') && 
                         expirationDate && expirationDate > now
 
+    // 🟢 Validação de Carência (Grace Period)
+    let gracePeriodDate = subscription?.grace_period_until ? new Date(subscription.grace_period_until) : null
+    const isGracePeriodValid = subscription?.status === 'overdue' && 
+                               gracePeriodDate && gracePeriodDate > now
+
+    const hasActivePlan = subscription?.status === 'active'
     const isFirstLogin = !subscription
 
-    if (!hasActivePlan && !isTrialValid && !isFirstLogin) {
-      // Evita loop se já estiver tentando assinar
+    if (!hasActivePlan && !isTrialValid && !isGracePeriodValid && !isFirstLogin) {
       if (pathname !== '/planos') {
         return NextResponse.redirect(new URL('/planos', request.url))
       }
