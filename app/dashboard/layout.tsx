@@ -79,7 +79,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {subscription?.status === 'overdue' && (
         <div className="bg-amber-100 border-b border-amber-200 p-3 text-amber-800 text-center text-sm font-medium">
           ⚠️ <strong>Atenção:</strong> Identificamos um atraso no seu pagamento. 
-          Seu acesso está garantido pela carência até {new Date(subscription.grace_period_until).toLocaleDateString()}. 
+          Seu acesso está garantido pela carência até {new Date(subscription.grace_period_until).toLocaleDateString('pt-BR')}. 
           <a href="/planos" className="underline ml-2">Regularizar agora</a>
         </div>
       )}
