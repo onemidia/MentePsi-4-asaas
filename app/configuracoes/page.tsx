@@ -138,14 +138,6 @@ export default function SettingsPage() {
 
         if (historyData && historyData.length > 0) {
           setPaymentHistory(historyData);
-        } else if (subData?.status === 'active') {
-          setPaymentHistory([{
-            id: 'virtual-legacy',
-            amount: 97.00,
-            plan_name: 'Plano Profissional',
-            status: 'Pago',
-            payment_date: subData.created_at || new Date().toISOString()
-          }]);
         }
 
         // Force o preenchimento manual de cada campo crítico no setProfile
@@ -773,7 +765,7 @@ export default function SettingsPage() {
                                 {new Date(payment.payment_date).toLocaleDateString('pt-BR')}
                               </td>
                               <td className="px-4 py-3 capitalize text-slate-700">
-                                Plano {payment.plan_name === 'professional' ? 'Profissional' : payment.plan_name}
+                                {payment.plan_name === 'professional' ? 'Plano Profissional' : payment.plan_name}
                               </td>
                               <td className="px-4 py-3 font-medium text-slate-900">
                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payment.amount)}

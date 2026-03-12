@@ -22,17 +22,20 @@ export default function AdminPlanosPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [plan, setPlan] = useState<any>(null)
+  const [gracePeriod, setGracePeriod] = useState<number>(0)
+  const [configId, setConfigId] = useState<any>(null)
   const supabase = createClient()
   const { toast } = useToast()
 
-  const fetchPlan = async () => {
+  const fetchData = async () => {
     setLoading(true)
     // Buscamos apenas o plano profissional, que é o nosso plano único agora
-    const { data } = await supabase
-      .from('saas_plans')
-      .select('*')
-      .eq('slug', 'professional')
-      .single()
+    const [planRes, configRes] = await Promise.all([
+      supabase.from('saas_plans').select('*').eq('slug', 'professional').single(),
+      supabase.from('saas_config').select('id, grace_period_days').limit(1).maybeSingle()
+    ])
+
+    const data = planRes.data
 
     if (data) {
       setPlan(data)
@@ -45,21 +48,34 @@ export default function AdminPlanosPage() {
         trial_days: 30 
       })
     }
+
+    if (configRes.data) {
+      setGracePeriod(configRes.data.grace_period_days || 0)
+      setConfigId(configRes.data.id)
+    }
+
     setLoading(false)
   }
 
-  useEffect(() => { fetchPlan() }, [])
+  useEffect(() => { fetchData() }, [])
 
   const handleSave = async () => {
     setSaving(true)
-    const { error } = await supabase
+    
+    const { error: planError } = await supabase
       .from('saas_plans')
       .upsert(plan, { onConflict: 'slug' })
 
-    if (!error) {
-      toast({ title: "Oferta Atualizada!", description: "O valor e o trial do Plano Único foram salvos." })
+    const configPayload = configId ? { id: configId, grace_period_days: gracePeriod } : { grace_period_days: gracePeriod }
+    
+    const { error: configError } = await supabase
+      .from('saas_config')
+      .upsert(configPayload)
+
+    if (!planError && !configError) {
+      toast({ title: "Configurações Atualizadas!", description: "Oferta e carência foram salvas." })
     } else {
-      toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
+      toast({ variant: "destructive", title: "Erro ao salvar", description: planError?.message || configError?.message })
     }
     setSaving(false)
   }
@@ -101,7 +117,7 @@ export default function AdminPlanosPage() {
           </CardHeader>
           
           <CardContent className="p-8 space-y-8 bg-white">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="space-y-3">
                 <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">Preço da Assinatura</Label>
                 <div className="relative">
@@ -124,6 +140,16 @@ export default function AdminPlanosPage() {
                   onChange={(e) => setPlan({...plan, trial_days: parseInt(e.target.value)})}
                 />
               </div>
+
+              <div className="space-y-3">
+                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">Dias de Carência (Pós-vencimento)</Label>
+                <Input 
+                  type="number"
+                  className="h-14 font-black text-2xl bg-slate-50 border-slate-200 rounded-xl"
+                  value={gracePeriod}
+                  onChange={(e) => setGracePeriod(parseInt(e.target.value) || 0)}
+                />
+              </div>
             </div>
 
             <div className="p-6 rounded-2xl bg-teal-50 border border-teal-100 flex items-start gap-4">
@@ -132,6 +158,9 @@ export default function AdminPlanosPage() {
                 <p className="text-teal-900 font-bold">Visualização do Cliente</p>
                 <p className="text-teal-700 text-sm font-medium">
                   Os psicólogos verão: <span className="underline">{plan.name}</span> por <span className="underline">R$ {plan.price_monthly}/mês</span> com <span className="underline">{plan.trial_days} dias grátis</span> para testar.
+                </p>
+                <p className="text-teal-600 text-xs mt-2 italic border-t border-teal-200/50 pt-2">
+                  * Nota Admin: O sistema permitirá o acesso por {gracePeriod} dias após o vencimento da fatura.
                 </p>
               </div>
             </div>

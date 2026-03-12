@@ -52,24 +52,36 @@ export async function POST(req: Request) {
         .eq('slug', 'professional')
         .single()
 
+      // 1. Atualiza/Cria a Assinatura (Sua lógica atual, mantida intacta)
       const { error: upsertError } = await supabaseAdmin
         .from('subscriptions')
         .upsert({
           user_id: userId,
-          plan_id: planPro?.id, // Garante que o plano esteja vinculado
+          plan_id: planPro?.id,
           status: 'active',
           current_period_start: startDate.toISOString(),
           current_period_end: endDate.toISOString(),
           asaas_customer_id: payment.customer,
           updated_at: new Date().toISOString()
         }, {
-          onConflict: 'user_id' // Se já existir esse user_id, ele apenas atualiza
+          onConflict: 'user_id'
         })
 
-      if (upsertError) {
-        console.error('❌ Erro ao ativar assinatura no Supabase:', upsertError)
+      // 2. 🚀 NOVO: Registro Automático no Histórico de Pagamentos (AJUSTE CIRÚRGICO)
+      if (!upsertError) {
+        await supabaseAdmin
+          .from('payment_history')
+          .insert({
+            user_id: userId,
+            amount: payment.value,
+            plan_name: 'Profissional',
+            status: 'Confirmado',
+            payment_date: new Date().toISOString()
+          })
+        
+        console.log('✅ Assinatura e Histórico registrados para:', userId)
       } else {
-        console.log('✅ Assinatura ativada/atualizada para:', userId)
+        console.error('❌ Erro ao ativar assinatura:', upsertError)
       }
     }
 
