@@ -87,26 +87,26 @@ export async function middleware(request: NextRequest) {
     if (profileRes.data?.role === 'admin' || !!teamRes.data) return response
 
     const subscription = subRes.data
-    const now = new Date()
-    
-    // Validação de Trial
-    let expirationDate = subscription?.current_period_end ? new Date(subscription.current_period_end) : null
+
+    // 1. Definições de datas
+    const now = new Date();
+    const expirationDate = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
+    const gracePeriodDate = subscription?.grace_period_until ? new Date(subscription.grace_period_until) : null;
+
+    // 2. Condições
+    const hasActivePlan = subscription?.status === 'active';
     const isTrialValid = (subscription?.status === 'trialing' || subscription?.status === 'trial') && 
-                        expirationDate && expirationDate > now
-
-    // 🟢 Validação de Carência (Grace Period)
-    let gracePeriodDate = subscription?.grace_period_until ? new Date(subscription.grace_period_until) : null
+                        expirationDate && expirationDate > now;
     const isGracePeriodValid = subscription?.status === 'overdue' && 
-                               gracePeriodDate && gracePeriodDate > now
+                               gracePeriodDate && gracePeriodDate > now;
 
-    const hasActivePlan = subscription?.status === 'active'
-    const isFirstLogin = !subscription
-
-    if (!hasActivePlan && !isTrialValid && !isGracePeriodValid && !isFirstLogin) {
-      if (pathname !== '/planos') {
-        return NextResponse.redirect(new URL('/planos', request.url))
-      }
+    // 🚀 A REGRA DE OURO: Se qualquer um desses for verdadeiro, ele ENTRA.
+    if (hasActivePlan || isTrialValid || isGracePeriodValid || !subscription) {
+      return response;
     }
+
+    // Caso contrário, se não for nenhuma das opções acima, manda para /planos
+    return NextResponse.redirect(new URL('/planos', request.url));
   }
 
   return response
