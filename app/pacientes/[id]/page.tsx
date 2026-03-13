@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 // Garante que o import está correto
 import PatientCreditLog from '@/components/PatientCreditLog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function FichaClinicaDigital() {
   const { id } = useParams()
@@ -39,6 +40,7 @@ export default function FichaClinicaDigital() {
   
   const [sessaoFilter, setSessaoFilter] = useState('Agendado')
   const [currentPage, setCurrentPage] = useState(1)
+  const [sessionsPerPage, setSessionsPerPage] = useState(10)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   
@@ -711,13 +713,13 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       
       return dateMatch && statusMatch;
     })
-    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
-  const paginatedAppointments = filteredAppointments.slice((currentPage - 1) * 10, currentPage * 10)
+  const paginatedAppointments = filteredAppointments.slice((currentPage - 1) * sessionsPerPage, currentPage * sessionsPerPage)
 
-  const PaginationControls = ({ totalCount }: { totalCount: number }) => {
-    const totalPages = Math.ceil(totalCount / 10) || 1
-    if (totalCount <= 10) return null
+  const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
+    const totalPages = Math.ceil(totalCount / itemsPerPage) || 1
+    if (totalCount <= itemsPerPage) return null
     
     return (
       <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50 w-full rounded-b-[24px]">
@@ -882,6 +884,16 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   <option value="Realizada">Realizadas</option>
                   <option value="Cancelado">Canceladas</option>
                 </select>
+                <Select value={String(sessionsPerPage)} onValueChange={(value) => setSessionsPerPage(Number(value))}>
+                  <SelectTrigger className="w-[120px] h-9 text-xs font-bold rounded-xl border-slate-300 bg-white focus:ring-2 focus:ring-teal-500">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / página</SelectItem>
+                    <SelectItem value="20">20 / página</SelectItem>
+                    <SelectItem value="50">50 / página</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardHeader>
             <CardContent className="divide-y divide-slate-200 p-0">
@@ -930,7 +942,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
             </CardContent>
             
             {/* CONTROLES DE PAGINAÇÃO */}
-            <PaginationControls totalCount={filteredAppointments.length} />
+            <PaginationControls totalCount={filteredAppointments.length} itemsPerPage={sessionsPerPage} />
           </Card>
         </div>
       )}
@@ -979,7 +991,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     <CardContent className="p-4 md:p-6 text-xs italic text-slate-500 leading-relaxed whitespace-pre-wrap">{evo.content}</CardContent>
                   </Card>
                 ))}
-                <PaginationControls totalCount={evolutions.length} />
+                <PaginationControls totalCount={evolutions.length} itemsPerPage={10} />
               </div>
             </>
         </div>
@@ -1191,7 +1203,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </div>
                 )
               })}
-              <PaginationControls totalCount={emotions.length} />
+              <PaginationControls totalCount={emotions.length} itemsPerPage={10} />
               {emotions.length === 0 && <div className="p-10 text-center text-slate-400 italic">Nenhum registro de emoção ainda.</div>}
             </CardContent></Card>
         </div>
@@ -1231,7 +1243,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </Card>
                 ))}
               </div>
-              <PaginationControls totalCount={documents.length} />
+              <PaginationControls totalCount={documents.length} itemsPerPage={10} />
             </CardContent></Card>
         </div>
       )}
@@ -1303,7 +1315,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     ))
                   )}
                 </div>
-                <PaginationControls totalCount={filteredMetas.length} />
+                <PaginationControls totalCount={filteredMetas.length} itemsPerPage={10} />
               </CardContent>
             </Card>
         </div>
