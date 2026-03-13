@@ -72,7 +72,7 @@ export default function PlanosPage() {
   if (loading) return <PlanosLoading />
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[100dvh] bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       {/* HEADER ATRAVATIVO */}
       <div className="text-center max-w-3xl mx-auto mb-16">
         {motivo || reason ? (

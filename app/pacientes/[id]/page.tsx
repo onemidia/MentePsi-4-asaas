@@ -64,7 +64,12 @@ export default function FichaClinicaDigital() {
   const [lgpdContent, setLgpdContent] = useState("");
 
   const handleOpenLgpdEditor = async () => {
-    const { data: prof } = await supabase.from('professional_profile').select('*').eq('id', paciente.psychologist_id).single();
+    try {
+      const { data: prof } = await supabase.from('professional_profile')
+        .select('full_name, crp, city')
+        .eq('user_id', paciente.psychologist_id)
+        .maybeSingle();
+      
     const defaultContent = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE PSICOLOGIA E TERMO DE CONSENTIMENTO (LGPD)
 
 IDENTIFICAÇÃO DAS PARTES:
@@ -93,6 +98,9 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     
     setLgpdContent(defaultContent);
     setLgpdModalOpen(true);
+    } catch (e) {
+      console.warn("Aviso ao carregar termo LGPD", e)
+    }
   };
 
   // 🎭 MÁSCARAS DE INPUT (Sem bibliotecas externas)
@@ -154,13 +162,13 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
 
   //  LOGICA DE CARGA CENTRALIZADA PARA ATUALIZAÇÃO INSTANTÂNEA
   const loadAllData = useCallback(async () => {
-    // 🔄 Garante sessão ativa para evitar bloqueio de RLS silencioso
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      router.push('/login')
-      return
-    }
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user?.id) {
+        router.push('/login')
+        return
+      }
 
     // 🔒 TRAVA DE SEGURANÇA: Filtra explicitamente pelo ID do psicólogo logado
     const patientQuery = supabase.from('patients').select('*').eq('id', id).eq('psychologist_id', user.id).single()
@@ -195,7 +203,10 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
       setStats(prev => ({ ...prev, credit: Number(patientRes.data.credit_balance) || 0 }))
       setSessionAgenda(patientRes.data.next_session_agenda || "Nenhuma pauta enviada para a próxima sessão.")
 
-      const { data: prof } = await supabase.from('professional_profile').select('*').eq('id', patientRes.data.psychologist_id).single()
+      const { data: prof } = await supabase.from('professional_profile')
+        .select('full_name, clinic_name, logo_url, city, crp')
+        .eq('user_id', patientRes.data.psychologist_id)
+        .maybeSingle()
       setProfessional(prof)
     }
 
@@ -250,7 +261,11 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
       // 📂 SEPARAÇÃO DE LISTAS: Exibe apenas documentos anexados/assinados (patient_documents)
       setDocuments(docsRes.data.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
     }
-    setLoading(false)
+    } catch (e) {
+      console.warn("Aviso na carga de dados do paciente:", e)
+    } finally {
+      setLoading(false)
+    }
   }, [id, supabase, router, toast])
 
   useEffect(() => { loadAllData() }, [loadAllData])
@@ -459,8 +474,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
       }
 
     } catch (error: any) {
-      console.error('Erro CRÍTICO ao salvar no Supabase:', error)
-      console.dir(error) // 🔍 Inspeção detalhada do objeto de erro
+      console.warn('Aviso ao salvar paciente no Supabase:', error)
       toast({ 
         variant: "destructive", 
         title: "Erro ao salvar", 
@@ -532,7 +546,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         setNewGoalOpen(false)
       }
     } catch (error: any) {
-      console.error("Erro ao salvar meta:", error)
+      console.warn("Aviso ao salvar meta:", error)
       toast({ 
         variant: "destructive", 
         title: "Erro ao salvar", 
@@ -753,7 +767,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-teal-600" /></div>
 
   return (
-    <div className="p-4 md:p-6 space-y-4 bg-slate-100 min-h-screen">
+    <div className="p-4 md:p-6 space-y-4 bg-slate-100 min-h-[100dvh]">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-[24px] shadow-md border border-slate-200 gap-4">
         <div className="flex items-center gap-4">

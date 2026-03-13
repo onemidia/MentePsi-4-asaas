@@ -91,14 +91,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Overlay de Bloqueio (Só aparece se não for rota pública e estiver bloqueado)
   if (userData?.isBlocked && !hideSidebar) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center p-4">
         <SubscriptionRequiredOverlay />
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-[100dvh] overflow-hidden bg-slate-50">
       {!hideSidebar && (
         <aside className="hidden lg:block w-64 border-r bg-white h-full flex-shrink-0">
           <Sidebar />

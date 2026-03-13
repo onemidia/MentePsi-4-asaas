@@ -73,7 +73,7 @@ export default function PatientPortalPage() {
       const { data: patient } = await supabase.from('patients').select('*').eq('id', id).single()
 
       if (patient) {
-        const { data: profProfile } = await supabase.from('professional_profile').select('*').eq('user_id', patient.psychologist_id).single()
+        const { data: profProfile } = await supabase.from('professional_profile').select('full_name, phone, clinic_name, logo_url').eq('user_id', patient.psychologist_id).maybeSingle()
         const { data: subData } = await supabase.from('subscriptions').select('status, current_period_end').eq('user_id', patient.psychologist_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
 
         setPatientData({ ...patient, professional_profile: profProfile })
@@ -120,7 +120,7 @@ export default function PatientPortalPage() {
         if (isRefresh) toast({ title: "Dados atualizados!" })
       }
     } catch (err) {
-      console.error("Erro ao sincronizar:", err)
+      console.warn("Aviso ao sincronizar portal:", err)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -330,11 +330,11 @@ export default function PatientPortalPage() {
   const paginatedAppointments = filteredAppointments.slice((currentPage - 1) * 10, currentPage * 10)
 
   if (!isMounted || !id) return null
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50 font-bold text-slate-400"><Loader2 className="animate-spin mr-2 h-6 w-6"/> Carregando Portal...</div>
+  if (loading) return <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 font-bold text-slate-400"><Loader2 className="animate-spin mr-2 h-6 w-6"/> Carregando Portal...</div>
   
   if (!permissions.active) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 p-6 text-center">
         <Card className="max-w-sm p-8 rounded-[32px] shadow-xl border-none bg-white">
           <Smartphone className="h-12 w-12 text-slate-300 mx-auto mb-4" />
           <h2 className="text-xl font-black text-slate-800 mb-2">Portal Indisponível</h2>
@@ -347,7 +347,7 @@ export default function PatientPortalPage() {
   const meetingStatus = getMeetingStatus()
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 pt-8 max-w-lg mx-auto pb-24 space-y-6">
+    <div className="min-h-[100dvh] bg-slate-50 p-4 pt-8 max-w-lg mx-auto pb-24 space-y-6">
       
       <header className="text-center relative pt-4 space-y-4">
         <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 text-slate-400 hover:text-teal-600 transition-colors" onClick={() => fetchPortalData(true)} disabled={refreshing}>

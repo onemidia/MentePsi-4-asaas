@@ -74,21 +74,26 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
   useEffect(() => {
     if (open) {
       const fetchData = async () => {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-
-        const { data: prof } = await supabase.from('professional_profile').select('*').eq('user_id', user.id).maybeSingle()
-        if (prof) {
-          setProfessional(prof)
-          setHeaderTitle(prof.clinic_name || prof.full_name || "")
-        }
-
-        const { data: pats } = await supabase.from('patients').select('id, full_name, cpf, phone').eq('psychologist_id', user.id).order('full_name')
-        if (pats) setPatients(pats)
-
-        if (preSelectedPatientId) {
-          setFormData(prev => ({ ...prev, patient_id: preSelectedPatientId }))
+        try {
+          const supabase = createClient()
+          const { data: { user } } = await supabase.auth.getUser()
+          if (!user?.id) return
+  
+          // Colunas explícitas blindadas
+          const { data: prof } = await supabase.from('professional_profile').select('full_name, crp, clinic_name, city, logo_url').eq('user_id', user.id).maybeSingle()
+          if (prof) {
+            setProfessional(prof)
+            setHeaderTitle(prof.clinic_name || prof.full_name || "")
+          }
+  
+          const { data: pats } = await supabase.from('patients').select('id, full_name, cpf, phone').eq('psychologist_id', user.id).order('full_name')
+          if (pats) setPatients(pats)
+  
+          if (preSelectedPatientId) {
+            setFormData(prev => ({ ...prev, patient_id: preSelectedPatientId }))
+          }
+        } catch (e) {
+          console.warn("Aviso ao carregar dados do modal de documento:", e)
         }
       }
       fetchData()

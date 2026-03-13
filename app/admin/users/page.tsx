@@ -52,32 +52,38 @@ export default function GestaoPsicologos() {
 
   async function fetchUsers() {
     setLoading(true)
-    
-    // 1. Busca Perfis (igual ao Dashboard Master)
-    const { data: profiles, error } = await supabase
-      .from('professional_profile')
-      .select('*')
-      .order('created_at', { ascending: false })
+    try {
+      // 1. Busca Perfis (igual ao Dashboard Master) - Colunas explícitas
+      const { data: profiles, error } = await supabase
+        .from('professional_profile')
+        .select('user_id, full_name, email, created_at')
+        .order('created_at', { ascending: false })
 
-    // 2. Busca Assinaturas para unificar
-    const { data: subs } = await supabase
-      .from('subscriptions')
-      .select('user_id, status, current_period_end, grace_period_until')
-    
-    if (profiles) {
-      // 3. Unifica os dados em um só objeto, garantindo que todos tenham status
-      const mergedData = profiles.map(profile => {
-        const userSub = subs?.find(s => s.user_id === profile.user_id)
-        return {
-          ...profile,
-          subscription_status: userSub?.status || 'trialing', // Default para 'trialing' para consistência
-          current_period_end: userSub?.current_period_end || null,
-          grace_period_until: userSub?.grace_period_until || null,
-        }
-      })
-      setUsers(mergedData)
+      if (error) console.warn("Aviso ao buscar perfis:", error)
+
+      // 2. Busca Assinaturas para unificar
+      const { data: subs } = await supabase
+        .from('subscriptions')
+        .select('user_id, status, current_period_end, grace_period_until')
+      
+      if (profiles) {
+        // 3. Unifica os dados em um só objeto, garantindo que todos tenham status
+        const mergedData = profiles.map(profile => {
+          const userSub = subs?.find(s => s.user_id === profile.user_id)
+          return {
+            ...profile,
+            subscription_status: userSub?.status || 'trialing', // Default para 'trialing' para consistência
+            current_period_end: userSub?.current_period_end || null,
+            grace_period_until: userSub?.grace_period_until || null,
+          }
+        })
+        setUsers(mergedData)
+      }
+    } catch (e) {
+      console.warn("Aviso interno em fetchUsers:", e)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   useEffect(() => {
@@ -171,7 +177,7 @@ export default function GestaoPsicologos() {
   const currentUsers = filteredUsers.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage)
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50/50 min-h-screen">
+    <div className="p-6 space-y-6 bg-slate-50/50 min-h-[100dvh]">
       {/* Header com Filtros Inteligentes */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white p-6 rounded-2xl border shadow-sm gap-6">
         <div>
@@ -210,6 +216,7 @@ export default function GestaoPsicologos() {
 
       {/* Tabela de Controle */}
       <div className="bg-white rounded-2xl border shadow-md overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader className="bg-slate-50">
             <TableRow className="hover:bg-transparent">
@@ -315,6 +322,7 @@ export default function GestaoPsicologos() {
             })}
           </TableBody>
         </Table>
+        </div>
         <div className="flex items-center justify-between p-4 border-t">
           <span className="text-xs text-slate-500">
             Total de <strong>{filteredUsers.length}</strong> usuários.

@@ -115,7 +115,7 @@ export default function PatientsPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-8 bg-slate-100 min-h-screen">
+    <div className="container mx-auto p-4 md:p-6 space-y-8 bg-slate-100 min-h-[100dvh]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Pacientes</h1>

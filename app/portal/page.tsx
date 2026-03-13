@@ -108,7 +108,7 @@ export default function PortalManagementPage() {
   if (!isMounted) return null
 
   return (
-    <div className="p-6 space-y-6 bg-slate-100 min-h-screen">
+    <div className="p-6 space-y-6 bg-slate-100 min-h-[100dvh]">
       <div className="flex items-center gap-3">
         <Smartphone className="text-blue-600" size={32} />
         <h1 className="text-3xl font-bold text-slate-900">Portal do Cliente</h1>

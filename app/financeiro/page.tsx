@@ -68,30 +68,37 @@ export default function FinanceiroPage() {
   const { toast } = useToast()
 
   const fetchFinanceiro = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    
-    // 1. Busca Agendamentos (para a lista e pendências)
-    const { data: apts } = await supabase.from('appointments').select('*, patients(*)').eq('psychologist_id', user.id).order('start_time', { ascending: false })
-    if (apts) setAppointments(apts)
-
-    // 2. Busca Transações Financeiras (para o cálculo real de caixa)
-    const { data: trans } = await supabase.from('financial_transactions').select('*').eq('psychologist_id', user.id).order('created_at', { ascending: false })
-    if (trans) {
-      setTransactions(trans)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.id) return
+      
+      // 1. Busca Agendamentos (para a lista e pendências)
+      const { data: apts } = await supabase.from('appointments').select('*, patients(*)').eq('psychologist_id', user.id).order('start_time', { ascending: false })
+      if (apts) setAppointments(apts)
+  
+      // 2. Busca Transações Financeiras (para o cálculo real de caixa)
+      const { data: trans } = await supabase.from('financial_transactions').select('*').eq('psychologist_id', user.id).order('created_at', { ascending: false })
+      if (trans) {
+        setTransactions(trans)
+      }
+    } catch (e) {
+      console.warn("Aviso ao buscar financeiro:", e)
     }
   }, [supabase])
 
   const fetchPatients = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data } = await supabase.from('patients').select('*').eq('psychologist_id', user.id).order('full_name')
-    
-    if (data) {
-      setPatientsList(data)
-      // 💉 CIRURGIA DE PRECISÃO: Soma ABSOLUTA de todos os créditos em haver no banco de dados
-      const somaTotalHaverCents = data.reduce((acc, p) => acc + Math.round((Number(p.credit_balance) || 0) * 100), 0)
-      setTotals(prev => ({ ...prev, creditoTotal: somaTotalHaverCents / 100 }))
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.id) return
+      const { data } = await supabase.from('patients').select('*').eq('psychologist_id', user.id).order('full_name')
+      
+      if (data) {
+        setPatientsList(data)
+        const somaTotalHaverCents = data.reduce((acc, p) => acc + Math.round((Number(p.credit_balance) || 0) * 100), 0)
+        setTotals(prev => ({ ...prev, creditoTotal: somaTotalHaverCents / 100 }))
+      }
+    } catch (e) {
+      console.warn("Aviso ao buscar pacientes:", e)
     }
   }, [supabase])
 
@@ -112,10 +119,17 @@ export default function FinanceiroPage() {
 
   useEffect(() => {
     const fetchProf = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data } = await supabase.from('professional_profile').select('*').eq('id', user.id).single()
-        setProfessionalData(data)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user?.id) {
+          const { data } = await supabase.from('professional_profile')
+            .select('full_name, crp, city, clinic_name, address')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          setProfessionalData(data)
+        }
+      } catch (e) {
+        console.warn("Aviso ao buscar perfil profissional:", e)
       }
     }
     fetchProf()
@@ -233,7 +247,7 @@ export default function FinanceiroPage() {
       ])
 
     if (error) {
-      console.error("Erro detalhado:", JSON.stringify(error, null, 2))
+      console.warn("Aviso detalhado na transação:", error)
       toast({
         variant: "destructive",
         title: "Erro no financeiro",
@@ -265,7 +279,7 @@ export default function FinanceiroPage() {
           .eq('id', appointmentId)
 
         if (aptError) {
-          console.error("Erro ao atualizar agendamento:", aptError)
+          console.warn("Aviso ao atualizar agendamento:", aptError)
           toast({ variant: "destructive", title: "Erro", description: "Falha ao atualizar agendamento: " + aptError.message })
           setRefreshing(false)
           return
@@ -373,7 +387,7 @@ export default function FinanceiroPage() {
              })
            }
         }
-      } catch (err) { console.error("Erro ao gerar recibo automático:", err) }
+      } catch (err) { console.warn("Aviso ao gerar recibo automático:", err) }
 
       toast({ title: "Pagamento registrado com sucesso!" })
       await refreshData()
@@ -762,7 +776,7 @@ export default function FinanceiroPage() {
 
     doc.save('Recibo_MentePsi.pdf')
     } catch (error: any) {
-      console.error(error)
+      console.warn("Aviso ao gerar PDF em lote:", error)
       alert('Erro ao gerar PDF: ' + error.message)
     }
   }
@@ -770,7 +784,7 @@ export default function FinanceiroPage() {
   if (!isMounted) return null
 
   return (
-    <div className="p-6 space-y-6 bg-slate-100 min-h-screen">
+    <div className="p-6 space-y-6 bg-slate-100 min-h-[100dvh]">
       
       {/* ⚠️ BANNER DE ALERTA FINANCEIRO */}
       {pendingCount > 0 && (

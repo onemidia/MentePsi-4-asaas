@@ -43,35 +43,41 @@ export default function FinanceiroGlobal() {
   useEffect(() => {
     async function fetchFinanceData() {
       setLoading(true)
-      
-      // 1. Busca Perfis
-      const { data: allProfiles } = await supabase
-        .from('professional_profile')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      // 2. Busca Assinaturas para unificar status real
-      const { data: subs } = await supabase
-        .from('subscriptions')
-        .select('user_id, status, current_period_end, grace_period_until')
-
-      if (allProfiles) {
-        const mergedData = allProfiles.map(profile => {
-          const userSub = subs?.find(s => s.user_id === profile.user_id)
-          
-          let subStatus = userSub?.status || 'trialing'
-          const isGrace = userSub?.grace_period_until && new Date(userSub.grace_period_until) > new Date()
-          if (subStatus === 'overdue' || isGrace) subStatus = 'overdue'
-
-          return {
-            ...profile,
-            subscription_status: subStatus,
-            current_period_end: userSub?.current_period_end || null
-          }
-        })
-        setProfiles(mergedData)
+      try {
+        // 1. Busca Perfis - Colunas explícitas
+        const { data: allProfiles, error } = await supabase
+          .from('professional_profile')
+          .select('user_id, full_name, email, created_at')
+          .order('created_at', { ascending: false })
+  
+        if (error) console.warn("Aviso ao buscar perfis:", error)
+  
+        // 2. Busca Assinaturas para unificar status real
+        const { data: subs } = await supabase
+          .from('subscriptions')
+          .select('user_id, status, current_period_end, grace_period_until')
+  
+        if (allProfiles) {
+          const mergedData = allProfiles.map(profile => {
+            const userSub = subs?.find(s => s.user_id === profile.user_id)
+            
+            let subStatus = userSub?.status || 'trialing'
+            const isGrace = userSub?.grace_period_until && new Date(userSub.grace_period_until) > new Date()
+            if (subStatus === 'overdue' || isGrace) subStatus = 'overdue'
+  
+            return {
+              ...profile,
+              subscription_status: subStatus,
+              current_period_end: userSub?.current_period_end || null
+            }
+          })
+          setProfiles(mergedData)
+        }
+      } catch (e) {
+        console.warn("Aviso interno em fetchFinanceData:", e)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     fetchFinanceData()
   }, [])
@@ -123,7 +129,7 @@ export default function FinanceiroGlobal() {
   }
 
   return (
-    <div className="p-6 space-y-8 bg-slate-50/50 min-h-screen">
+    <div className="p-6 space-y-8 bg-slate-50/50 min-h-[100dvh]">
       {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>

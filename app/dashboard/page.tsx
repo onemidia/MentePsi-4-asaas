@@ -23,7 +23,9 @@ import {
   Wallet,
   Bell,
   ShieldCheck,
-  LifeBuoy
+  LifeBuoy,
+  Info,
+  X
 } from "lucide-react"
 import dynamic from 'next/dynamic'
 
@@ -75,6 +77,7 @@ export default function PsychologistDashboard() {
   const [isMounted, setIsMounted] = useState(false)
   const [isAdminView, setIsAdminView] = useState(false)
   const [supportPhone, setSupportPhone] = useState('')
+  const [showDemoBanner, setShowDemoBanner] = useState(true)
 
   const handleSendReminder = async (item: any) => {
     const supabase = createClient()
@@ -153,8 +156,11 @@ export default function PsychologistDashboard() {
          await supabase.from('patients').update({ credit_balance: (Number(pat?.credit_balance) || 0) + remainingAmount }).eq('id', transactionToConfirm.patient_id)
       }
 
-      const { data: patient } = await supabase.from('patients').select('*').eq('id', transactionToConfirm.patient_id).single()
-      const { data: profData } = await supabase.from('professional_profile').select('*').eq('user_id', user.id).single()
+      const { data: patient } = await supabase.from('patients').select('*').eq('id', transactionToConfirm.patient_id).maybeSingle()
+      const { data: profData } = await supabase.from('professional_profile')
+        .select('full_name, crp, city')
+        .eq('user_id', user.id)
+        .maybeSingle()
       
       if (patient && profData) {
           let receiptNumber = 1
@@ -198,6 +204,7 @@ export default function PsychologistDashboard() {
       setConfirmModalOpen(false)
 
     } catch (error: any) {
+      console.warn("Aviso ao confirmar pagamento:", error)
       toast({ variant: "destructive", title: "Erro", description: error.message })
     } finally {
       setProcessingPayment(false)
@@ -224,23 +231,27 @@ export default function PsychologistDashboard() {
       const endOfMonthStr = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
       const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
       
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      
-      let targetUserId = user.id
-      const { data: profileCheck } = await supabase.from('professional_profile').select('role').eq('user_id', user.id).single()
-      
-      if (profileCheck?.role === 'admin') {
-        setIsAdminView(true)
-        const impersonatedId = localStorage.getItem('impersonate_id')
-        if (impersonatedId) {
-           targetUserId = impersonatedId
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user?.id) return
+        
+        let targetUserId = user.id
+        const { data: profileCheck } = await supabase.from('professional_profile').select('role').eq('user_id', user.id).maybeSingle()
+        
+        if (profileCheck?.role === 'admin') {
+          setIsAdminView(true)
+          const impersonatedId = localStorage.getItem('impersonate_id')
+          if (impersonatedId) {
+             targetUserId = impersonatedId
+          }
         }
-      }
 
       setUser(user)
 
-      const { data: profileData } = await supabase.from('professional_profile').select('*').eq('user_id', targetUserId).single()
+      const { data: profileData } = await supabase.from('professional_profile')
+        .select('full_name, role, birthday_message_template, reminder_template')
+        .eq('user_id', targetUserId)
+        .maybeSingle()
       const { data: subData } = await supabase.from('subscriptions').select('status, plan_id').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).maybeSingle()
 
       setProfile({
@@ -345,7 +356,11 @@ export default function PsychologistDashboard() {
       }) || []
       setBirthdays(bdays)
 
-      setLoading(false)
+      } catch (err) {
+        console.warn("Aviso ao carregar dashboard:", err)
+      } finally {
+        setLoading(false)
+      }
     }
 
     fetchData()
@@ -356,7 +371,7 @@ export default function PsychologistDashboard() {
   // 🚀 SKELETON: Mantemos a estrutura visual idêntica ao loading.tsx para evitar layout shift
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 space-y-8">
+      <div className="min-h-[100dvh] bg-[#f8fafc] p-4 md:p-8 space-y-8">
         <div className="flex justify-between items-center">
           <div className="space-y-2">
             <Skeleton className="h-8 w-64 rounded-xl" />
@@ -371,11 +386,33 @@ export default function PsychologistDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 space-y-8">
+    <div className="min-h-[100dvh] bg-[#f8fafc] p-4 md:p-8 space-y-8">
       {isAdminView && (
         <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-800 p-3 rounded-r shadow-sm flex items-center gap-3 animate-in slide-in-from-top-2">
           <ShieldCheck className="h-5 w-5" />
           <span className="font-bold text-sm">Você está visualizando como Administrador</span>
+        </div>
+      )}
+
+      {/* 🎭 BANNER DA CONTA DEMO */}
+      {user?.email === 'demo@mentepsi.com.br' && showDemoBanner && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 relative flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm animate-in fade-in slide-in-from-top-4">
+          <button
+            onClick={() => setShowDemoBanner(false)}
+            className="absolute top-4 right-4 text-blue-400 hover:text-blue-600 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="bg-blue-100 p-3 rounded-full text-blue-600 shrink-0">
+            <Info className="h-6 w-6" />
+          </div>
+          <div className="flex-1 pr-6 sm:pr-0">
+            <h2 className="text-lg font-bold text-blue-900 mb-1">👋 Olá, colega Psicólogo(a)! Seja bem-vindo ao MentePsi.</h2>
+            <p className="text-blue-800 text-sm">Este é o seu espaço de testes. Sinta-se à vontade para cadastrar pacientes, criar sessões e explorar o financeiro.</p>
+          </div>
+          <Button asChild className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm whitespace-nowrap">
+            <Link href="/pacientes/b2434c82-f171-44c7-adc5-c3381b44648f">Explorar Prontuário Exemplo</Link>
+          </Button>
         </div>
       )}
 
@@ -523,8 +560,8 @@ export default function PsychologistDashboard() {
                         <span className="text-sm font-bold text-slate-700 truncate max-w-[120px]">{p.full_name.split(' ')[0]} {p.full_name.split(' ')[1]?.charAt(0)}.</span>
                       </div>
                       <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:bg-green-50 hover:text-green-700" onClick={() => {
-                          const template = profile?.birthday_message_template || "Parabéns, {nome_paciente}! Feliz aniversário!"
-                          const msg = template.replace('{nome_paciente}', p.full_name.split(' ')[0])
+                          const template = profile?.birthday_message_template || "Olá, {paciente}! Feliz aniversário!"
+                          const msg = template.replace(/{nome_paciente}/g, p.full_name.split(' ')[0]).replace(/{paciente}/g, p.full_name.split(' ')[0])
                           window.open(`https://wa.me/55${p.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
                       }}>
                         <MessageCircle className="h-4 w-4" />

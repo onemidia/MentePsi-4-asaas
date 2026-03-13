@@ -87,6 +87,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
   useEffect(() => {
     const fetchUserData = async () => {
+      try {
       const impersonateId = localStorage.getItem('impersonate_id');
       
       // ⚡ CACHE DE SESSÃO: Recupera dados se não estiver em modo espião
@@ -102,7 +103,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       }
 
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
+      if (user?.id) {
         // 🟢 O PULO DO GATO: Se estiver impersonando, usa o ID da Paola para buscar o nome/role
         const targetId = impersonateId || user.id;
         
@@ -161,9 +162,10 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         
         if (settings?.whatsapp) {
           setSupportWhatsapp(settings.whatsapp)
-        } else if (error) {
-          console.error("Erro ao carregar suporte:", error.message);
         }
+      }
+      } catch (e) {
+        console.warn("Aviso ao carregar sidebar:", e)
       }
     }
     fetchUserData()
@@ -271,7 +273,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         </div>
       )}
 
-      <nav className="space-y-3 p-4 md:space-y-1 md:flex-1 md:overflow-y-auto">
+      <nav className="space-y-2 p-6 md:p-4 md:space-y-1 md:flex-1 md:overflow-y-auto">
         {items.map((item) => {
           const isActive = (item.href === '/admin' || item.href === '/dashboard/assistente') ? pathname === item.href : pathname?.startsWith(item.href)
           return (
@@ -280,18 +282,19 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-2xl px-4 py-3.5 md:px-3 md:py-2.5 text-base md:text-sm font-medium transition-all duration-200",
+                "flex items-center gap-4 rounded-xl px-4 py-4 text-base font-medium transition-all duration-200",
+                "md:gap-3 md:rounded-2xl md:px-3 md:py-2.5 md:text-sm",
                 isActive ? "bg-teal-50 text-teal-700 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
-              <item.icon className={cn("h-5 w-5", isActive ? "text-teal-600" : "text-slate-400")} />
+              <item.icon className={cn("h-6 w-6 md:h-5 md:w-5", isActive ? "text-teal-600" : "text-slate-400")} />
               {item.label}
             </Link>
           )
         })}
       </nav>
 
-      <div className="p-4 space-y-4 shrink-0 md:border-t md:bg-slate-50/30">
+      <div className="p-6 space-y-6 shrink-0 md:p-4 md:space-y-4 md:border-t md:bg-slate-50/30">
         
         {/* BOTÃO DE SUPORTE - Visível apenas para Profissionais */}
         {!pathname?.startsWith('/admin') && !pathname?.startsWith('/dashboard/assistente') && (
@@ -299,26 +302,26 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
             <Button 
               variant="ghost" 
               asChild
-              className="w-full justify-start gap-3 text-slate-600 hover:text-teal-600 hover:bg-teal-50 h-10 font-medium transition-all"
+              className="w-full justify-start gap-4 md:gap-3 text-slate-600 hover:text-teal-600 hover:bg-teal-50 h-12 md:h-10 text-base md:text-sm font-medium transition-all"
             >
               <Link href="/tutoriais">
-                <Video className="h-4 w-4" />
+                <Video className="h-5 w-5 md:h-4 md:w-4" />
                 Central de Tutoriais
               </Link>
             </Button>
             <Button 
               variant="outline" 
               onClick={handleSupportClick}
-              className="w-full justify-start gap-3 text-teal-700 border-teal-200 bg-white hover:bg-teal-50 h-10 shadow-sm font-bold transition-all"
+              className="w-full justify-start gap-4 md:gap-3 text-teal-700 border-teal-200 bg-white hover:bg-teal-50 h-12 md:h-10 text-base md:text-sm shadow-sm font-bold transition-all"
             >
-              <HeadphonesIcon className="h-4 w-4 text-teal-500" />
+              <HeadphonesIcon className="h-5 w-5 md:h-4 md:w-4 text-teal-500" />
               Falar com Suporte
             </Button>
           </div>
         )}
 
-        <div className="flex items-center gap-3 px-2">
-          <Avatar className="h-9 w-9 border-2 border-white shadow-sm">
+        <div className="flex items-center gap-4 md:gap-3 px-2">
+          <Avatar className="h-10 w-10 md:h-9 md:w-9 border-2 border-white shadow-sm">
             <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${userName}`} />
             <AvatarFallback className="bg-teal-100 text-teal-700">{userName.charAt(0)}</AvatarFallback>
           </Avatar>
@@ -331,8 +334,8 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         <div className="space-y-1">
           <p className="px-2 text-[10px] text-slate-400 truncate mb-1">{userEmail}</p>
           
-          <Button variant="ghost" className="w-full justify-start gap-3 text-slate-500 hover:text-red-600 hover:bg-red-50 h-9 transition-colors text-xs" onClick={handleLogout}>
-            <LogOut className="h-4 w-4" />
+          <Button variant="ghost" className="w-full justify-start gap-4 md:gap-3 text-slate-500 hover:text-red-600 hover:bg-red-50 h-12 md:h-9 transition-colors text-base md:text-xs" onClick={handleLogout}>
+            <LogOut className="h-5 w-5 md:h-4 md:w-4" />
             Sair do Sistema
           </Button>
         </div>

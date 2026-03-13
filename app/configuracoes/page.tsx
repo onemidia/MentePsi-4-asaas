@@ -81,8 +81,8 @@ const initialProfileState: Partial<ProfileData> = {
   work_hours_end: '18:00',
   whatsapp_reminders_enabled: true,
   reminder_lead_time: 24,
-  reminder_template: 'Olá, {paciente}! Este é um lembrete da sua sessão agendada para {data} às {horario}.',
-  birthday_message_template: 'Parabéns, {nome_paciente}! Desejamos muitas felicidades e um ano repleto de realizações.',
+  reminder_template: 'Olá, {paciente}! Passando para lembrar que nossa próxima sessão está agendada para: 🗓️ Data: {data} | 🕒 Horário: {horario}. Caso precise remarcar, por favor, me avise com antecedência. Até lá! 👋',
+  birthday_message_template: 'Olá, {paciente}! Hoje o dia é todo seu. 🎂 Desejo que seu novo ciclo seja repleto de saúde, leveza e muitas conquistas. Que você continue trilhando seu caminho com muita coragem e autoconhecimento. Feliz aniversário! ✨',
   cpf: '',
   rg: '',
   genero: '',
@@ -107,21 +107,29 @@ export default function SettingsPage() {
     setIsMounted(true);
     const fetchProfile = async () => {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      // 🔴 REMOVIDO: ID fixo que causava erro no F5
-      if (user?.id) {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user?.id) {
+          console.warn("Usuário não autenticado ou ID ausente.");
+          return;
+        }
+
         const userId = user.id;
 
-        // 1. Busca os dados profissionais
-        const { data: profData } = await supabase
+        // 1. Busca os dados profissionais com tratamento de erro isolado
+        const { data: profData, error: profError } = await supabase
           .from('professional_profile')
-          .select('*')
+          .select('id, user_id, full_name, crp, specialty, phone, logo_url, pix_key, bank, agency, bank_account, account_type, default_session_value, default_session_duration, clinic_name, address, cep, city, state, work_hours_start, work_hours_end, whatsapp_reminders_enabled, reminder_lead_time, reminder_template, birthday_message_template, cpf, rg, genero, estado_civil')
           .eq('user_id', userId)
-          .maybeSingle(); // Alterado para maybeSingle para evitar erros se for o primeiro acesso
+          .maybeSingle();
+        
+        if (profError) {
+          console.warn("Aviso (professional_profile):", profError.message, profError.details);
+        }
         
         // 2. Busca o status da assinatura na tabela subscriptions
-        const { data: subData } = await supabase
+        const { data: subData, error: subError } = await supabase
           .from('subscriptions')
           .select('status, current_period_end, created_at')
           .eq('user_id', userId)
@@ -129,36 +137,38 @@ export default function SettingsPage() {
           .limit(1)
           .maybeSingle();
 
-        if (subData) {
-          setSubscription(subData);
-        }
+        if (subError) console.warn("Aviso (subscriptions):", subError.message);
+        if (subData) setSubscription(subData);
 
         // 3. Busca o histórico de pagamentos do usuário
-        const { data: historyData } = await supabase
+        const { data: historyData, error: historyError } = await supabase
           .from('payment_history')
           .select('*')
           .eq('user_id', userId)
-          .order('payment_date', { ascending: false }); // Traz os mais recentes primeiro
+          .order('payment_date', { ascending: false });
 
-        if (historyData && historyData.length > 0) {
-          setPaymentHistory(historyData);
-        }
+        if (historyError) console.warn("Aviso (payment_history):", historyError.message);
+        if (historyData && historyData.length > 0) setPaymentHistory(historyData);
 
-        // Force o preenchimento manual de cada campo crítico no setProfile
+        // Aplica os dados apenas se a requisição for bem sucedida e retornar algo
         if (profData) {
           setProfile(prev => ({ 
             ...prev, 
             ...profData,
-            // 🟢 GARANTIA DE PERSISTÊNCIA:
             full_name: profData.full_name || '',
             clinic_name: profData.clinic_name || '',
             pix_key: profData.pix_key || '',
-            bank_account: profData.bank_account || '', // Certifique-se que o nome da coluna bate
+            bank_account: profData.bank_account || '', 
             logo_url: profData.logo_url || '',
+            reminder_template: profData.reminder_template || initialProfileState.reminder_template,
+            birthday_message_template: profData.birthday_message_template || initialProfileState.birthday_message_template,
           }));
         }
+      } catch (error) {
+        console.warn("Aviso interno ao carregar configurações:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetchProfile();
   }, []);
@@ -247,18 +257,22 @@ export default function SettingsPage() {
       estado_civil: profile.estado_civil || '',
     };
 
-    // 🟢 USANDO UPSERT: Isso garante que ele atualize se já existir ou crie se for novo
-    const { error } = await supabase
-      .from('professional_profile')
-      .upsert(formData, { onConflict: 'user_id' }); // Conflito baseado no seu ID único
-
-    if (error) {
-      console.error('ERRO AO SALVAR:', error);
-      toast({ variant: 'destructive', title: 'Erro ao salvar', description: error.message });
-    } else {
-      toast({ title: 'Sucesso!', description: 'Configurações salvas permanentemente.' });
+    try {
+      const { error } = await supabase
+        .from('professional_profile')
+        .upsert(formData, { onConflict: 'user_id' });
+  
+      if (error) {
+        console.warn('Aviso ao salvar:', error);
+        toast({ variant: 'destructive', title: 'Erro ao salvar', description: error.message });
+      } else {
+        toast({ title: 'Sucesso!', description: 'Configurações salvas permanentemente.' });
+      }
+    } catch (e) {
+      console.warn("Aviso de processamento:", e);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleCancelSubscription = async () => {
@@ -291,7 +305,7 @@ export default function SettingsPage() {
   if (!isMounted) return null;
 
   return (
-    <div className="container mx-auto p-6 space-y-8 bg-slate-100 min-h-screen">
+    <div className="container mx-auto p-6 space-y-8 bg-slate-100 min-h-[100dvh]">
       <TrialBanner />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -575,7 +589,7 @@ export default function SettingsPage() {
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
                         <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                         <p className="text-sm text-amber-800">
-                          <strong>Atenção:</strong> Não altere ou apague o termo <code className="bg-amber-100 px-1 rounded font-bold">{'{nome_paciente}'}</code>. O sistema utiliza esse código para inserir automaticamente o nome do aniversariante no momento do envio.
+                          <strong>Atenção:</strong> Não altere ou apague o termo <code className="bg-amber-100 px-1 rounded font-bold">{'{paciente}'}</code>. O sistema utiliza esse código para inserir automaticamente o nome do aniversariante no momento do envio.
                         </p>
                       </div>
 

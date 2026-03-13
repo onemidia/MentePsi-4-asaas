@@ -55,18 +55,19 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true)
-      
-      // 1. Busca Perfis
-      const { data: profiles, error } = await supabase
-        .from('professional_profile')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      // 2. Busca Assinaturas
-      const { data: subs } = await supabase
-        .from('subscriptions')
-        .select('user_id, status, plan_id, current_period_end, grace_period_until, saas_plans(slug, price_monthly)')
+      try {
+        setLoading(true)
+        
+        // 1. Busca Perfis explicitando as colunas
+        const { data: profiles } = await supabase
+          .from('professional_profile')
+          .select('user_id, full_name, email, created_at')
+          .order('created_at', { ascending: false })
+  
+        // 2. Busca Assinaturas
+        const { data: subs } = await supabase
+          .from('subscriptions')
+          .select('user_id, status, plan_id, current_period_end, grace_period_until, saas_plans(slug, price_monthly)')
 
       if (profiles) {
         const mergedData = profiles.map(profile => {
@@ -87,7 +88,11 @@ export default function AdminDashboard() {
         })
         setAllProfiles(mergedData)
       }
-      setLoading(false)
+      } catch (e) {
+        console.warn("Aviso ao carregar Admin Dashboard:", e)
+      } finally {
+        setLoading(false)
+      }
     }
     fetchData()
   }, [])
@@ -189,7 +194,7 @@ export default function AdminDashboard() {
   const totalPages = Math.ceil(filteredData.length / itemsPerPage)
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50/50 min-h-screen">
+    <div className="p-6 space-y-6 bg-slate-50/50 min-h-[100dvh]">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight">
           Dashboard Master <span className="text-sm font-normal text-slate-500">MentePsi v4</span>
@@ -265,6 +270,7 @@ export default function AdminDashboard() {
           <CardTitle className="text-lg font-bold text-slate-700">Monitoramento de Usuários</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
@@ -324,6 +330,7 @@ export default function AdminDashboard() {
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
         <CardFooter className="flex items-center justify-between p-4 border-t">
           <span className="text-xs text-slate-500">

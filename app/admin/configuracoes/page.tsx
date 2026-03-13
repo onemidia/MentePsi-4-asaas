@@ -70,8 +70,7 @@ export default function SaasSettings() {
   if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-teal-600"/></div>
 
   return (
-    <div className="p-6 space-y-8 bg-slate-50/50 min-h-screen">
-      <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+    <div className="p-6 space-y-8 bg-slate-50/50 min-h-border-slate-200 pb-4">
         <Settings className="h-8 w-8 text-slate-700" />
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Configurações do SaaS</h1>
