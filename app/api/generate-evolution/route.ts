@@ -1,5 +1,8 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { Mistral } from '@mistralai/mistralai';
+
+const apiKey = process.env.MISTRAL_API_KEY;
+const client = new Mistral({ apiKey });
 
 export async function POST(req: Request) {
   try {
@@ -9,12 +12,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Notas não fornecidas" }, { status: 400 });
     }
 
-    if (!process.env.GOOGLE_API_KEY) {
-      return NextResponse.json({ error: "Chave de API do Google não configurada" }, { status: 500 });
+    if (!apiKey) {
+      return NextResponse.json({ error: "Chave de API do Mistral não configurada" }, { status: 500 });
     }
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
       Você é um assistente especializado em psicologia clínica.
@@ -31,9 +31,14 @@ export async function POST(req: Request) {
       ${notes}
     `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const result = await client.chat.complete({
+      model: "mistral-small-latest",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2, // Mantém o texto mais técnico e menos criativo
+    });
+
+    const choiceContent = result.choices?.[0]?.message?.content;
+    const text = typeof choiceContent === 'string' ? choiceContent : "";
 
     return NextResponse.json({ text });
   } catch (error: any) {
