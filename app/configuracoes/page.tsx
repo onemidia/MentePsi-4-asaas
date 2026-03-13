@@ -32,8 +32,8 @@ type ProfileData = {
   agency: string;
   bank_account: string; // Nome exato da coluna no banco
   account_type: string;
-  default_session_value: number;
-  default_session_duration: number;
+  default_session_value: number | string;
+  default_session_duration: number | string;
   clinic_name: string;
   address: string;
   cep: string;
@@ -402,11 +402,11 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="default_session_value">Valor Padrão da Sessão (R$)</Label>
-                  <Input id="default_session_value" type="number" value={profile.default_session_value || 0} onChange={handleInputChange} className="border-slate-300" />
+                  <Input id="default_session_value" type="text" value={profile.default_session_value ?? ''} onChange={handleInputChange} className="border-slate-300" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="default_session_duration">Duração Padrão (min)</Label>
-                  <Input id="default_session_duration" type="number" value={profile.default_session_duration || 50} onChange={handleInputChange} className="border-slate-300" />
+                  <Input id="default_session_duration" type="text" value={profile.default_session_duration ?? ''} onChange={handleInputChange} className="border-slate-300" />
                 </div>
               </div>
             </CardContent>
