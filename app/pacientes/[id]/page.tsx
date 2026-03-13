@@ -22,7 +22,6 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 // Garante que o import está correto
 import PatientCreditLog from '@/components/PatientCreditLog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function FichaClinicaDigital() {
   const { id } = useParams()
@@ -40,7 +39,7 @@ export default function FichaClinicaDigital() {
   
   const [sessaoFilter, setSessaoFilter] = useState('Agendado')
   const [currentPage, setCurrentPage] = useState(1)
-  const [sessionsPerPage, setSessionsPerPage] = useState(10)
+  const sessionsPerPage = 10;
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   
@@ -715,14 +714,16 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
     })
     .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
-  const paginatedAppointments = filteredAppointments.slice((currentPage - 1) * sessionsPerPage, currentPage * sessionsPerPage)
+  const indexOfLastSession = currentPage * sessionsPerPage;
+  const indexOfFirstSession = indexOfLastSession - sessionsPerPage;
+  const currentSessions = filteredAppointments.slice(indexOfFirstSession, indexOfLastSession);
 
-  const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
-    const totalPages = Math.ceil(totalCount / itemsPerPage) || 1
-    if (totalCount <= itemsPerPage) return null
+  const PaginationControls = ({ totalCount }: { totalCount: number }) => {
+    const totalPages = Math.ceil(totalCount / sessionsPerPage) || 1
+    if (totalCount <= sessionsPerPage) return null
     
     return (
-      <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 w-full rounded-b-[24px] gap-4">
+      <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4">
         <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-full sm:w-auto">
           <ChevronLeft className="h-4 w-4 mr-2"/> Anterior
         </Button>
@@ -888,20 +889,10 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   <option value="Realizada">Realizadas</option>
                   <option value="Cancelado">Canceladas</option>
                 </select>
-                <Select value={String(sessionsPerPage)} onValueChange={(value) => setSessionsPerPage(Number(value))}>
-                  <SelectTrigger className="w-[120px] h-9 text-xs font-bold rounded-xl border-slate-300 bg-white focus:ring-2 focus:ring-teal-500">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10 / página</SelectItem>
-                    <SelectItem value="20">20 / página</SelectItem>
-                    <SelectItem value="50">50 / página</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </CardHeader>
             <CardContent className="divide-y divide-slate-200 p-0">
-              {paginatedAppointments.length > 0 ? paginatedAppointments.map(apt => {
+              {currentSessions.length > 0 ? currentSessions.map(apt => {
                 const now = new Date(); const aptTime = new Date(apt.start_time);
                 const isPastTolerance = now.getTime() > (aptTime.getTime() + 90 * 60 * 1000);
                 const displayStatus = (apt.status === 'Agendado' && isPastTolerance) ? 'Realizada' : apt.status;
@@ -946,7 +937,15 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
             </CardContent>
             
             {/* CONTROLES DE PAGINAÇÃO */}
-            <PaginationControls totalCount={filteredAppointments.length} itemsPerPage={sessionsPerPage} />
+            <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4 mt-4">
+               <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="w-full sm:w-auto">
+                  <ChevronLeft className="h-4 w-4 mr-2"/> ANTERIOR
+               </Button>
+               <span className="text-xs text-slate-500 font-medium">Página {currentPage} de {Math.ceil(filteredAppointments.length / sessionsPerPage) || 1}</span>
+               <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => prev + 1)} disabled={indexOfLastSession >= filteredAppointments.length} className="w-full sm:w-auto">
+                  PRÓXIMO <ChevronRight className="h-4 w-4 ml-2"/>
+               </Button>
+            </div>
           </Card>
         </div>
       )}
@@ -995,7 +994,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     <CardContent className="p-4 md:p-6 text-xs italic text-slate-500 leading-relaxed whitespace-pre-wrap">{evo.content}</CardContent>
                   </Card>
                 ))}
-                <PaginationControls totalCount={evolutions.length} itemsPerPage={10} />
+                <PaginationControls totalCount={evolutions.length} />
               </div>
             </>
         </div>
@@ -1207,7 +1206,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </div>
                 )
               })}
-              <PaginationControls totalCount={emotions.length} itemsPerPage={10} />
+              <PaginationControls totalCount={emotions.length} />
               {emotions.length === 0 && <div className="p-10 text-center text-slate-400 italic">Nenhum registro de emoção ainda.</div>}
             </CardContent></Card>
         </div>
@@ -1247,7 +1246,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </Card>
                 ))}
               </div>
-              <PaginationControls totalCount={documents.length} itemsPerPage={10} />
+              <PaginationControls totalCount={documents.length} />
             </CardContent></Card>
         </div>
       )}
@@ -1319,7 +1318,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     ))
                   )}
                 </div>
-                <PaginationControls totalCount={filteredMetas.length} itemsPerPage={10} />
+                <PaginationControls totalCount={filteredMetas.length} />
               </CardContent>
             </Card>
         </div>

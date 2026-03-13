@@ -222,7 +222,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
   return (
     <div className={cn("flex h-full w-full flex-col border-r bg-white", className)}>
-      <div className="p-6 border-b">
+      <div className="p-6 border-b shrink-0">
         <h1 className="text-2xl font-semibold text-teal-600 flex items-center gap-2 tracking-tight">
           MentePsi 
           {role === 'admin' ? (
@@ -235,9 +235,12 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         </h1>
       </div>
       
+      {/* Container Unificado para Scroll Responsivo */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto md:overflow-hidden">
+      
       {/* SELETOR DE AMBIENTE (EXCLUSIVO ADMIN) */}
       {['alvino@onemidia.tv.br', 'mentepsiclinic@gmail.com', 'onemidiamarketing@gmail.com'].includes(userEmail) && (
-        <div className="px-4 py-4 mb-4 border-b border-slate-200 bg-slate-50/50">
+        <div className="px-4 py-4 mb-4 border-b border-slate-200 bg-slate-50/50 shrink-0">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">Alternar Ambiente</p>
           <div className="flex justify-between gap-2 mb-3">
             <button 
@@ -268,7 +271,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         </div>
       )}
 
-      <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
+      <nav className="space-y-3 p-4 md:space-y-1 md:flex-1 md:overflow-y-auto">
         {items.map((item) => {
           const isActive = (item.href === '/admin' || item.href === '/dashboard/assistente') ? pathname === item.href : pathname?.startsWith(item.href)
           return (
@@ -277,7 +280,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "flex items-center gap-3 rounded-2xl px-4 py-3.5 md:px-3 md:py-2.5 text-base md:text-sm font-medium transition-all duration-200",
                 isActive ? "bg-teal-50 text-teal-700 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
@@ -288,7 +291,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         })}
       </nav>
 
-      <div className="mt-auto border-t p-4 space-y-4 bg-slate-50/30">
+      <div className="p-4 space-y-4 shrink-0 md:border-t md:bg-slate-50/30">
         
         {/* BOTÃO DE SUPORTE - Visível apenas para Profissionais */}
         {!pathname?.startsWith('/admin') && !pathname?.startsWith('/dashboard/assistente') && (
@@ -333,6 +336,8 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
             Sair do Sistema
           </Button>
         </div>
+      </div>
+      
       </div>
     </div>
   )

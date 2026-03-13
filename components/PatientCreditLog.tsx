@@ -27,15 +27,46 @@ function PatientCreditLog({ patientId, currentBalance }: CreditLogProps) {
   useEffect(() => {
     const fetchLogs = async () => {
       setLoading(true)
-      // Buscamos transações que afetaram o crédito (entradas avulsas ou baixas automáticas)
-      const { data, error } = await supabase
+      
+      // 1. Busca Transações (Removemos o filtro restritivo de crédito para mostrar tudo)
+      const { data: transData } = await supabase
         .from('financial_transactions')
         .select('*')
         .eq('patient_id', patientId)
-        .or('category.ilike.%Crédito%,description.ilike.%haver%')
         .order('created_at', { ascending: false })
 
-      if (!error && data) setLogs(data)
+      // 2. Busca Sessões Pagas (Para garantir histórico completo mesmo sem transação lançada)
+      const { data: aptData } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('patient_id', patientId)
+        .or('payment_status.eq.Pago,payment_status.eq.paid')
+
+      // 3. Unificação e Deduplicação
+      const logs = [...(transData || [])]
+      const existingAptIds = new Set(logs.map(t => t.appointment_id).filter(Boolean))
+
+      if (aptData) {
+        aptData.forEach(apt => {
+          // Só adiciona se NÃO houver transação já vinculada a esta sessão
+          if (!existingAptIds.has(apt.id)) {
+            logs.push({
+              id: `apt-${apt.id}`,
+              created_at: apt.start_time,
+              description: 'Sessão Terapêutica (Pago)',
+              amount: apt.price,
+              type: 'income',
+              category: 'Sessão',
+              is_virtual: true
+            })
+          }
+        })
+      }
+
+      // Ordenação unificada por data
+      logs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+      setLogs(logs)
       setLoading(false)
     }
 
