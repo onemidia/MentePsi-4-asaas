@@ -722,10 +722,14 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
     if (totalCount <= itemsPerPage) return null
     
     return (
-      <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50 w-full rounded-b-[24px]">
-        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-xl font-bold text-xs h-8"><ChevronLeft className="h-3 w-3 mr-1"/> Anterior</Button>
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Página {currentPage} de {totalPages}</span>
-        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-xl font-bold text-xs h-8">Próximo <ChevronRight className="h-3 w-3 ml-1"/></Button>
+      <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 w-full rounded-b-[24px] gap-4">
+        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-full sm:w-auto">
+          <ChevronLeft className="h-4 w-4 mr-2"/> Anterior
+        </Button>
+        <span className="text-xs text-slate-500 font-medium">Página {currentPage} de {totalPages}</span>
+        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="w-full sm:w-auto">
+          Próximo <ChevronRight className="h-4 w-4 ml-2"/>
+        </Button>
       </div>
     )
   }
