@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import Image from 'next/image' // 🟢 Next.js Image
+import dynamic from 'next/dynamic'
 import TrialBanner from './TrialBanner' // 🟢 Importa o novo banner
 import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
@@ -13,7 +15,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Loader2, Save, Image as ImageIcon, AlertTriangle } from 'lucide-react'
-import { TeamManagement } from '@/components/TeamManagement'
+
+// ⚡ PERFORMANCE: Carrega o componente de equipe apenas se necessário (Code Splitting)
+const TeamManagement = dynamic(() => import('@/components/TeamManagement').then(mod => mod.TeamManagement), { loading: () => <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-teal-600" /></div> })
 
 // Define the type for the profile data
 type ProfileData = {
@@ -320,7 +324,14 @@ export default function SettingsPage() {
               <div className="flex flex-col items-center sm:flex-row gap-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div className="relative h-24 w-24 shrink-0 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white flex items-center justify-center">
                   {profile.logo_url ? (
-                    <img src={profile.logo_url} alt="Logo da Clínica" className="h-full w-full object-contain" />
+                    <Image 
+                      src={profile.logo_url} 
+                      alt="Logo da Clínica" 
+                      fill 
+                      className="object-contain" 
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      unoptimized={true} // Necessário para URLs externos do Supabase Storage
+                    />
                   ) : (
                     <ImageIcon className="h-8 w-8 text-slate-300" />
                   )}

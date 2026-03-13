@@ -23,20 +23,9 @@ import {
   Wallet,
   Bell,
   ShieldCheck,
-  LifeBuoy,
-  Sparkles
+  LifeBuoy
 } from "lucide-react"
-import {
-  ComposedChart,
-  Line,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts'
+import dynamic from 'next/dynamic'
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -56,7 +45,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { startOfMonth, endOfMonth, subMonths, format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { jsPDF } from 'jspdf'
+
+// ⚡ PERFORMANCE: Carregamento dinâmico do gráfico pesado
+const RevenueChart = dynamic(() => import('./revenue-chart'), { ssr: false, loading: () => <Skeleton className="h-[300px] w-full rounded-xl" /> })
 
 export default function PsychologistDashboard() {
   const [loading, setLoading] = useState(true)
@@ -175,6 +166,9 @@ export default function PsychologistDashboard() {
           receiptNumber = (counter?.current_count || 0) + 1
           await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', transactionToConfirm.psychologist_id)
 
+          // ⚡ PERFORMANCE: Importação dinâmica do jsPDF (só carrega o código se clicar)
+          const { jsPDF } = (await import('jspdf')).default ? await import('jspdf') : { jsPDF: (await import('jspdf')).jsPDF };
+          
           const doc = new jsPDF()
           doc.setFontSize(16); doc.setTextColor(13, 148, 136);
           doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
@@ -359,7 +353,22 @@ export default function PsychologistDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  if (loading) return <DashboardSkeleton />
+  // 🚀 SKELETON: Mantemos a estrutura visual idêntica ao loading.tsx para evitar layout shift
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 space-y-8">
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64 rounded-xl" />
+            <Skeleton className="h-4 w-48 rounded-xl" />
+          </div>
+          <Skeleton className="h-10 w-32 rounded-full" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">{[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><Skeleton className="h-96 lg:col-span-2 rounded-xl" /><Skeleton className="h-96 rounded-xl" /></div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 space-y-8">
@@ -433,26 +442,7 @@ export default function PsychologistDashboard() {
               <CardDescription>Comparativo dos últimos 6 meses (Faturamento vs. Consultas Realizadas).</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px] w-full min-w-0 min-h-[300px]">
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
-                    <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(value) => `R$ ${value}`} />
-                    <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <RechartsTooltip 
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      formatter={(value: any, name: string | undefined) => [
-                        name === 'faturamento' ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : value,
-                        (name || '') === 'faturamento' ? 'Faturamento' : (name || '') === 'consultas' ? 'Consultas Realizadas' : name
-                      ]}
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                    <Bar yAxisId="left" dataKey="faturamento" name="Faturamento (R$)" fill="#0d9488" radius={[4, 4, 0, 0]} barSize={30} />
-                    <Line yAxisId="right" type="monotone" dataKey="consultas" name="Consultas Realizadas" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: "#f59e0b", strokeWidth: 2, stroke: "#fff" }} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+              <RevenueChart data={chartData} />
             </CardContent>
           </Card>
 
@@ -625,15 +615,6 @@ function EmotionItem({ item }: any) {
           </Button>
         )}
       </div>
-    </div>
-  )
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="container mx-auto p-6 space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">{[1,2,3,4].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><Skeleton className="h-96 lg:col-span-2 rounded-xl" /><Skeleton className="h-96 rounded-xl" /></div>
     </div>
   )
 }

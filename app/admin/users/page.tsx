@@ -228,6 +228,8 @@ export default function GestaoPsicologos() {
 
               const trialDate = periodEnd ? new Date(periodEnd) : null
               const isTrialExpired = trialDate && trialDate < new Date() && status === 'trialing'
+              const graceDate = user.grace_period_until ? new Date(user.grace_period_until) : null
+              const isInGracePeriod = graceDate && graceDate > new Date()
 
               return (
                 <TableRow key={user.user_id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0">
@@ -242,11 +244,13 @@ export default function GestaoPsicologos() {
                     <Badge className={
                       status === 'active' 
                         ? "bg-emerald-50 text-emerald-600 border border-emerald-100 px-4 font-black" 
+                        : isInGracePeriod
+                        ? "bg-amber-50 text-amber-700 border border-amber-200 px-4 font-black"
                         : isTrialExpired
                         ? "bg-red-50 text-red-600 border border-red-100 px-4 font-black"
                         : "bg-blue-50 text-blue-600 border border-blue-100 px-4 font-black"
                     }>
-                      {status === 'active' ? 'ASSINANTE' : isTrialExpired ? 'EXPIRADO' : 'EM TESTE'}
+                      {status === 'active' ? 'ASSINANTE' : isInGracePeriod ? 'EM CARÊNCIA' : isTrialExpired ? 'EXPIRADO' : 'EM TESTE'}
                     </Badge>
                   </TableCell>
 

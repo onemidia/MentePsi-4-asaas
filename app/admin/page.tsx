@@ -13,7 +13,8 @@ import {
   Calendar,
   Search,
   Filter,
-  XCircle
+  XCircle,
+  ShieldAlert
 } from "lucide-react"
 import {
   Table,
@@ -117,6 +118,7 @@ export default function AdminDashboard() {
     total: filteredData.length,
     active: filteredData.filter(p => p.subscription_status === 'active').length,
     trialing: filteredData.filter(p => p.subscription_status === 'trialing').length,
+    grace_period: filteredData.filter(p => p.grace_period_until && new Date(p.grace_period_until) > new Date()).length,
     mrr: filteredData
       .filter(p => p.subscription_status === 'active')
       .reduce((acc, user) => acc + (user.plan_price || 0), 0)
@@ -244,7 +246,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* CARDS COM MÉTRICAS DINÂMICAS */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard title="Filtrados" value={stats.total} icon={<Users className="h-4 w-4 text-teal-600" />} loading={loading} />
         <StatCard title="Assinantes (Filtro)" value={stats.active} icon={<Activity className="h-4 w-4 text-emerald-600" />} loading={loading} />
         <StatCard 
@@ -253,6 +255,7 @@ export default function AdminDashboard() {
           icon={<DollarSign className="h-4 w-4 text-blue-600" />} 
           loading={loading} 
         />
+        <StatCard title="Em Carência" value={stats.grace_period} icon={<ShieldAlert className="h-4 w-4 text-amber-600" />} loading={loading} />
         <StatCard title="Trials Ativos" value={stats.trialing} icon={<TrendingUp className="h-4 w-4 text-amber-600" />} loading={loading} />
       </div>
 
@@ -277,39 +280,48 @@ export default function AdminDashboard() {
                 <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin h-8 w-8 text-teal-600 mx-auto" /></TableCell></TableRow>
               ) : filteredData.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-20 text-slate-400">Nenhum resultado para os filtros aplicados.</TableCell></TableRow>
-              ) : filteredData.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage).map((user) => (
-                <TableRow key={user.id} className="hover:bg-slate-50 transition-colors">
-                  <TableCell 
-                    className="font-black text-slate-800 cursor-pointer hover:text-teal-600 underline decoration-dotted underline-offset-4" 
-                    onClick={() => { setSelectedUser(user); setIsSheetOpen(true); }}
-                  >
-                    {user.full_name || 'Incompleto'}
-                  </TableCell>
-                  <TableCell className="text-slate-500 text-xs font-medium">{user.email}</TableCell>
-                  <TableCell className="text-center">
-                    <select 
-                      className={`text-[10px] font-black rounded-lg px-2 py-1 border border-slate-100 cursor-pointer uppercase tracking-tighter ${
-                        user.subscription_status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                      }`}
-                      value={user.subscription_status}
-                      onChange={(e) => updateSubscriptionStatus(user.id, e.target.value)}
+              ) : filteredData.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage).map((user) => {
+                const isInGracePeriod = user.grace_period_until && new Date(user.grace_period_until) > new Date();
+
+                return (
+                  <TableRow key={user.id} className="hover:bg-slate-50 transition-colors">
+                    <TableCell 
+                      className="font-black text-slate-800 cursor-pointer hover:text-teal-600 underline decoration-dotted underline-offset-4" 
+                      onClick={() => { setSelectedUser(user); setIsSheetOpen(true); }}
                     >
-                      <option value="trialing">TRIAL</option>
-                      <option value="active">PAGO</option>
-                      <option value="past_due">VENCIDO</option>
-                      <option value="canceled">CANCELADO</option>
-                    </select>
-                  </TableCell>
-                  <TableCell className="text-right px-8 text-slate-400 text-sm">
-                    {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell className="text-right px-4">
-                    <Button variant="ghost" size="sm" onClick={() => handleImpersonate(user.id)} className="text-teal-600 hover:bg-teal-50">
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {user.full_name || 'Incompleto'}
+                    </TableCell>
+                    <TableCell className="text-slate-500 text-xs font-medium">{user.email}</TableCell>
+                    <TableCell className="text-center">
+                      <select 
+                        className={`text-[10px] font-black rounded-lg px-2 py-1 border border-slate-100 cursor-pointer uppercase tracking-tighter ${
+                          user.subscription_status === 'active' 
+                            ? 'bg-emerald-50 text-emerald-600' 
+                            : isInGracePeriod 
+                              ? 'bg-amber-50 text-amber-600'
+                              : 'bg-slate-100 text-slate-500'
+                        }`}
+                        value={user.subscription_status}
+                        onChange={(e) => updateSubscriptionStatus(user.id, e.target.value)}
+                      >
+                        <option value="trialing">TRIAL</option>
+                        <option value="active">PAGO</option>
+                        <option value="overdue">{isInGracePeriod ? 'EM CARÊNCIA' : 'VENCIDO'}</option>
+                        <option value="past_due">VENCIDO (Legacy)</option>
+                        <option value="canceled">CANCELADO</option>
+                      </select>
+                    </TableCell>
+                    <TableCell className="text-right px-8 text-slate-400 text-sm">
+                      {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell className="text-right px-4">
+                      <Button variant="ghost" size="sm" onClick={() => handleImpersonate(user.id)} className="text-teal-600 hover:bg-teal-50">
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>

@@ -53,14 +53,19 @@ export default function FinanceiroGlobal() {
       // 2. Busca Assinaturas para unificar status real
       const { data: subs } = await supabase
         .from('subscriptions')
-        .select('user_id, status, current_period_end')
+        .select('user_id, status, current_period_end, grace_period_until')
 
       if (allProfiles) {
         const mergedData = allProfiles.map(profile => {
           const userSub = subs?.find(s => s.user_id === profile.user_id)
+          
+          let subStatus = userSub?.status || 'trialing'
+          const isGrace = userSub?.grace_period_until && new Date(userSub.grace_period_until) > new Date()
+          if (subStatus === 'overdue' || isGrace) subStatus = 'overdue'
+
           return {
             ...profile,
-            subscription_status: userSub?.status || 'trialing',
+            subscription_status: subStatus,
             current_period_end: userSub?.current_period_end || null
           }
         })
@@ -95,7 +100,7 @@ export default function FinanceiroGlobal() {
   // Cálculos baseados nos dados filtrados
   const stats = {
     activeCount: filteredProfiles.filter(p => p.subscription_status === 'active').length,
-    pendingCount: filteredProfiles.filter(p => p.subscription_status === 'past_due' || p.subscription_status === 'canceled').length,
+    pendingCount: filteredProfiles.filter(p => p.subscription_status === 'past_due' || p.subscription_status === 'canceled' || p.subscription_status === 'overdue').length,
     trialCount: filteredProfiles.filter(p => p.subscription_status === 'trialing').length,
   }
 
@@ -111,6 +116,7 @@ export default function FinanceiroGlobal() {
       case 'active': return 'ATIVO'
       case 'trialing': return 'EM TESTE'
       case 'past_due': return 'VENCIDO'
+      case 'overdue': return 'EM CARÊNCIA'
       case 'canceled': return 'CANCELADO'
       default: return 'SEM STATUS'
     }
@@ -251,6 +257,8 @@ export default function FinanceiroGlobal() {
                           ? "bg-emerald-100 text-emerald-700 border-none px-3 font-bold" 
                           : profile.subscription_status === 'trialing'
                           ? "bg-blue-100 text-blue-700 border-none px-3 font-bold"
+                          : profile.subscription_status === 'overdue'
+                          ? "bg-amber-100 text-amber-700 border-none px-3 font-bold"
                           : "bg-red-50 text-red-600 border border-red-100 px-3 font-bold"
                       }>
                         {translateStatus(profile.subscription_status)}

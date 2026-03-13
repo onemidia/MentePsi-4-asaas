@@ -30,9 +30,6 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { format, isAfter, isBefore, startOfDay, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import * as XLSX from 'xlsx'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
 
 export default function FinanceiroPage() {
   const [loading, setLoading] = useState(true)
@@ -340,6 +337,9 @@ export default function FinanceiroPage() {
            receiptNumber = (counter?.current_count || 0) + 1
            await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', user.id)
 
+           // ⚡ PERFORMANCE: Importação dinâmica sob demanda
+           const { jsPDF } = (await import('jspdf')).default ? await import('jspdf') : { jsPDF: (await import('jspdf')).jsPDF };
+
            // 2. Gera o PDF em memória (Blob)
            const doc = new jsPDF()
            doc.setFontSize(16); doc.setTextColor(13, 148, 136);
@@ -569,7 +569,10 @@ export default function FinanceiroPage() {
     setter((Number(cleanValue) / 100).toFixed(2).replace('.', ','));
   }
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    // ⚡ PERFORMANCE: Importação dinâmica do XLSX
+    const XLSX = await import('xlsx');
+    
     const data = filteredAppointments.map(apt => {
       const pendente = Number(apt.price) - Number(apt.amount_paid || 0)
       return {
@@ -706,6 +709,10 @@ export default function FinanceiroPage() {
       // 2. Incrementa o contador no banco
       await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', user.id)
     }
+
+    // ⚡ PERFORMANCE: Carregamento dinâmico das libs de PDF
+    const { jsPDF } = (await import('jspdf')).default ? await import('jspdf') : { jsPDF: (await import('jspdf')).jsPDF };
+    const autoTable = (await import('jspdf-autotable')).default;
 
     const doc = new jsPDF()
     

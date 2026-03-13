@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import Image from 'next/image'
 import { Plus, Loader2, Sparkles, FileText, Lock } from "lucide-react"
 import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
@@ -386,7 +387,15 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
             {/* CABEÇALHO AUTOMÁTICO (PAPEL TIMBRADO) */}
             <div className="bg-slate-50 p-4 sm:p-6 rounded-t-xl border border-b-0 border-slate-200 flex flex-col items-center text-center gap-2 select-none">
                {professional?.logo_url && (
-                 <img src={professional.logo_url} alt="Logo Clínica" className="h-20 max-w-[200px] object-contain mb-2 mix-blend-multiply" />
+                 <div className="relative h-20 w-[200px] mb-2">
+                   <Image 
+                     src={professional.logo_url} 
+                     alt="Logo Clínica" 
+                     fill
+                     className="object-contain mix-blend-multiply"
+                     unoptimized={true}
+                   />
+                 </div>
                )}
                <div className="w-full">
                  <Input 

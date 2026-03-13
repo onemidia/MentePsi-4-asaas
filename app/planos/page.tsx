@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/client'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, Loader2, Star, AlertTriangle, Shield, Zap, Heart, Brain, MessageSquare, ClipboardCheck } from "lucide-react"
+import { Check, Star, AlertTriangle, Zap, Brain, ClipboardCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import PlanosLoading from './loading' // Reutiliza o skeleton visual
 
 export default function PlanosPage() {
   const [loading, setLoading] = useState(true)
@@ -19,6 +20,8 @@ export default function PlanosPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const motivo = searchParams.get('motivo')
+  const reason = searchParams.get('reason')
+  const isOverdue = motivo === 'inadimplente' || reason === 'overdue'
   const { toast } = useToast()
 
   useEffect(() => {
@@ -66,16 +69,16 @@ export default function PlanosPage() {
     }
   }
 
-  if (loading) return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-teal-600" size={40} /></div>
+  if (loading) return <PlanosLoading />
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       {/* HEADER ATRAVATIVO */}
       <div className="text-center max-w-3xl mx-auto mb-16">
-        {motivo ? (
-          motivo === 'inadimplente' ? (
+        {motivo || reason ? (
+          isOverdue ? (
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-amber-600">Atenção: Pagamento Pendente</h1>
+              <h1 className="text-2xl font-bold text-amber-600">Regularize sua Assinatura</h1>
               <p className="text-slate-600 mt-2 font-medium">Sua conta está em período de carência. Regularize o pagamento para manter seu acesso ilimitado.</p>
             </div>
           ) : (
@@ -194,8 +197,8 @@ export default function PlanosPage() {
               >
                 {subStatus === 'active'
                   ? 'SEU PLANO ESTÁ ATIVO'
-                  : motivo === 'inadimplente'
-                    ? 'REGULARIZAR MINHA CONTA'
+                  : isOverdue
+                    ? 'REGULARIZAR AGORA'
                     : user
                     ? 'ATIVAR ASSINATURA AGORA'
                     : 'COMEÇAR TESTE GRÁTIS DE 30 DIAS'}
