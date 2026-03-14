@@ -70,6 +70,13 @@ export async function POST(req: Request) {
     let customerId = profile?.asaas_customer_id
 
     if (!customerId) {
+      if (!cleanCpf) {
+        return NextResponse.json(
+          { error: "CPF é obrigatório para gerar a cobrança." },
+          { status: 400 }
+        )
+      }
+
       const customerResponse = await fetch(`${asaasUrl}/customers`, {
         method: "POST",
         headers: {
@@ -87,8 +94,12 @@ export async function POST(req: Request) {
       const customer = await customerResponse.json()
 
       if (!customerResponse.ok) {
-        console.error(customer)
-        throw new Error("Erro ao criar cliente no Asaas")
+        console.error("Erro Asaas Customer:", customer)
+        // Captura o erro real devolvido pelo Asaas
+        return NextResponse.json(
+          { error: customer.errors?.[0]?.description || "Erro ao criar cliente no Asaas", details: customer },
+          { status: 400 }
+        )
       }
 
       customerId = customer.id
@@ -111,7 +122,7 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         customer: customerId,
-        billingType: "CREDIT_CARD", // <--- MUDANÇA AQUI
+        billingType: "CREDIT_CARD", // <--- FORÇADO PARA CARTÃO TEMPORARIAMENTE
         value: plan.price_monthly,
         nextDueDate: dueDate.toISOString().split("T")[0],
         cycle: "MONTHLY", // <--- ISSO GERA A RECORRÊNCIA MENSAL
@@ -129,8 +140,12 @@ export async function POST(req: Request) {
     const subscription = await paymentResponse.json()
 
     if (!paymentResponse.ok) {
-      console.error(subscription)
-      throw new Error("Erro ao criar assinatura")
+      console.error("Erro Asaas Subscription:", subscription)
+      // Retorna a descrição exata do porquê a assinatura falhou (ex: saldo, limite, cpf inválido)
+      return NextResponse.json(
+        { error: subscription.errors?.[0]?.description || "Erro ao criar assinatura no Asaas", details: subscription },
+        { status: 400 }
+      )
     }
 
     // 🔥 BUSCAR A FATURA DA ASSINATURA PARA O REDIRECIONAMENTO

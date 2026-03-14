@@ -141,7 +141,10 @@ function CheckoutContent() {
           .eq('user_id', user.id)
           .single();
 
-        if (!profile?.cpf || !profile?.phone) {
+        const cleanCpf = profile?.cpf ? profile.cpf.replace(/\D/g, '') : '';
+        const cleanPhone = profile?.phone ? profile.phone.replace(/\D/g, '') : '';
+
+        if (!cleanCpf || !cleanPhone) {
           setInfoData({
             cpf: profile?.cpf || '',
             phone: profile?.phone || '',
