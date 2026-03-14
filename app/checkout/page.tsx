@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from '@/lib/client';
@@ -14,12 +14,15 @@ export const dynamic = 'force-dynamic';
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { toast } = useToast();
   const [status, setStatus] = useState('processing');
   const [errorMessage, setErrorMessage] = useState('');
   const [infoData, setInfoData] = useState({ cpf: '', phone: '', name: '' });
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [paymentUrl, setPaymentUrl] = useState('');
+  const [subscriptionId, setSubscriptionId] = useState('');
   const supabase = createClient();
 
   const executeCharge = async (userData: any, extraData: any = {}) => {
@@ -51,15 +54,16 @@ function CheckoutContent() {
 
       console.log('✅ [Checkout] Resposta da API:', data);
 
-      // 🔥 CAPTURA DE URL MULTI-CAMPO (Para PIX ou Assinatura)
       const finalUrl = data.invoiceUrl || data.checkoutUrl || data.paymentUrl;
+      const subId = data.subscriptionId;
 
-      if (finalUrl) {
-        setStatus('success');
-        window.location.href = finalUrl;
+      if (finalUrl && subId) {
+        setPaymentUrl(finalUrl);
+        setSubscriptionId(subId);
+        setStatus('waiting_payment');
+        window.open(finalUrl, '_blank'); // Abre o link de pagamento em uma nova aba
       } else {
-        // Caso o Asaas demore a gerar a fatura da assinatura
-        throw new Error('Assinatura criada, mas o link de pagamento ainda não está disponível. Verifique seu e-mail ou tente em instantes.');
+        throw new Error('Não foi possível obter o link de pagamento ou o ID da assinatura. Verifique seu e-mail ou tente novamente.');
       }
 
     } catch (error: any) {
@@ -73,6 +77,54 @@ function CheckoutContent() {
       });
     }
   };
+
+  useEffect(() => {
+    if (status !== 'waiting_payment' || !subscriptionId) return;
+
+    console.log(`[Polling] Iniciando monitoramento para a assinatura Asaas: ${subscriptionId}`);
+
+    const intervalId = setInterval(async () => {
+      try {
+        // O webhook deve criar/atualizar um registro com este ID
+        const { data: sub, error } = await supabase
+          .from('subscriptions')
+          .select('status')
+          .eq('asaas_subscription_id', subscriptionId)
+          .single();
+
+        // PGRST116: "The result contains 0 rows" - normal enquanto o webhook não roda
+        if (error && error.code !== 'PGRST116') {
+          console.warn('[Polling] Erro ao buscar assinatura:', error.message);
+          return;
+        }
+        
+        if (sub) {
+          console.log(`[Polling] Status atual: ${sub.status}`);
+          const successStatuses = ['active', 'confirmed', 'received', 'pago'];
+          if (successStatuses.includes(String(sub.status).toLowerCase())) {
+            console.log('[Polling] Pagamento confirmado! Redirecionando para /success...');
+            clearInterval(intervalId);
+            clearTimeout(timeoutId);
+            router.push('/success');
+          }
+        } else {
+            console.log('[Polling] Assinatura ainda não encontrada no banco de dados. Aguardando webhook...');
+        }
+
+      } catch (e) {
+        console.error('[Polling] Erro inesperado no intervalo:', e);
+      }
+    }, 5000); // Poll a cada 5 segundos
+
+    const timeoutId = setTimeout(() => {
+        console.log('[Polling] Tempo limite de monitoramento atingido.');
+        clearInterval(intervalId);
+        setStatus('error');
+        setErrorMessage('O tempo para confirmação do pagamento expirou. Por favor, tente novamente ou verifique seu e-mail.');
+    }, 10 * 60 * 1000); // Timeout de 10 minutos
+
+    return () => { clearInterval(intervalId); clearTimeout(timeoutId); };
+  }, [status, subscriptionId, supabase, router]);
 
   useEffect(() => {
     const processCheckout = async () => {
@@ -166,6 +218,28 @@ function CheckoutContent() {
             </form>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // UI de Espera pelo Pagamento
+  if (status === 'waiting_payment') {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center space-y-4 bg-slate-50 p-4">
+        <Loader2 className="h-12 w-12 animate-spin text-teal-600" />
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-slate-800">
+            Aguardando Confirmação
+          </h1>
+          <p className="text-slate-500 max-w-md mt-2">
+            Sua janela de pagamento foi aberta. Após a confirmação, você será redirecionado automaticamente.
+          </p>
+          <Button asChild variant="outline" className="mt-6">
+            <a href={paymentUrl} target="_blank" rel="noopener noreferrer">
+              Abrir link de pagamento novamente
+            </a>
+          </Button>
+        </div>
       </div>
     );
   }

@@ -117,6 +117,12 @@ export async function POST(req: Request) {
         cycle: "MONTHLY", // <--- ISSO GERA A RECORRÊNCIA MENSAL
         description: `Assinatura Plano ${plan.name} - MentePsi`,
         externalReference: userId,
+        // Garantindo que todas as URLs de retorno apontem para o domínio oficial em produção
+        returnUrl: "https://www.mentepsi.com.br/success",
+        callback: {
+          successUrl: "https://www.mentepsi.com.br/success",
+          autoRedirect: true
+        }
       }),
     })
 
