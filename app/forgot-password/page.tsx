@@ -17,8 +17,12 @@ export default function ForgotPasswordPage() {
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true)
+    const redirectUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://www.mentepsi.com.br/reset-password'
+      : 'http://localhost:3000/reset-password';
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      redirectTo: redirectUrl,
     })
 
     if (!error) {
