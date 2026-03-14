@@ -34,13 +34,12 @@ export default function ResetPasswordPage() {
 
     if (error) {
       toast({ variant: "destructive", title: "Erro ao atualizar", description: error.message })
+      setLoading(false)
     } else {
       toast({ title: "Sucesso!", description: "Sua senha foi redefinida. Você será redirecionado." })
-      setTimeout(() => {
-        router.push('/login')
-      }, 2000)
+      await supabase.auth.signOut()
+      router.push('/auth/login')
     }
-    setLoading(false)
   }
 
   return (
