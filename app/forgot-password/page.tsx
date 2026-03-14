@@ -16,20 +16,30 @@ export default function ForgotPasswordPage() {
   const { toast } = useToast()
 
   const handleReset = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true)
-    const redirectUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://www.mentepsi.com.br/reset-password'
-      : 'http://localhost:3000/reset-password';
+    e.preventDefault()
+    setLoading(true)
+
+    // Forçamos a URL de produção exata que você cadastrou no painel (image_b3d6ea.png)
+    const redirectUrl = 'https://www.mentepsi.com.br/reset-password'
+
+    console.log("🚀 Disparando recuperação para:", email)
+    console.log("🔗 URL de redirecionamento:", redirectUrl)
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl,
     })
 
     if (!error) {
-      setIsSent(true) // Isso deve ativar uma mensagem fixa na tela
-      toast({ title: "Link enviado com sucesso!" })
+      console.log("✅ E-mail enviado com sucesso!")
+      setIsSent(true)
+      toast({ title: "Link enviado!", description: "Verifique sua caixa de entrada." })
     } else {
-      toast({ variant: "destructive", title: "Erro", description: error.message })
+      console.error("❌ Erro do Supabase:", error.message)
+      toast({ 
+        variant: "destructive", 
+        title: "Erro ao enviar", 
+        description: error.message 
+      })
     }
     setLoading(false)
   }
