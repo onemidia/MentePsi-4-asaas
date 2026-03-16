@@ -609,7 +609,7 @@ export default function TutoriaisPage() {
       )}
 
       {/* WHATSAPP */}
-      <a href="https://wa.me/5516981518607" target="_blank" className="fixed bottom-6 right-6 bg-[#25D366] text-white p-4 rounded-full shadow-2xl flex items-center gap-3 font-bold hover:scale-105 transition-all">
+      <a href="https://wa.me/5516997925854" target="_blank" className="fixed bottom-6 right-6 bg-[#25D366] text-white p-4 rounded-full shadow-2xl flex items-center gap-3 font-bold hover:scale-105 transition-all">
         <MessageCircle size={24} />
         <span className="hidden md:block">Suporte MentePsi</span>
       </a>

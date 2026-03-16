@@ -201,7 +201,7 @@ export default function LandingPage() {
                   <Mail size={16} /> mentepsiclinic@gmail.com
                 </a>
                 <a 
-                  href="https://wa.me/5516981518607" 
+                  href="https://wa.me/5516997925854" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="flex items-center justify-center md:justify-start gap-2 hover:text-teal-400 transition-colors"
