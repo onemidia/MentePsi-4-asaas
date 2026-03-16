@@ -122,7 +122,7 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         customer: customerId,
-        billingType: "CREDIT_CARD", // <--- FORÇADO PARA CARTÃO TEMPORARIAMENTE
+        billingType: "UNDEFINED", // Permite que o cliente escolha (PIX, Boleto, Cartão)
         value: plan.price_monthly,
         nextDueDate: dueDate.toISOString().split("T")[0],
         cycle: "MONTHLY", // <--- ISSO GERA A RECORRÊNCIA MENSAL
