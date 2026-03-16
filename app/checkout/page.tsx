@@ -171,20 +171,61 @@ function CheckoutContent() {
     if (status === 'processing') processCheckout();
   }, []);
 
+  // Máscara Dinâmica de CPF / CNPJ
+  const handleCpfCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '').slice(0, 14);
+    let formattedValue = rawValue;
+    if (rawValue.length <= 11) {
+      formattedValue = rawValue
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    } else {
+      formattedValue = rawValue
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    setInfoData({ ...infoData, cpf: formattedValue });
+  };
+
+  // Máscara de Telefone Celular
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '').slice(0, 11);
+    let formattedValue = rawValue;
+    if (rawValue.length <= 10) {
+      formattedValue = rawValue.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
+    } else {
+      formattedValue = rawValue.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2');
+    }
+    setInfoData({ ...infoData, phone: formattedValue });
+  };
+
+  // Validações
+  const cleanCpf = infoData.cpf.replace(/\D/g, '');
+  const isValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
+  
+  const cleanPhone = infoData.phone.replace(/\D/g, '');
+  const isValidPhone = cleanPhone.length === 10 || cleanPhone.length === 11;
+
+  const isFormValid = infoData.name.trim().length > 0 && isValidCpf && isValidPhone;
+
   const handleInfoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isFormValid) return;
     setStatus('processing');
     try {
       // Salva dados no perfil para evitar nova solicitação
       await supabase.from('professional_profile').upsert({
         user_id: userId,
-        cpf: infoData.cpf,
-        phone: infoData.phone,
+        cpf: cleanCpf,
+        phone: cleanPhone,
         full_name: infoData.name,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' });
 
-      await executeCharge({ id: userId, email: userEmail }, infoData);
+      await executeCharge({ id: userId, email: userEmail }, { ...infoData, cpf: cleanCpf, phone: cleanPhone });
     } catch (error: any) {
        setStatus('error');
        setErrorMessage(error.message);
@@ -210,14 +251,36 @@ function CheckoutContent() {
                 <Input value={infoData.name} onChange={e => setInfoData({...infoData, name: e.target.value})} required />
               </div>
               <div className="space-y-2">
-                <Label>CPF</Label>
-                <Input value={infoData.cpf} onChange={e => setInfoData({...infoData, cpf: e.target.value})} placeholder="000.000.000-00" required />
+                <Label>CPF ou CNPJ</Label>
+                <Input 
+                  value={infoData.cpf} 
+                  onChange={handleCpfCnpjChange} 
+                  inputMode="numeric"
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00" 
+                  maxLength={18}
+                  required 
+                  className={!isValidCpf && infoData.cpf.length > 0 ? "border-red-500 focus-visible:ring-red-500" : ""}
+                />
+                {!isValidCpf && infoData.cpf.length > 0 && (
+                  <p className="text-xs text-red-500 font-medium">Digite um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Celular</Label>
-                <Input value={infoData.phone} onChange={e => setInfoData({...infoData, phone: e.target.value})} placeholder="(00) 00000-0000" required />
+                <Input 
+                  value={infoData.phone} 
+                  onChange={handlePhoneChange} 
+                  inputMode="numeric"
+                  placeholder="(00) 00000-0000" 
+                  maxLength={15}
+                  required 
+                  className={!isValidPhone && infoData.phone.length > 0 ? "border-red-500 focus-visible:ring-red-500" : ""}
+                />
+                {!isValidPhone && infoData.phone.length > 0 && (
+                  <p className="text-xs text-red-500 font-medium">Digite um celular válido com DDD.</p>
+                )}
               </div>
-              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 font-bold mt-4">Pagar Assinatura</Button>
+              <Button type="submit" disabled={!isFormValid} className="w-full bg-teal-600 hover:bg-teal-700 font-bold mt-4">Pagar Assinatura</Button>
             </form>
           </CardContent>
         </Card>
