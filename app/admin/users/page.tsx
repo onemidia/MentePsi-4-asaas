@@ -230,13 +230,48 @@ export default function GestaoPsicologos() {
             {loading ? (
               <TableRow><TableCell colSpan={4} className="text-center py-24"><Loader2 className="animate-spin h-8 w-8 text-teal-600 mx-auto"/></TableCell></TableRow>
             ) : currentUsers.map((user) => {
-              const status = user.subscription_status
-              const periodEnd = user.current_period_end
+              const rawStatus = user.subscription_status?.toLowerCase() || 'trialing'
+              const periodEnd = user.current_period_end ? new Date(user.current_period_end) : null
+              const graceEnd = user.grace_period_until ? new Date(user.grace_period_until) : null
+              const now = new Date()
 
-              const trialDate = periodEnd ? new Date(periodEnd) : null
-              const isTrialExpired = trialDate && trialDate < new Date() && status === 'trialing'
-              const graceDate = user.grace_period_until ? new Date(user.grace_period_until) : null
-              const isInGracePeriod = graceDate && graceDate > new Date()
+              let finalStatus = 'PENDENTE'
+              let badgeClass = 'bg-slate-50 text-slate-600 border border-slate-200'
+              let dateLabel = ''
+              let isExpiredUI = false
+
+              if (rawStatus === 'active' || rawStatus === 'confirmed' || rawStatus === 'received') {
+                finalStatus = 'ASSINANTE'
+                badgeClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                dateLabel = periodEnd ? `Renova em: ${periodEnd.toLocaleDateString('pt-BR')}` : 'Assinatura Ativa'
+              } else if (rawStatus === 'trialing') {
+                if (periodEnd && periodEnd < now) {
+                  finalStatus = 'VENCIDO'
+                  badgeClass = 'bg-red-50 text-red-600 border border-red-100'
+                  dateLabel = `Expirou em: ${periodEnd.toLocaleDateString('pt-BR')}`
+                  isExpiredUI = true
+                } else {
+                  finalStatus = 'EM TESTE'
+                  badgeClass = 'bg-blue-50 text-blue-600 border border-blue-100'
+                  dateLabel = periodEnd ? `Testa até: ${periodEnd.toLocaleDateString('pt-BR')}` : 'Período de Teste'
+                }
+              } else if (rawStatus === 'past_due' || rawStatus === 'overdue' || rawStatus === 'inadimplente') {
+                if (graceEnd && graceEnd > now) {
+                  finalStatus = 'EM CARÊNCIA'
+                  badgeClass = 'bg-amber-50 text-amber-700 border border-amber-200'
+                  dateLabel = `Carência até: ${graceEnd.toLocaleDateString('pt-BR')}`
+                } else {
+                  finalStatus = 'INADIMPLENTE'
+                  badgeClass = 'bg-amber-50 text-amber-700 border border-amber-200'
+                  dateLabel = graceEnd ? `Fim da carência: ${graceEnd.toLocaleDateString('pt-BR')}` : 'Pagamento Atrasado'
+                  isExpiredUI = true
+                }
+              } else if (rawStatus === 'canceled' || rawStatus === 'vencido') {
+                finalStatus = 'VENCIDO'
+                badgeClass = 'bg-red-50 text-red-600 border border-red-100'
+                dateLabel = periodEnd ? `Cancelado. Fim: ${periodEnd.toLocaleDateString('pt-BR')}` : 'Assinatura Cancelada'
+                isExpiredUI = true
+              }
 
               return (
                 <TableRow key={user.user_id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0">
@@ -248,37 +283,20 @@ export default function GestaoPsicologos() {
                   </TableCell>
                   
                   <TableCell className="text-center">
-                    <Badge className={
-                      status === 'active' 
-                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100 px-4 font-black" 
-                        : isInGracePeriod
-                        ? "bg-amber-50 text-amber-700 border border-amber-200 px-4 font-black"
-                        : isTrialExpired
-                        ? "bg-red-50 text-red-600 border border-red-100 px-4 font-black"
-                        : "bg-blue-50 text-blue-600 border border-blue-100 px-4 font-black"
-                    }>
-                      {status === 'active' ? 'ASSINANTE' : isInGracePeriod ? 'EM CARÊNCIA' : isTrialExpired ? 'EXPIRADO' : 'EM TESTE'}
+                    <Badge className={`${badgeClass} px-4 font-black`}>
+                      {finalStatus}
                     </Badge>
                   </TableCell>
 
                   <TableCell className="text-slate-600 font-medium">
-                    {trialDate ? (
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 text-sm">
-                          <CalendarDays className={`h-4 w-4 ${isTrialExpired ? 'text-red-400' : 'text-slate-300'}`} />
-                          <span className={isTrialExpired ? 'text-red-600 font-bold' : ''}>
-                            {trialDate.toLocaleDateString('pt-BR')}
-                          </span>
-                        </div>
-                        {user.grace_period_until && (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 w-fit text-[10px] px-2">
-                            Carência: {new Date(user.grace_period_until).toLocaleDateString('pt-BR')}
-                          </Badge>
-                        )}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CalendarDays className={`h-4 w-4 ${isExpiredUI ? 'text-red-400' : 'text-slate-300'}`} />
+                        <span className={isExpiredUI ? 'text-red-600 font-bold' : ''}>
+                          {dateLabel}
+                        </span>
                       </div>
-                    ) : (
-                      <span className="text-slate-300 text-xs">Assinatura Vitalícia/Ativa</span>
-                    )}
+                    </div>
                   </TableCell>
 
                   <TableCell className="text-right px-6">

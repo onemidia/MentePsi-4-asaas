@@ -60,14 +60,50 @@ export default function FinanceiroGlobal() {
         if (allProfiles) {
           const mergedData = allProfiles.map(profile => {
             const userSub = subs?.find(s => s.user_id === profile.user_id)
-            
-            let subStatus = userSub?.status || 'trialing'
-            const isGrace = userSub?.grace_period_until && new Date(userSub.grace_period_until) > new Date()
-            if (subStatus === 'overdue' || isGrace) subStatus = 'overdue'
+            const rawStatus = (userSub?.status || 'trialing').toLowerCase()
+            const periodEnd = userSub?.current_period_end ? new Date(userSub.current_period_end) : null
+            const graceEnd = userSub?.grace_period_until ? new Date(userSub.grace_period_until) : null
+            const now = new Date()
+
+            let finalStatus = 'PENDENTE'
+            let badgeClass = 'bg-slate-50 text-slate-600 border border-slate-200'
+            let filterCategory = 'trialing'
+
+            if (rawStatus === 'active' || rawStatus === 'confirmed' || rawStatus === 'received') {
+              finalStatus = 'ASSINANTE'
+              badgeClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+              filterCategory = 'active'
+            } else if (rawStatus === 'trialing') {
+              if (periodEnd && periodEnd < now) {
+                finalStatus = 'VENCIDO'
+                badgeClass = 'bg-red-50 text-red-600 border border-red-100'
+                filterCategory = 'past_due'
+              } else {
+                finalStatus = 'EM TESTE'
+                badgeClass = 'bg-blue-50 text-blue-600 border border-blue-100'
+                filterCategory = 'trialing'
+              }
+            } else if (rawStatus === 'past_due' || rawStatus === 'overdue' || rawStatus === 'inadimplente') {
+              if (graceEnd && graceEnd > now) {
+                finalStatus = 'EM CARÊNCIA'
+                badgeClass = 'bg-amber-50 text-amber-700 border border-amber-200'
+                filterCategory = 'past_due'
+              } else {
+                finalStatus = 'INADIMPLENTE'
+                badgeClass = 'bg-amber-50 text-amber-700 border border-amber-200'
+                filterCategory = 'past_due'
+              }
+            } else if (rawStatus === 'canceled' || rawStatus === 'vencido') {
+              finalStatus = 'VENCIDO'
+              badgeClass = 'bg-red-50 text-red-600 border border-red-100'
+              filterCategory = 'canceled'
+            }
   
             return {
               ...profile,
-              subscription_status: subStatus,
+              subscription_status: filterCategory,
+              final_status: finalStatus,
+              badge_class: badgeClass,
               current_period_end: userSub?.current_period_end || null
             }
           })
@@ -106,7 +142,7 @@ export default function FinanceiroGlobal() {
   // Cálculos baseados nos dados filtrados
   const stats = {
     activeCount: filteredProfiles.filter(p => p.subscription_status === 'active').length,
-    pendingCount: filteredProfiles.filter(p => p.subscription_status === 'past_due' || p.subscription_status === 'canceled' || p.subscription_status === 'overdue').length,
+    pendingCount: filteredProfiles.filter(p => p.subscription_status === 'past_due' || p.subscription_status === 'canceled').length,
     trialCount: filteredProfiles.filter(p => p.subscription_status === 'trialing').length,
   }
 
@@ -115,17 +151,6 @@ export default function FinanceiroGlobal() {
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-  }
-
-  const translateStatus = (status: string) => {
-    switch (status) {
-      case 'active': return 'ATIVO'
-      case 'trialing': return 'EM TESTE'
-      case 'past_due': return 'VENCIDO'
-      case 'overdue': return 'EM CARÊNCIA'
-      case 'canceled': return 'CANCELADO'
-      default: return 'SEM STATUS'
-    }
   }
 
   return (
@@ -155,10 +180,10 @@ export default function FinanceiroGlobal() {
 
         <div className="flex gap-1 bg-white border rounded-xl p-1 shadow-sm w-full sm:w-auto">
           <Button size="sm" variant={statusFilter === 'todos' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('todos'); setCurrentPage(0); }} className="text-xs h-7">Todos</Button>
-          <Button size="sm" variant={statusFilter === 'active' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('active'); setCurrentPage(0); }} className="text-xs h-7">Ativos</Button>
-          <Button size="sm" variant={statusFilter === 'trialing' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('trialing'); setCurrentPage(0); }} className="text-xs h-7">Trial</Button>
+          <Button size="sm" variant={statusFilter === 'active' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('active'); setCurrentPage(0); }} className="text-xs h-7">Assinantes</Button>
+          <Button size="sm" variant={statusFilter === 'trialing' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('trialing'); setCurrentPage(0); }} className="text-xs h-7">Em Teste</Button>
+          <Button size="sm" variant={statusFilter === 'past_due' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('past_due'); setCurrentPage(0); }} className="text-xs h-7">Inadimplentes</Button>
           <Button size="sm" variant={statusFilter === 'canceled' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('canceled'); setCurrentPage(0); }} className="text-xs h-7">Cancelados</Button>
-          <Button size="sm" variant={statusFilter === 'past_due' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('past_due'); setCurrentPage(0); }} className="text-xs h-7">Vencidos</Button>
         </div>
         
         <div className="flex items-center gap-2 w-full lg:w-auto">
@@ -258,20 +283,12 @@ export default function FinanceiroGlobal() {
                       <div className="text-[11px] text-slate-400 font-medium uppercase tracking-tighter">{profile.email}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={
-                        profile.subscription_status === 'active' 
-                          ? "bg-emerald-100 text-emerald-700 border-none px-3 font-bold" 
-                          : profile.subscription_status === 'trialing'
-                          ? "bg-blue-100 text-blue-700 border-none px-3 font-bold"
-                          : profile.subscription_status === 'overdue'
-                          ? "bg-amber-100 text-amber-700 border-none px-3 font-bold"
-                          : "bg-red-50 text-red-600 border border-red-100 px-3 font-bold"
-                      }>
-                        {translateStatus(profile.subscription_status)}
+                      <Badge className={`${profile.badge_class} px-3 font-bold`}>
+                        {profile.final_status}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-black text-slate-700">
-                      {profile.subscription_status === 'active' ? formatCurrency(PLAN_PRICE) : '---'}
+                      {profile.final_status === 'ASSINANTE' ? formatCurrency(PLAN_PRICE) : '---'}
                     </TableCell>
                     <TableCell className="text-right px-8 text-slate-500 font-mono text-sm">
                       {new Date(profile.created_at).toLocaleDateString('pt-BR')}

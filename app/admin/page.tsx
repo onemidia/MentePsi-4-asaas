@@ -72,6 +72,18 @@ export default function AdminDashboard() {
       if (profiles) {
         const mergedData = profiles.map(profile => {
           const userSub = subs?.find(s => s.user_id === profile.user_id)
+          const rawStatus = (userSub?.status || 'trialing').toLowerCase()
+          const periodEnd = userSub?.current_period_end ? new Date(userSub.current_period_end) : null
+          const graceEnd = userSub?.grace_period_until ? new Date(userSub.grace_period_until) : null
+          const now = new Date()
+
+          let filterCategory = 'trialing'
+          if (rawStatus === 'active' || rawStatus === 'confirmed' || rawStatus === 'received') filterCategory = 'active'
+          else if (rawStatus === 'trialing') {
+            filterCategory = (periodEnd && periodEnd < now) ? 'past_due' : 'trialing'
+          }
+          else if (rawStatus === 'past_due' || rawStatus === 'overdue' || rawStatus === 'inadimplente') filterCategory = 'past_due'
+          else if (rawStatus === 'canceled' || rawStatus === 'vencido') filterCategory = 'canceled'
           
           return {
             ...profile,
@@ -80,10 +92,12 @@ export default function AdminDashboard() {
             full_name: profile.full_name || 'Sem Nome',
             email: profile.email || 'E-mail não sincronizado',
             created_at: profile.created_at || new Date().toISOString(),
-            subscription_status: userSub?.status || 'trialing', 
+            subscription_status: rawStatus, 
+            filter_status: filterCategory,
             plan_type: userSub?.saas_plans?.slug || 'professional',
             plan_price: userSub?.saas_plans?.price_monthly || 59.90,
             grace_period_until: userSub?.grace_period_until,
+            current_period_end: userSub?.current_period_end
           }
         })
         setAllProfiles(mergedData)
@@ -105,7 +119,7 @@ export default function AdminDashboard() {
       (profile.full_name || '').toLowerCase().includes(search) ||
       (profile.email || '').toLowerCase().includes(search)
     
-    const matchesStatus = statusFilter === 'todos' || profile.subscription_status === statusFilter
+    const matchesStatus = statusFilter === 'todos' || profile.filter_status === statusFilter
 
     let matchesDate = true
     if (startDate || endDate) {
@@ -121,11 +135,11 @@ export default function AdminDashboard() {
   // 🎯 MÉTRICAS DINÂMICAS (Recalculam conforme o filtro)
   const stats = {
     total: filteredData.length,
-    active: filteredData.filter(p => p.subscription_status === 'active').length,
-    trialing: filteredData.filter(p => p.subscription_status === 'trialing').length,
+    active: filteredData.filter(p => p.filter_status === 'active').length,
+    trialing: filteredData.filter(p => p.filter_status === 'trialing').length,
     grace_period: filteredData.filter(p => p.grace_period_until && new Date(p.grace_period_until) > new Date()).length,
     mrr: filteredData
-      .filter(p => p.subscription_status === 'active')
+      .filter(p => p.filter_status === 'active')
       .reduce((acc, user) => acc + (user.plan_price || 0), 0)
   }
 
@@ -161,7 +175,13 @@ export default function AdminDashboard() {
     }
 
     if (!error) {
-      setAllProfiles(prev => prev.map(u => u.user_id === userId ? { ...u, subscription_status: newStatus } : u))
+      setAllProfiles(prev => prev.map(u => {
+        if (u.user_id === userId) {
+          let newFilterStatus = newStatus === 'active' ? 'active' : newStatus === 'canceled' ? 'canceled' : newStatus === 'trialing' ? 'trialing' : 'past_due';
+          return { ...u, subscription_status: newStatus, filter_status: newFilterStatus }
+        }
+        return u;
+      }))
       toast({ title: "Status atualizado com sucesso!" })
     }
   }
@@ -231,10 +251,10 @@ export default function AdminDashboard() {
 
           <div className="flex gap-1 bg-white border rounded-xl p-1 shadow-sm w-full sm:w-auto">
             <Button size="sm" variant={statusFilter === 'todos' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('todos'); setCurrentPage(0); }} className="text-xs h-7">Todos</Button>
-            <Button size="sm" variant={statusFilter === 'active' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('active'); setCurrentPage(0); }} className="text-xs h-7">Ativos</Button>
-            <Button size="sm" variant={statusFilter === 'trialing' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('trialing'); setCurrentPage(0); }} className="text-xs h-7">Trial</Button>
+            <Button size="sm" variant={statusFilter === 'active' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('active'); setCurrentPage(0); }} className="text-xs h-7">Assinantes</Button>
+            <Button size="sm" variant={statusFilter === 'trialing' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('trialing'); setCurrentPage(0); }} className="text-xs h-7">Em Teste</Button>
+            <Button size="sm" variant={statusFilter === 'past_due' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('past_due'); setCurrentPage(0); }} className="text-xs h-7">Inadimplentes</Button>
             <Button size="sm" variant={statusFilter === 'canceled' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('canceled'); setCurrentPage(0); }} className="text-xs h-7">Cancelados</Button>
-            <Button size="sm" variant={statusFilter === 'past_due' ? 'secondary' : 'ghost'} onClick={() => { setStatusFilter('past_due'); setCurrentPage(0); }} className="text-xs h-7">Vencidos</Button>
           </div>
 
           {(searchTerm || startDate || endDate) && (
@@ -299,23 +319,37 @@ export default function AdminDashboard() {
                     </TableCell>
                     <TableCell className="text-slate-500 text-xs font-medium">{user.email}</TableCell>
                     <TableCell className="text-center">
-                      <select 
-                        className={`text-[10px] font-black rounded-lg px-2 py-1 border border-slate-100 cursor-pointer uppercase tracking-tighter ${
-                          user.subscription_status === 'active' 
-                            ? 'bg-emerald-50 text-emerald-600' 
-                            : isInGracePeriod 
-                              ? 'bg-amber-50 text-amber-600'
-                              : 'bg-slate-100 text-slate-500'
-                        }`}
-                        value={user.subscription_status}
-                        onChange={(e) => updateSubscriptionStatus(user.id, e.target.value)}
-                      >
-                        <option value="trialing">TRIAL</option>
-                        <option value="active">PAGO</option>
-                        <option value="overdue">{isInGracePeriod ? 'EM CARÊNCIA' : 'VENCIDO'}</option>
-                        <option value="past_due">VENCIDO (Legacy)</option>
-                        <option value="canceled">CANCELADO</option>
-                      </select>
+                      {(() => {
+                        const rawStatus = user.subscription_status;
+                        let selectClass = 'bg-slate-50 text-slate-600 border-slate-200'
+                        
+                        if (rawStatus === 'active' || rawStatus === 'confirmed' || rawStatus === 'received') {
+                          selectClass = 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                        } else if (rawStatus === 'trialing') {
+                          if (user.current_period_end && new Date(user.current_period_end) < new Date()) {
+                            selectClass = 'bg-red-50 text-red-600 border-red-200'
+                          } else {
+                            selectClass = 'bg-blue-50 text-blue-600 border-blue-200'
+                          }
+                        } else if (rawStatus === 'overdue' || rawStatus === 'past_due' || rawStatus === 'inadimplente') {
+                          selectClass = 'bg-amber-50 text-amber-700 border-amber-200'
+                        } else if (rawStatus === 'canceled' || rawStatus === 'vencido') {
+                          selectClass = 'bg-red-50 text-red-600 border-red-200'
+                        }
+                        return (
+                          <select 
+                            className={`text-[10px] font-black rounded-lg px-2 py-1 border cursor-pointer uppercase tracking-tighter ${selectClass}`}
+                            value={user.subscription_status}
+                            onChange={(e) => updateSubscriptionStatus(user.id, e.target.value)}
+                          >
+                            <option value="trialing">EM TESTE</option>
+                            <option value="active">ASSINANTE</option>
+                            <option value="overdue">{isInGracePeriod ? 'EM CARÊNCIA' : 'INADIMPLENTE'}</option>
+                            <option value="past_due">INADIMPLENTE (Legado)</option>
+                            <option value="canceled">CANCELADO / VENCIDO</option>
+                          </select>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell className="text-right px-8 text-slate-400 text-sm">
                       {new Date(user.created_at).toLocaleDateString('pt-BR')}

@@ -21,7 +21,6 @@ const TeamManagement = dynamic(() => import('@/components/TeamManagement').then(
 
 // Define the type for the profile data
 type ProfileData = {
-  id: string;
   full_name: string;
   crp: string;
   specialty: string;
@@ -120,7 +119,13 @@ export default function SettingsPage() {
         // 1. Busca os dados profissionais com tratamento de erro isolado
         const { data: profData, error: profError } = await supabase
           .from('professional_profile')
-          .select('id, user_id, full_name, crp, specialty, phone, logo_url, pix_key, bank, agency, bank_account, account_type, default_session_value, default_session_duration, clinic_name, address, cep, city, state, work_hours_start, work_hours_end, whatsapp_reminders_enabled, reminder_lead_time, reminder_template, birthday_message_template, cpf, rg, genero, estado_civil')
+          .select(`
+            user_id, full_name, crp, specialty, phone, logo_url, pix_key, bank, 
+            agency, bank_account, account_type, default_session_value, default_session_duration, 
+            clinic_name, address, cep, city, state, work_hours_start, work_hours_end, 
+            whatsapp_reminders_enabled, reminder_lead_time, reminder_template, 
+            birthday_message_template, cpf, rg, genero, estado_civil
+          `)
           .eq('user_id', userId)
           .maybeSingle();
         
@@ -220,56 +225,52 @@ export default function SettingsPage() {
       return;
     }
 
-    const userId = user.id;
-
-    // Prepara os dados removendo máscaras e garantindo números
-    const sessionValue = String(profile.default_session_value || '0').replace(',', '.');
-    const sessionDuration = String(profile.default_session_duration || '50').replace(',', '.');
-
     const formData = {
-      user_id: userId,
-      full_name: profile.full_name || '',
-      crp: profile.crp || '',
-      specialty: profile.specialty || '',
-      phone: profile.phone || '',
-      logo_url: profile.logo_url || '',
-      pix_key: profile.pix_key || '',
-      bank: profile.bank || '',
-      agency: profile.agency || '',
-      bank_account: profile.bank_account || '',
-      account_type: profile.account_type || 'Corrente',
-      default_session_value: parseFloat(sessionValue) || 0,
-      default_session_duration: parseFloat(sessionDuration) || 50,
-      clinic_name: profile.clinic_name || '',
-      address: profile.address || '',
-      cep: profile.cep || '',
-      city: profile.city || '',
-      state: profile.state || '',
+      user_id: user.id,
+      full_name: profile.full_name?.trim() || '',
+      email: user.email || '',
+      phone: profile.phone?.replace(/\D/g, '') || '',
+      cpf: String(profile.cpf || '').replace(/\D/g, ''),
+      rg: profile.rg?.trim() || '',
+      crp: profile.crp?.trim() || '',
+      specialty: profile.specialty?.trim() || '',
+      genero: profile.genero || '',
+      estado_civil: profile.estado_civil || '',
+      clinic_name: profile.clinic_name?.trim() || '',
+      address: profile.address?.trim() || '',
+      cep: profile.cep?.replace(/\D/g, '') || '',
+      city: profile.city?.trim() || '',
+      state: profile.state?.trim() || '',
       work_hours_start: profile.work_hours_start || '08:00',
       work_hours_end: profile.work_hours_end || '18:00',
       whatsapp_reminders_enabled: !!profile.whatsapp_reminders_enabled,
-      reminder_lead_time: Number(profile.reminder_lead_time) || 24,
+      reminder_lead_time: Number(profile.reminder_lead_time) || 0,
       reminder_template: profile.reminder_template || '',
       birthday_message_template: profile.birthday_message_template || '',
-      cpf: profile.cpf || '',
-      rg: profile.rg || '',
-      genero: profile.genero || '',
-      estado_civil: profile.estado_civil || '',
+      bank: profile.bank?.trim() || '',
+      agency: profile.agency?.trim() || '',
+      bank_account: profile.bank_account?.trim() || '',
+      account_type: profile.account_type || 'Corrente',
+      default_session_value: Number(String(profile.default_session_value).replace(',', '.')) || 0,
+      default_session_duration: Number(profile.default_session_duration) || 0,
+      logo_url: profile.logo_url || '',
+      pix_key: profile.pix_key?.trim() || '',
+      updated_at: new Date().toISOString()
     };
 
     try {
       const { error } = await supabase
         .from('professional_profile')
-        .upsert(formData, { onConflict: 'user_id' });
-  
+        .upsert(formData, { onConflict: 'user_id' }); // Conflito baseado no user_id
+
       if (error) {
-        console.warn('Aviso ao salvar:', error);
+        console.error('Erro detalhado:', error);
         toast({ variant: 'destructive', title: 'Erro ao salvar', description: error.message });
       } else {
         toast({ title: 'Sucesso!', description: 'Configurações salvas permanentemente.' });
       }
     } catch (e) {
-      console.warn("Aviso de processamento:", e);
+      console.error("Erro interno:", e);
     } finally {
       setSaving(false);
     }

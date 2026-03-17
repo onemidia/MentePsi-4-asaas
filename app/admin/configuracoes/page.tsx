@@ -47,29 +47,43 @@ export default function SaasSettings() {
   }, [supabase])
 
   const handleSave = async () => {
-    // Consistência de URL: Garante protocolo http/https
-    if (settings.checkout_url && !settings.checkout_url.startsWith('http://') && !settings.checkout_url.startsWith('https://')) {
-      toast({ variant: "destructive", title: "URL Inválida", description: "O link de pagamento deve começar com http:// ou https://" })
+    // 1. Validação de URL
+    if (settings.checkout_url && !settings.checkout_url.startsWith('http')) {
+      toast({ variant: "destructive", title: "URL Inválida", description: "O link deve começar com http:// ou https://" })
       return
     }
 
     setSaving(true)
     
-    // Validação de Número: Evita negativos ou NaN
-    const trialDaysValue = Math.max(0, parseInt(settings.trial_days) || 30)
-    
-    const { error: globalError } = await supabase.from('global_settings').upsert({
+    // 2. LIMPEZA DO WHATSAPP: Remove tudo que não é número (evita erro de salvar)
+    const whatsappLimpo = settings.whatsapp_suporte.replace(/\D/g, '')
+
+    // Objeto de dados para enviar
+    const payload: any = {
       id: 1,
-      whatsapp: settings.whatsapp_suporte,
+      whatsapp: whatsappLimpo,
       support_email: settings.email_contato,
-      checkout_url: settings.checkout_url || null, // Garante null se vazio para evitar erro de tipo
-      trial_days: trialDaysValue
-    })
+      trial_days: Math.max(0, parseInt(settings.trial_days) || 30)
+    }
+
+    // Só adiciona a checkout_url se ela não estiver causando erro no banco
+    if (settings.checkout_url) {
+      payload.checkout_url = settings.checkout_url;
+    }
+
+    const { error: globalError } = await supabase
+      .from('global_settings')
+      .upsert(payload, { onConflict: 'id' })
 
     if (!globalError) {
-      toast({ title: "Sucesso!", description: "Regras do Plano Único atualizadas." })
+      toast({ title: "Sucesso!", description: "Configurações salvas." })
     } else {
-      toast({ variant: "destructive", title: "Erro ao salvar", description: globalError.message })
+      console.error("Erro detalhado:", globalError)
+      toast({ 
+        variant: "destructive", 
+        title: "Erro ao salvar", 
+        description: "Verifique se a coluna checkout_url foi criada no banco." 
+      })
     }
     setSaving(false)
   }
@@ -99,7 +113,8 @@ export default function SaasSettings() {
               <Label className="text-xs font-bold text-slate-500 uppercase">WhatsApp (Ex: 5511999999999)</Label>
               <Input 
                 value={settings.whatsapp_suporte}
-                onChange={(e) => setSettings({...settings, whatsapp_suporte: e.target.value})}
+                onChange={(e) => setSettings({...settings, whatsapp_suporte: e.target.value.replace(/\D/g, '')})}
+                placeholder="5511999999999"
                 className="h-11 bg-slate-50"
               />
             </div>
