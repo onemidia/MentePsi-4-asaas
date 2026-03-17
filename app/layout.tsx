@@ -31,9 +31,6 @@ export default function RootLayout({
 
   return (
     <html lang="pt-BR">
-      <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-      </head>
       <body className={`${inter.className} antialiased bg-white`}>
         {isFullWidthPage ? (
           // Se for página pública, renderiza limpo (sem Sidebar)
