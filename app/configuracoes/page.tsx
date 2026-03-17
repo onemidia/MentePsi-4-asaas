@@ -373,7 +373,26 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="cpf">CPF</Label>
-                  <Input id="cpf" value={profile.cpf || ''} onChange={handleInputChange} placeholder="000.000.000-00" className="border-slate-300" />
+                  <Input 
+                    id="cpf" 
+                    value={profile.cpf || ''} 
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, ''); // Remove tudo que não é número
+                      
+                      // Aplica a máscara 000.000.000-00 conforme digita
+                      if (value.length <= 11) {
+                        value = value
+                          .replace(/(\d{3})(\d)/, '$1.$2')
+                          .replace(/(\d{3})(\d)/, '$1.$2')
+                          .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                        
+                        setProfile(prev => ({ ...prev, cpf: value }));
+                      }
+                    }} 
+                    placeholder="000.000.000-00" 
+                    maxLength={14} // Trava o campo para não deixar digitar mais que o necessário
+                    className="border-slate-300" 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="rg">RG</Label>
