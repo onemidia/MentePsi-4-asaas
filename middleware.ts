@@ -35,7 +35,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     publicAuthRoutes.includes(pathname) ||
-    pathname.startsWith('/planos')
+    pathname.startsWith('/planos') ||
+    pathname.startsWith('/portal/')
 
   if (isPublicRoute) return response
 
