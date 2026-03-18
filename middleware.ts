@@ -21,11 +21,9 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
   const pathname = request.nextUrl.pathname
-  const email = user?.email || ''
 
-  // 🚀 1. ROTAS PÚBLICAS
+  // 🚀 1. DEFINIÇÃO DE ROTAS PÚBLICAS (Checagem imediata)
   const publicAuthRoutes = ['/auth/login', '/auth/registro', '/auth/callback', '/auth/set-password']
   const isPublicRoute =
     pathname === '/' ||
@@ -36,9 +34,14 @@ export async function middleware(request: NextRequest) {
     pathname === '/reset-password' ||
     publicAuthRoutes.includes(pathname) ||
     pathname.startsWith('/planos') ||
-    pathname.startsWith('/portal/')
+    pathname.startsWith('/portal/') // <-- Acesso público do paciente
 
+  // Se for rota pública, libera o acesso NA HORA sem validar usuário
   if (isPublicRoute) return response
+
+  // 🚀 2. VERIFICAÇÃO DE USUÁRIO (Apenas para rotas protegidas)
+  const { data: { user } } = await supabase.auth.getUser()
+  const email = user?.email || ''
 
   const isFinancialRoute =
     pathname.startsWith('/checkout') ||
@@ -51,7 +54,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
-  // 🚀 2. REDIRECIONAMENTO INTELIGENTE (Pós-Login)
+  // 🚀 3. REDIRECIONAMENTO INTELIGENTE (Pós-Login)
   if (user && (pathname === '/auth/login' || pathname === '/')) {
     const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email.toLowerCase())
     if (isSuperAdmin) return NextResponse.redirect(new URL('/auth/hub', request.url))
@@ -74,7 +77,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // 🚀 3. VERIFICAÇÃO DE ASSINATURA E CARÊNCIA
+  // 🚀 4. VERIFICAÇÃO DE ASSINATURA E CARÊNCIA (Apenas para profissionais)
   if (user && !isPublicRoute) {
     const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email.toLowerCase())
     if (isSuperAdmin || pathname === '/dashboard') return response
@@ -88,13 +91,10 @@ export async function middleware(request: NextRequest) {
     if (profileRes.data?.role === 'admin' || !!teamRes.data) return response
 
     const subscription = subRes.data
-
-    // 1. Definições de datas
     const now = new Date();
     const expirationDate = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
     const gracePeriodDate = subscription?.grace_period_until ? new Date(subscription.grace_period_until) : null;
 
-    // 2. Condições
     const hasActivePlan = subscription?.status === 'active';
     const isTrialValid = (subscription?.status === 'trialing' || subscription?.status === 'trial') && 
                         expirationDate && expirationDate > now;
@@ -104,7 +104,6 @@ export async function middleware(request: NextRequest) {
 
     if (!hasActivePlan && !isTrialValid && !isGracePeriodValid && !isFirstLogin) {
       if (pathname !== '/planos') {
-        // 💡 Se o status for overdue, enviamos um motivo específico
         const reason = subscription?.status === 'overdue' ? 'inadimplente' : 'trial_vencido';
         return NextResponse.redirect(new URL(`/planos?motivo=${reason}`, request.url));
       }
