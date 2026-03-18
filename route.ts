@@ -1,82 +1,86 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import JSZip from 'jszip'
 
-export async function POST(req: Request) {
+export const dynamic = 'force-dynamic'
+
+export async function GET(request: Request) {
   try {
-    const { userId, planId, billingType, creditCard } = await req.json()
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {
+            // Apenas leitura, não precisamos setar cookies nesta rota
+          },
+        },
+      }
+    )
 
-    // 1. Buscar detalhes do plano
-    const { data: plan } = await supabaseAdmin
-      .from('saas_plans')
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    const psychologistId = user.id
+
+    // 1. Busca os pacientes vinculados ao psicólogo
+    const { data: patients } = await supabase
+      .from('patients')
       .select('*')
-      .eq('id', planId)
-      .single()
+      .eq('psychologist_id', psychologistId)
 
-    if (!plan) {
-      return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
+    const patientIds = patients?.map(p => p.id) || []
+
+    // 2. Busca outras tabelas baseadas no psychologist_id ou patient_id
+    const { data: appointments } = await supabase.from('appointments').select('*').eq('psychologist_id', psychologistId)
+    const { data: financial } = await supabase.from('financial_transactions').select('*').eq('psychologist_id', psychologistId)
+    
+    let evolutions = [], goals = [], documents = []
+    
+    if (patientIds.length > 0) {
+      const [evoRes, goalsRes, docsRes] = await Promise.all([
+        supabase.from('clinical_evolutions').select('*').in('patient_id', patientIds),
+        supabase.from('patient_goals').select('*').in('patient_id', patientIds),
+        supabase.from('patient_documents').select('*').in('patient_id', patientIds)
+      ])
+      evolutions = evoRes.data || []
+      goals = goalsRes.data || []
+      documents = docsRes.data || []
     }
 
-    // 2. Buscar asaas_customer_id
-    const { data: subscription } = await supabaseAdmin
-      .from('subscriptions')
-      .select('asaas_customer_id')
-      .eq('user_id', userId)
-      .single()
+    // 3. Monta um arquivo de texto com as URLs dos documentos no Storage
+    const documentUrls = documents.map(d => d.file_url || d.url || d.file_path).filter(Boolean)
 
-    if (!subscription?.asaas_customer_id) {
-      return NextResponse.json({ error: 'Customer ID not found. Create customer first.' }, { status: 400 })
-    }
+    // 4. Cria e popula o arquivo ZIP com o JSZip
+    const zip = new JSZip()
+    zip.file('pacientes.json', JSON.stringify(patients || [], null, 2))
+    zip.file('agendamentos.json', JSON.stringify(appointments || [], null, 2))
+    zip.file('transacoes_financeiras.json', JSON.stringify(financial || [], null, 2))
+    zip.file('evolucoes_clinicas.json', JSON.stringify(evolutions || [], null, 2))
+    zip.file('metas_pacientes.json', JSON.stringify(goals || [], null, 2))
+    zip.file('documentos_pacientes.json', JSON.stringify(documents || [], null, 2))
+    zip.file('urls_arquivos_storage.txt', documentUrls.length > 0 ? documentUrls.join('\n') : 'Nenhum arquivo vinculado no momento.')
 
-    // 3. Criar assinatura no Asaas
-    const subscriptionPayload: any = {
-      customer: subscription.asaas_customer_id,
-      billingType: billingType || 'CREDIT_CARD',
-      value: plan.price_monthly,
-      nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 dias a partir de hoje
-      cycle: 'MONTHLY',
-      description: `Assinatura MentePsi - ${plan.name}`,
-      externalReference: userId
-    }
+    const zipContent = await zip.generateAsync({ type: 'nodebuffer' })
 
-    if (billingType === 'CREDIT_CARD' && creditCard) {
-      subscriptionPayload.creditCard = creditCard
-      subscriptionPayload.creditCardHolderInfo = creditCard.holderInfo
-    }
-
-    const asaasResponse = await fetch(`${process.env.ASAAS_API_URL}/subscriptions`, {
-      method: 'POST',
+    return new NextResponse(zipContent, {
+      status: 200,
       headers: {
-        'Content-Type': 'application/json',
-        'access_token': process.env.ASAAS_API_KEY!
-      },
-      body: JSON.stringify(subscriptionPayload)
-    })
-
-    const asaasData = await asaasResponse.json()
-
-    if (asaasData.errors) {
-      return NextResponse.json({ error: asaasData.errors[0].description }, { status: 400 })
-    }
-
-    // 4. Salvar asaas_subscription_id e atualizar status
-    await supabaseAdmin
-      .from('subscriptions')
-      .update({
-        asaas_subscription_id: asaasData.id,
-        plan_id: planId,
-        status: 'pending', // Aguardando pagamento
-        billing_type: billingType,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', userId)
-
-    return NextResponse.json({ 
-      subscriptionId: asaasData.id,
-      status: asaasData.status,
-      invoiceUrl: asaasData.invoiceUrl // URL para pagamento (boleto/pix)
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="backup_mentepsi_${new Date().toISOString().split('T')[0]}.zip"`
+      }
     })
 
   } catch (error: any) {
+    console.error('Erro na exportação do backup:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

@@ -59,6 +59,11 @@ export default function FichaClinicaDigital() {
 
   const [evolutions, setEvolutions] = useState<any[]>([])
   const [newEvolution, setNewEvolution] = useState("")
+  // NOVO: Paginação e Filtro das Evoluções
+  const [evolutionPage, setEvolutionPage] = useState(0)
+  const [hasMoreEvolutions, setHasMoreEvolutions] = useState(true)
+  const [evolutionYearFilter, setEvolutionYearFilter] = useState<string>('')
+  const [loadingMoreEvolutions, setLoadingMoreEvolutions] = useState(false)
 
   const [lgpdModalOpen, setLgpdModalOpen] = useState(false);
   const [lgpdContent, setLgpdContent] = useState("");
@@ -160,6 +165,53 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     referred_by: '', general_observations: '', meeting_link: ''
   })
 
+  // NOVO: Função isolada para buscar evoluções (Paginação Otimizada)
+  const fetchEvolutions = useCallback(async (pageIndex: number, year: string, isLoadMore = false) => {
+    setLoadingMoreEvolutions(true)
+    try {
+      let query = supabase
+        .from('clinical_evolutions')
+        .select('*')
+        .eq('patient_id', id as string)
+        .order('created_at', { ascending: false })
+
+      if (year) {
+        query = query
+          .gte('created_at', `${year}-01-01T00:00:00.000Z`)
+          .lte('created_at', `${year}-12-31T23:59:59.999Z`)
+      }
+
+      const from = pageIndex * 10
+      const to = from + 9 // Limit de 10
+
+      const { data, error } = await query.range(from, to)
+      if (error) throw error
+
+      if (data) {
+        setHasMoreEvolutions(data.length === 10)
+        if (isLoadMore) {
+          setEvolutions(prev => {
+            const existingIds = new Set(prev.map(e => e.id))
+            const newEvolutions = data.filter(e => !existingIds.has(e.id))
+            return [...prev, ...newEvolutions]
+          })
+        } else {
+          setEvolutions(data)
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao buscar evoluções:", error)
+    } finally {
+      setLoadingMoreEvolutions(false)
+    }
+  }, [id, supabase])
+
+  const handleLoadMoreEvolutions = () => {
+    const nextPage = evolutionPage + 1
+    setEvolutionPage(nextPage)
+    fetchEvolutions(nextPage, evolutionYearFilter, true)
+  }
+
   //  LOGICA DE CARGA CENTRALIZADA PARA ATUALIZAÇÃO INSTANTÂNEA
   const loadAllData = useCallback(async () => {
     try {
@@ -173,14 +225,13 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     // 🔒 TRAVA DE SEGURANÇA: Filtra explicitamente pelo ID do psicólogo logado
     const patientQuery = supabase.from('patients').select('*').eq('id', id).eq('psychologist_id', user.id).single()
 
-    const [patientRes, aptRes, journalRes, docsRes, settingsRes, matsRes, evolRes, transRes, goalsRes, reportsRes] = await Promise.all([
+    const [patientRes, aptRes, journalRes, docsRes, settingsRes, matsRes, transRes, goalsRes, reportsRes] = await Promise.all([
       patientQuery,
       supabase.from('appointments').select('*').eq('patient_id', id).order('start_time', { ascending: false }),
       supabase.from('emotion_journal').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
       supabase.from('patient_documents').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
       supabase.from('portal_settings').select('*').eq('patient_id', id).maybeSingle(),
       supabase.from('therapeutic_materials').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
-      supabase.from('clinical_evolutions').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
       supabase.from('financial_transactions').select('*').eq('patient_id', id),
       supabase.from('patient_goals').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
       supabase.from('official_reports').select('*').eq('patient_id', id).order('created_at', { ascending: false })
@@ -212,7 +263,6 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
 
     if (settingsRes.data) setPortalSettings(settingsRes.data)
     if (matsRes.data) setMaterials(matsRes.data)
-    if (evolRes.data) setEvolutions(evolRes.data)
     if (goalsRes.data) setMetas(goalsRes.data)
     if (transRes.data) setTransactions(transRes.data)
 
@@ -273,6 +323,15 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  // NOVO: Gatilho inicial para carregar as evoluções paginadas
+  useEffect(() => {
+    if (id && isMounted) {
+      setEvolutionPage(0)
+      setHasMoreEvolutions(true)
+      fetchEvolutions(0, evolutionYearFilter, false)
+    }
+  }, [id, evolutionYearFilter, fetchEvolutions, isMounted])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -514,7 +573,9 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     if (!error) {
       toast({ title: "Evolução salva!" })
       setNewEvolution("")
-      await loadAllData() // 🔥 Atualização instantânea no histórico
+      setEvolutionPage(0)
+      setHasMoreEvolutions(true)
+      await fetchEvolutions(0, evolutionYearFilter, false) // 🔥 Atualização instantânea da lista otimizada
     }
     setSaving(false)
   }
@@ -999,8 +1060,21 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 </CardContent>
               </Card>
               <div className="space-y-4">
-                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5 ml-2">Histórico Cronológico</Label>
-                {evolutions.slice((currentPage - 1) * 10, currentPage * 10).map((evo) => (
+                <div className="flex justify-between items-center mb-4 ml-2">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Histórico Cronológico</Label>
+                  <select 
+                    value={evolutionYearFilter} 
+                    onChange={(e) => setEvolutionYearFilter(e.target.value)}
+                    className="h-8 px-3 rounded-lg border border-slate-200 text-xs font-medium focus:ring-teal-500 bg-white"
+                  >
+                    <option value="">Todos os anos</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                    <option value="2023">2023</option>
+                    <option value="2022">2022</option>
+                  </select>
+                </div>
+                {evolutions.map((evo) => (
                   <Card key={evo.id} className="border border-slate-200 shadow-md rounded-[24px] border-l-4 border-l-teal-500 bg-white">
                     <div className="bg-slate-50 px-4 md:px-6 py-3 border-b border-slate-200 text-[10px] font-bold text-slate-500 flex justify-between">
                       <span><CalendarIcon size={12} className="inline mr-1"/> {new Date(evo.created_at).toLocaleString('pt-BR')}</span>
@@ -1008,7 +1082,32 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     <CardContent className="p-4 md:p-6 text-xs italic text-slate-500 leading-relaxed whitespace-pre-wrap">{evo.content}</CardContent>
                   </Card>
                 ))}
-                <PaginationControls totalCount={evolutions.length} />
+                
+                {/* BOTÃO DE CARREGAR MAIS */}
+                {hasMoreEvolutions && evolutions.length > 0 && (
+                  <div className="mt-6 flex justify-center">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleLoadMoreEvolutions} 
+                      disabled={loadingMoreEvolutions}
+                      className="w-full sm:w-auto text-teal-700 border-teal-200 bg-teal-50 hover:bg-teal-100 font-bold rounded-xl"
+                    >
+                      {loadingMoreEvolutions ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+                      {loadingMoreEvolutions ? "Carregando..." : "Carregar Evoluções Anteriores"}
+                    </Button>
+                  </div>
+                )}
+
+                {!hasMoreEvolutions && evolutions.length > 0 && (
+                  <p className="text-center text-xs text-slate-400 mt-6 font-medium">
+                    Todas as evoluções deste período foram carregadas.
+                  </p>
+                )}
+                {evolutions.length === 0 && !loadingMoreEvolutions && (
+                  <p className="text-center text-xs text-slate-400 mt-6 font-medium">
+                    Nenhuma evolução encontrada.
+                  </p>
+                )}
               </div>
             </>
         </div>
@@ -1060,6 +1159,9 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                       toast({ title: "Pauta arquivada no histórico!" });
                       setSaving(false);
                       loadAllData();
+                      setEvolutionPage(0);
+                      setHasMoreEvolutions(true);
+                      fetchEvolutions(0, evolutionYearFilter, false);
                   }}>
                     {saving ? <Loader2 className="animate-spin h-3 w-3 mr-2"/> : null}
                     Marcar como lida e Arquivar

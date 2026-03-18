@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Loader2, Save, Image as ImageIcon, AlertTriangle } from 'lucide-react'
+import { Loader2, Save, Image as ImageIcon, AlertTriangle, Download } from 'lucide-react'
 
 // ⚡ PERFORMANCE: Carrega o componente de equipe apenas se necessário (Code Splitting)
 const TeamManagement = dynamic(() => import('@/components/TeamManagement').then(mod => mod.TeamManagement), { loading: () => <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-teal-600" /></div> })
@@ -99,6 +99,7 @@ export default function SettingsPage() {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
   const supabase = createClient();
 
@@ -303,6 +304,30 @@ export default function SettingsPage() {
     setCancelling(false);
   };
 
+  const handleExportBackup = async () => {
+    try {
+      setExporting(true);
+      toast({ title: "Preparando backup...", description: "Isso pode levar alguns segundos dependendo do volume de dados." });
+      
+      const res = await fetch('/api/backup/export');
+      if (!res.ok) throw new Error('Erro ao gerar o arquivo de backup.');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_mentepsi_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: "Erro na Exportação", description: error.message });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (!isMounted) return null;
 
   return (
@@ -443,6 +468,21 @@ export default function SettingsPage() {
                   <Input id="default_session_duration" type="text" value={profile.default_session_duration ?? ''} onChange={handleInputChange} className="border-slate-300" />
                 </div>
               </div>
+
+              {/* EXPORTAÇÃO DE DADOS (LGPD) */}
+              <div className="pt-6 border-t border-slate-100 mt-8">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-4 sm:p-6 rounded-xl border border-slate-200">
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-slate-900">Exportação de Dados (LGPD)</h3>
+                    <p className="text-sm text-slate-500">Faça o download de todos os seus pacientes, prontuários, financeiro e links de documentos em um formato <b>.zip</b> seguro.</p>
+                  </div>
+                  <Button variant="outline" onClick={handleExportBackup} disabled={exporting} className="bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 w-full sm:w-auto shrink-0">
+                    {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    Gerar Backup Completo
+                  </Button>
+                </div>
+              </div>
+
             </CardContent>
           </Card>
         </TabsContent>
