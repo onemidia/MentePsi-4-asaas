@@ -73,7 +73,7 @@ export default function PatientPortalPage() {
       const { data: patient } = await supabase.from('patients').select('*').eq('id', id).single()
 
       if (patient) {
-        const { data: profProfile } = await supabase.from('professional_profile').select('full_name, phone, clinic_name, logo_url').eq('user_id', patient.psychologist_id).maybeSingle()
+        const { data: profProfile } = await supabase.from('professional_profile').select('full_name, phone, clinic_name, logo_url, pix_key, bank, agency, bank_account').eq('user_id', patient.psychologist_id).maybeSingle()
         const { data: subData } = await supabase.from('subscriptions').select('status, current_period_end').eq('user_id', patient.psychologist_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
 
         setPatientData({ ...patient, professional_profile: profProfile })
