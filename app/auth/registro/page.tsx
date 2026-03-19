@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, ShieldCheck } from "lucide-react"
+import { Loader2, ShieldCheck, Mail, ArrowRight, CheckCircle2 } from "lucide-react"
 import Link from 'next/link'
 import { useToast } from "@/hooks/use-toast"
 
@@ -16,6 +16,8 @@ export default function RegistroPage() {
   const [nome, setNome] = useState('')
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [isSubmitted, setIsSubmitted] = useState(false) // 🎉 Novo estado para controle de sucesso
+  
   const router = useRouter()
   const supabase = createClient()
   const { toast } = useToast()
@@ -26,7 +28,7 @@ export default function RegistroPage() {
     setLoading(true)
 
     try {
-      // 1. Busca configuração de dias de trial do plano profissional
+      // 1. Busca configuração de dias de trial
       const { data: planData } = await supabase
         .from('saas_plans')
         .select('trial_days')
@@ -35,7 +37,7 @@ export default function RegistroPage() {
       
       const trialDays = planData?.trial_days || 30
 
-      // 2. Cria o usuário
+      // 2. Cria o usuário no Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -51,7 +53,7 @@ export default function RegistroPage() {
       if (error) throw error
 
       if (data?.user) {
-        // 3. Cria a assinatura TRIAL imediatamente para evitar bloqueio
+        // 3. Cria a assinatura TRIAL
         const trialEnd = new Date()
         trialEnd.setDate(trialEnd.getDate() + trialDays)
 
@@ -59,11 +61,11 @@ export default function RegistroPage() {
           user_id: data.user.id,
           status: 'trialing',
           current_period_end: trialEnd.toISOString(),
-          plan_id: null // Ou busque o ID do plano se necessário
+          plan_id: null 
         })
 
-        router.push('/dashboard')
-        router.refresh()
+        // 🚀 O SEGREDO: Em vez de redirecionar, avisamos para checar o e-mail!
+        setIsSubmitted(true) 
       }
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Erro ao criar conta', description: error.message })
@@ -72,7 +74,6 @@ export default function RegistroPage() {
     }
   }
 
-  // --- REGISTRO/LOGIN RÁPIDO COM GOOGLE ---
   const handleGoogleLogin = async () => {
     setGoogleLoading(true)
     try {
@@ -80,9 +81,7 @@ export default function RegistroPage() {
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            prompt: 'select_account',
-          },
+          queryParams: { prompt: 'select_account' },
         },
       })
       if (error) throw error
@@ -92,6 +91,50 @@ export default function RegistroPage() {
     }
   }
 
+  // --- TELA DE SUCESSO (EXIBIDA APÓS O REGISTRO) ---
+  if (isSubmitted) {
+    return (
+      <div className="fixed inset-0 z-[999] bg-slate-50 w-screen h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center space-y-6">
+          <div className="flex flex-col items-center gap-3 mb-4">
+            <div className="bg-teal-600 p-2.5 rounded-xl text-white font-bold text-3xl shadow-lg shadow-teal-200">M</div>
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">MentePsi 2.0</h2>
+          </div>
+
+          <Card className="shadow-2xl border-0 ring-1 ring-slate-200 overflow-hidden">
+            <div className="h-1.5 bg-teal-600 w-full" />
+            <CardContent className="pt-10 pb-10 px-8">
+              <div className="bg-teal-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Mail className="text-teal-600 w-10 h-10 animate-bounce" />
+              </div>
+              
+              <h2 className="text-2xl font-black text-slate-800 mb-2">Verifique seu e-mail!</h2>
+              <p className="text-slate-600 mb-6">
+                Enviamos um link de ativação para:<br/>
+                <strong className="text-teal-700">{email}</strong>
+              </p>
+
+              <div className="bg-slate-50 rounded-xl p-4 text-left text-sm text-slate-500 mb-8 border border-slate-100">
+                <p className="flex items-start gap-2 italic">
+                  <CheckCircle2 size={16} className="text-teal-500 mt-0.5 shrink-0" />
+                  Caso não encontre, verifique a pasta de <strong>Spam</strong> ou Promoções.
+                </p>
+              </div>
+
+              <Button 
+                onClick={() => router.push('/auth/login')}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2"
+              >
+                Ir para o Login <ArrowRight size={18} />
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // --- RENDERIZAÇÃO NORMAL DO FORMULÁRIO ---
   return (
     <div className="fixed inset-0 z-[999] bg-slate-50 w-screen h-screen flex items-center justify-center overflow-y-auto p-4">
       <div className="w-full max-w-md">
@@ -106,15 +149,14 @@ export default function RegistroPage() {
 
         <Card className="shadow-2xl border-0 ring-1 ring-slate-200 overflow-hidden">
           <div className="h-1.5 bg-teal-600 w-full" />
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl text-center text-slate-800 font-bold">Inicie sua jornada grátis</CardTitle>
-            <p className="text-center text-slate-500 text-sm">
+          <CardHeader className="pb-4 text-center">
+            <CardTitle className="text-xl text-slate-800 font-bold">Inicie sua jornada grátis</CardTitle>
+            <p className="text-slate-500 text-sm">
               Você terá <strong>30 dias de acesso total</strong> às ferramentas de IA e Fichas Digitais.
             </p>
           </CardHeader>
           <CardContent>
             
-            {/* Botão Google Registro */}
             <Button 
               variant="outline" 
               type="button" 
@@ -135,7 +177,6 @@ export default function RegistroPage() {
               Registrar com Google
             </Button>
 
-            {/* Divisor */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-slate-200" />
