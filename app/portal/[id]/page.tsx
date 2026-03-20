@@ -41,6 +41,8 @@ export default function PatientPortalPage() {
   const [statusFilter, setStatusFilter] = useState('Agendado') // UX: Foco no futuro
   const [sessionAgenda, setSessionAgenda] = useState("")
   const [materials, setMaterials] = useState<any[]>([])
+  const [amountToPay, setAmountToPay] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [uploadingProof, setUploadingProof] = useState(false)
@@ -214,44 +216,61 @@ export default function PatientPortalPage() {
     setIsSavingAgenda(false);
   }
 
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setUploadingProof(true)
-    const currentTotalPending = appointments.reduce((acc, apt) => {
-      const now = new Date(); const aptTime = new Date(apt.start_time); const isPast = now > aptTime;
-      const displayStatus = (apt.status === 'Agendado' && isPast) ? 'Realizada' : apt.status;
-      if (displayStatus === 'Realizada') return acc + Math.max(0, Number(apt.price || 0) - Number(apt.amount_paid || 0));
-      return acc;
-    }, 0)
-    
-    const supabase = createClient()
-    try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${id}/comprovantes/${Date.now()}.${fileExt}`
-      const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, file)
-      if (uploadError) throw uploadError
-      const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName)
-      
-      const { error: docError } = await supabase.from('patient_documents').insert({
-        patient_id: id, psychologist_id: patientData?.psychologist_id, title: `Comprovante de Pagamento - ${new Date().toLocaleDateString('pt-BR')}`, file_url: publicUrl, status: 'Pendente'
-      })
-      if (docError) throw docError
-
-      const { error: transError } = await supabase.from('financial_transactions').insert({
-        psychologist_id: patientData?.psychologist_id, patient_id: id, amount: currentTotalPending > 0 ? currentTotalPending : 0, type: 'income', category: 'Sessão', description: 'Pagamento via Portal (Pix) - Aguardando Confirmação', status: 'pending_review', receipt_url: publicUrl
-      })
-      if (transError) throw transError
-      
-      toast({ title: "Enviado com Sucesso!", description: "Seu terapeuta foi notificado." })
-      setHasPendingProof(true)
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro no envio", description: error.message })
-    } finally {
-      setUploadingProof(false)
-    }
+  const handleCurrencyInput = (value: string) => {
+    const cleanValue = value.replace(/\D/g, "");
+    setAmountToPay((Number(cleanValue) / 100).toFixed(2).replace('.', ','));
   }
+
+  const handleUploadProof = async (file: File | null) => {
+    if (!file) {
+      toast({ variant: "destructive", title: "Arquivo Ausente", description: "Por favor, anexe o comprovante." });
+      return;
+    }
+
+    setUploadingProof(true);
+    const supabase = createClient();
+
+    try {
+      // 1. Upload do Arquivo
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${id}/comprovantes/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName);
+
+      // 2. Valor Digitado (ou zero se vazio)
+      const parsedAmount = parseFloat(amountToPay.replace(/\./g, '').replace(',', '.'));
+      const finalAmount = isNaN(parsedAmount) ? 0 : parsedAmount;
+
+      // 3. Gravação Única (Usa o psychologist_id vindo do banco)
+      // IMPORTANTE: pagamento enviado pelo paciente deve ficar como pending_review até validação manual
+      const { error: transError } = await supabase.from('financial_transactions').insert({
+        psychologist_id: patientData?.psychologist_id,
+        patient_id: id,
+        amount: finalAmount,
+        type: 'income',
+        category: 'Sessão',
+        description: 'Pagamento via Portal (Pix)',
+        status: 'pending_review',
+        receipt_url: publicUrl
+      });
+
+      if (transError) throw transError;
+
+      // 4. Feedback de Sucesso
+      toast({ title: "Enviado com Sucesso!", description: "Seu terapeuta foi notificado." });
+      setHasPendingProof(true);
+      setPaymentModalOpen(false);
+      setAmountToPay('');
+      setSelectedFile(null);
+    } catch (error: any) {
+      console.error("Erro no upload:", error);
+      toast({ variant: "destructive", title: "Erro no envio", description: error.message });
+    } finally {
+      setUploadingProof(false);
+    }
+  };
 
   const totalPending = appointments.reduce((acc, apt) => {
     const now = new Date(); const aptTime = new Date(apt.start_time); const isPast = now > aptTime;
@@ -488,7 +507,7 @@ export default function PatientPortalPage() {
                 {hasPendingProof ? (
                   <Button disabled className="w-full sm:w-auto bg-slate-200 text-slate-500 font-bold h-12 rounded-xl cursor-not-allowed"><CheckCircle2 className="mr-2 h-4 w-4" /> Enviado com Sucesso</Button>
                 ) : (
-                  <Button className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white font-bold h-12 rounded-xl shadow-lg shadow-amber-100" onClick={() => { setPaymentModalOpen(true) }}>Pagar Agora com Pix</Button>
+                  <Button className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white font-bold h-12 rounded-xl shadow-lg shadow-amber-100" onClick={() => { setAmountToPay(totalPending > 0 ? totalPending.toFixed(2).replace('.', ',') : ''); setPaymentModalOpen(true) }}>Pagar Agora com Pix</Button>
                 )}
               </CardContent>
             </Card>
@@ -584,7 +603,7 @@ export default function PatientPortalPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
+      <Dialog open={paymentModalOpen} onOpenChange={(open) => { setPaymentModalOpen(open); if(!open) setSelectedFile(null); }}>
         <DialogContent className="max-w-[95vw] sm:max-w-sm rounded-[32px] p-6 max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Realizar Pagamento</DialogTitle>
@@ -608,16 +627,23 @@ export default function PatientPortalPage() {
                   </div>
                 )}
                 <div className="space-y-3 pt-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase">Enviar Comprovante</Label>
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Valor a pagar (R$)</Label>
+                    <Input value={amountToPay} onChange={e => handleCurrencyInput(e.target.value)} placeholder="0,00" className="text-lg font-black h-12 text-teal-600 border-slate-300" />
+                </div>
+                <div className="space-y-3 pt-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Anexar Comprovante</Label>
                     <div className="grid grid-cols-1 gap-3">
-                      {uploadingProof ? (
-                        <Button disabled className="w-full h-12 bg-slate-100 text-teal-600 border border-teal-100"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando...</Button>
-                      ) : (
-                        <Button variant="outline" className="w-full border-dashed border-2 h-12 text-slate-500 hover:text-teal-600 hover:border-teal-200 hover:bg-teal-50" onClick={() => document.getElementById('proof-upload')?.click()}><Upload className="mr-2 h-4 w-4" /> Anexar Arquivo</Button>
-                      )}
-                      <Input id="proof-upload" type="file" accept="image/*,application/pdf" onChange={handleUploadProof} disabled={uploadingProof} className="hidden" />
+                      <Button type="button" variant="outline" className={`w-full border-dashed border-2 h-12 ${selectedFile ? 'border-teal-500 text-teal-700 bg-teal-50' : 'text-slate-500 hover:text-teal-600 hover:border-teal-200 hover:bg-teal-50'}`} onClick={() => document.getElementById('proof-upload')?.click()}>
+                        <Upload className="mr-2 h-4 w-4" /> {selectedFile ? selectedFile.name : "Selecionar Arquivo"}
+                      </Button>
+                      <Input id="proof-upload" type="file" accept="image/*,application/pdf" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} disabled={uploadingProof} className="hidden" />
+                      
+                      <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 shadow-md mt-2" onClick={() => handleUploadProof(selectedFile)} disabled={uploadingProof || !selectedFile}>
+                        {uploadingProof ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Enviando...</> : "ENVIAR PAGAMENTO PARA CONFERÊNCIA"}
+                      </Button>
+
                       <div className="relative flex items-center py-1"><div className="flex-grow border-t border-slate-200"></div><span className="flex-shrink-0 mx-2 text-slate-300 text-[10px] uppercase font-bold">OU</span><div className="flex-grow border-t border-slate-200"></div></div>
-                      <Button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold h-12 shadow-sm" onClick={handleSendReceiptWhatsApp}><MessageCircle className="mr-2 h-5 w-5" /> Enviar no WhatsApp</Button>
+                      <Button variant="outline" className="w-full border-green-200 bg-green-50 hover:bg-green-100 text-green-700 font-bold h-12 shadow-sm" onClick={handleSendReceiptWhatsApp}><MessageCircle className="mr-2 h-5 w-5" /> Avisar no WhatsApp</Button>
                     </div>
                 </div>
             </div>

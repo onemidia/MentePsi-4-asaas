@@ -109,13 +109,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {!hideSidebar && <MobileNav />}
 
         {/* ✅ BANNER DE TRIAL NO TOPO */}
-        {!hideSidebar && userData && userData.status === 'trialing' && (
-          <TrialBanner
-            key="global-trial-banner"
-            trialEndsAt={userData.trialEndsAt}
-            status={userData.status}
-            planName={userData.plan}
-          />
+        {userData && userData.status === 'trialing' && (
+          <div className="relative z-50 w-full shadow-sm">
+            <TrialBanner
+              key="global-trial-banner"
+              trialEndsAt={userData.trialEndsAt}
+              status={userData.status}
+              planName={userData.plan}
+            />
+          </div>
         )}
 
         <main className="flex-1 bg-slate-50">

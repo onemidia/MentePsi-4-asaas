@@ -273,7 +273,7 @@ export default function PsychologistDashboard() {
         supabase.from('financial_transactions').select('amount, created_at').eq('psychologist_id', targetUserId).eq('type', 'income').gte('created_at', startChart),
         supabase.from('appointments').select('status, start_time').eq('psychologist_id', targetUserId).gte('start_time', startChart),
         supabase.from('patients').select('full_name, birth_date, phone, status, credit_balance').eq('psychologist_id', targetUserId),
-        supabase.from('financial_transactions').select('*, patients(full_name)').eq('psychologist_id', targetUserId).eq('status', 'pending_review')
+        supabase.from('financial_transactions').select('*, patients(full_name)').eq('psychologist_id', user?.id || targetUserId).eq('status', 'pending_review')
       ])
 
       setStats({
@@ -292,8 +292,10 @@ export default function PsychologistDashboard() {
         }, 0) || 0
       })
 
-      if (pendingTransRes?.data && Array.isArray(pendingTransRes.data)) {
+      if (pendingTransRes?.data) {
         setPendingTransactions(pendingTransRes.data)
+      } else {
+        setPendingTransactions([])
       }
 
       setAttentionList(attentionRes.data?.map((item: any) => ({

@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react'
 import Image from 'next/image' // 🟢 Next.js Image
 import dynamic from 'next/dynamic'
-import TrialBanner from './TrialBanner' // 🟢 Importa o novo banner
 import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
@@ -332,7 +331,6 @@ export default function SettingsPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-8 bg-slate-100 min-h-[100dvh]">
-      <TrialBanner />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Configurações</h1>

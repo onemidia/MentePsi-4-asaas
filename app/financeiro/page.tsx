@@ -517,7 +517,7 @@ export default function FinanceiroPage() {
     await refreshData()
   }
 
-  const pendingCount = transactions.filter(t => t.status === 'pending_review').length
+  const pendingCount = (transactions || []).filter(t => t.status === 'pending_review').length
 
   // ✅ APROVAÇÃO DE PAGAMENTO DO PORTAL
   const handleConfirmPendingTransaction = async (t: any) => {
