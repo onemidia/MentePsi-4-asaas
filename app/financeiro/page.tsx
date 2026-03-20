@@ -156,13 +156,13 @@ export default function FinanceiroPage() {
     // 💰 CÁLCULO CONTÁBIL SEGURO (CENTAVOS) - Baseado em Transações Reais
     const transactionsNoPeriodo = transactions.filter(t => {
       const date = new Date(t.created_at)
-      return date >= start && date <= end && t.type === 'income'
+      return date >= start && date <= end && t.type === 'income' && (t.status === 'CONCLUIDO' || t.status === 'paid')
     })
 
     // Filtro específico para o mês corrente (Card de Destaque)
     const transactionsMesAtual = transactions.filter(t => {
       const date = new Date(t.created_at)
-      return date >= startCurrentMonth && date <= endCurrentMonth && t.type === 'income'
+      return date >= startCurrentMonth && date <= endCurrentMonth && t.type === 'income' && (t.status === 'CONCLUIDO' || t.status === 'paid')
     })
 
     const recebidoCents = transactionsNoPeriodo.reduce((acc, t) => acc + Math.round(Number(t.amount) * 100), 0)

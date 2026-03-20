@@ -298,7 +298,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         
         // 💉 CORREÇÃO: Matemática de Centavos para Total Pago
         paid: (transRes.data || [])
-          .filter((t: any) => t.type === 'income')
+          .filter((t: any) => t.type === 'income' && (t.status === 'CONCLUIDO' || t.status === 'paid'))
           .reduce((acc: number, curr: any) => acc + Math.round(Number(curr.amount) * 100), 0) / 100,
         
         done: apts.filter((a: any) => isFinalized(a)).length,

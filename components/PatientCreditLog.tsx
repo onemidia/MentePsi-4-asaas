@@ -33,6 +33,7 @@ function PatientCreditLog({ patientId, currentBalance }: CreditLogProps) {
         .from('financial_transactions')
         .select('*')
         .eq('patient_id', patientId)
+        .in('status', ['CONCLUIDO', 'paid'])
         .order('created_at', { ascending: false })
 
       // 2. Busca Sessões Pagas (Para garantir histórico completo mesmo sem transação lançada)
