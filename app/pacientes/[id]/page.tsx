@@ -425,13 +425,25 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         const filePath = doc.file_url.split('patient-documents/')[1];
         await supabase.storage.from('patient-documents').remove([filePath]);
       }
-      const { error } = await supabase.from('patient_documents').delete().eq('id', doc.id);
-      if (!error) {
-        setDocuments(prev => prev.filter(d => d.id !== doc.id));
-        toast({ title: "Arquivo excluído com sucesso!" });
-      } else throw error;
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao excluir arquivo" });
+      
+      const { error: docError } = await supabase.from('patient_documents').delete().eq('id', doc.id);
+      if (docError) throw docError;
+
+      if (doc.file_url) {
+        const { error: transError } = await supabase
+          .from('financial_transactions')
+          .delete()
+          .eq('receipt_url', doc.file_url)
+          .eq('psychologist_id', paciente.psychologist_id);
+        
+        if (transError) throw transError;
+      }
+
+      setDocuments(prev => prev.filter(d => d.id !== doc.id));
+      setTransactions(prev => prev.filter(t => t.receipt_url !== doc.file_url));
+      toast({ title: "Arquivo excluído com sucesso!" });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro ao excluir arquivo", description: `Erro ao deletar no banco: ${error.message || 'Erro desconhecido'}` });
     }
   };
 
@@ -683,9 +695,10 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
     } catch (e) { toast({ variant: "destructive", title: "Erro ao gerar termo" }) } finally { setLoading(false) }
   }
 
-  const handleOpenPaymentModal = (transaction: any) => {
-    setSelectedTransaction(transaction)
-    setPaymentAmount(Number(transaction.amount).toFixed(2).replace('.', ','))
+  const handleOpenPaymentModal = (item: any) => {
+    setSelectedTransaction(item)
+    const amt = item.amount ? Number(item.amount) : 0
+    setPaymentAmount(amt > 0 ? amt.toFixed(2).replace('.', ',') : '')
     setPaymentModalOpen(true)
   }
 
@@ -694,20 +707,37 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
     setSaving(true)
     try {
       const finalAmount = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
+      const docUrl = selectedTransaction.receipt_url || selectedTransaction.file_url
 
-      // 1. Atualiza status da transação para PAGO e o VALOR (caso tenha sido editado)
-      const { error: txError } = await supabase
-        .from('financial_transactions')
-        .update({ status: 'paid', amount: finalAmount })
-        .eq('id', selectedTransaction.id)
+      let txFound = null
+      if (docUrl) {
+        const { data } = await supabase
+          .from('financial_transactions')
+          .select('*')
+          .eq('receipt_url', docUrl)
+          .maybeSingle()
+        txFound = data
+      } else if (selectedTransaction.id && selectedTransaction.amount) {
+        txFound = selectedTransaction
+      }
 
-      if (txError) throw txError
+      if (txFound && txFound.id) {
+        // 1. Atualiza status da transação para CONCLUIDO e o VALOR (caso tenha sido editado)
+        const { error: txError } = await supabase
+          .from('financial_transactions')
+          .update({ status: 'CONCLUIDO', amount: finalAmount })
+          .eq('id', txFound.id)
 
-      // 2. Atualiza status do documento vinculado (se houver url de recibo na transação, buscamos o doc)
-      if (selectedTransaction.receipt_url) {
+        if (txError) throw txError
+      } else {
+        toast({ variant: "destructive", title: "Aviso", description: "Transação financeira não encontrada, mas documento aprovado." })
+      }
+
+      // 2. Atualiza status do documento vinculado
+      if (docUrl) {
          await supabase.from('patient_documents')
            .update({ status: 'Aprovado' })
-           .eq('file_url', selectedTransaction.receipt_url)
+           .eq('file_url', docUrl)
       }
 
       // 3. Amortização Automática (Lógica Financeira Padrão)
@@ -723,23 +753,30 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
 
       if (pendingApts) {
         for (const apt of pendingApts) {
-          if (remainingAmount <= 0.01) break
-
-          const price = Number(apt.price)
-          const paid = Number(apt.amount_paid || 0)
-          const debt = price - paid
-
-          if (debt > 0) {
-            const payNow = Math.min(remainingAmount, debt)
-            const newPaid = paid + payNow
-            const isFullyPaid = Math.round(newPaid * 100) >= Math.round(price * 100)
-
-            await supabase.from('appointments').update({ 
-                amount_paid: newPaid, 
-                payment_status: isFullyPaid ? 'paid' : 'pending' 
-              }).eq('id', apt.id)
-
-            remainingAmount -= payNow
+          try {
+            if (remainingAmount <= 0.01) break
+  
+            const price = Number(apt.price)
+            const paid = Number(apt.amount_paid || 0)
+            const debt = price - paid
+  
+            if (debt > 0) {
+              const payNow = Math.min(remainingAmount, debt)
+              const newPaid = paid + payNow
+              const isFullyPaid = Math.round(newPaid * 100) >= Math.round(price * 100)
+  
+              const { error: aptUpdateError } = await supabase.from('appointments').update({ 
+                  amount_paid: newPaid, 
+                  payment_status: isFullyPaid ? 'Pago' : 'Pendente' 
+                }).eq('id', apt.id)
+              
+              if (aptUpdateError) throw aptUpdateError
+  
+              remainingAmount -= payNow
+            }
+          } catch (err) {
+            console.warn("Erro ao amortizar agendamento:", apt.id, err)
+            // Ignora o erro desta sessão específica e avança para tentar na próxima
           }
         }
       }
@@ -750,14 +787,53 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
          await supabase.from('patients').update({ credit_balance: (Number(pat?.credit_balance) || 0) + remainingAmount }).eq('id', id)
       }
 
-      toast({ title: "Pagamento Confirmado", description: "Saldo e sessões atualizados com sucesso." })
-      setPaymentModalOpen(false)
+      // 5. Geração Automática do Recibo em PDF
+      if (paciente && professional) {
+          let receiptNumber = 1
+          let { data: counter } = await supabase.from('receipt_counters').select('current_count').eq('psychologist_id', paciente.psychologist_id).single()
+          if (!counter) {
+            const { data: newCounter } = await supabase.from('receipt_counters').insert({ psychologist_id: paciente.psychologist_id, current_count: 0 }).select().single()
+            counter = newCounter
+          }
+          receiptNumber = (counter?.current_count || 0) + 1
+          await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', paciente.psychologist_id)
+
+          // ⚡ PERFORMANCE: Importação dinâmica do jsPDF
+          const { jsPDF } = (await import('jspdf')).default ? await import('jspdf') : { jsPDF: (await import('jspdf')).jsPDF };
+          
+          const doc = new jsPDF()
+          doc.setFontSize(16); doc.setTextColor(13, 148, 136);
+          doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
+          doc.setTextColor(0, 0, 0); doc.setFontSize(10);
+          doc.text(professional.full_name || "Profissional", 105, 30, { align: "center" }); 
+          doc.text(`CRP: ${professional.crp || "..."}`, 105, 35, { align: "center" })
+          doc.setFontSize(12);
+          doc.text(`Recebi de ${paciente.full_name}, CPF ${paciente.cpf || '...'}`, 14, 50)
+          doc.text(`a importância de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
+          doc.text(`referente a serviços de psicologia.`, 14, 64)
+          const dateStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+          doc.text(`${professional.city || "Local"}, ${dateStr}`, 105, 120, { align: "center" })
+          
+          const pdfBlob = doc.output('blob')
+          const fileName = `${id}/recibo_${receiptNumber}_${Date.now()}.pdf`
+          const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, pdfBlob)
+          
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName)
+            await supabase.from('patient_documents').insert({
+              patient_id: id, psychologist_id: paciente.psychologist_id, title: `Recibo Nº ${String(receiptNumber).padStart(3, '0')}`, file_url: publicUrl, status: 'Gerado'
+            })
+          }
+      }
+
+      toast({ title: "Pagamento Confirmado", description: "Recibo gerado, saldo e sessões atualizados com sucesso." })
       router.refresh() // 🔄 Força atualização dos Server Components
       await loadAllData()
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro", description: error.message })
     } finally {
       setSaving(false)
+      setPaymentModalOpen(false)
     }
   }
 
@@ -1278,8 +1354,8 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                {linkedTransaction && (
-                                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-bold shadow-sm" onClick={() => handleOpenPaymentModal(linkedTransaction)} disabled={saving}>
+                                {(linkedTransaction || file.status === 'Pendente') && (
+                                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-bold shadow-sm" onClick={() => handleOpenPaymentModal(linkedTransaction || file)} disabled={saving}>
                                         <CheckCircle2 className="h-3 w-3 mr-1"/> Confirmar
                                     </Button>
                                 )}

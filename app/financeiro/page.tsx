@@ -242,7 +242,7 @@ export default function FinanceiroPage() {
           type: 'income',
           category: 'Sessão',
           description: appointmentId ? 'Pagamento de Sessão (Baixa Manual)' : 'Recebimento de paciente (Lançamento Inteligente)',
-          status: 'paid'
+          status: 'CONCLUIDO'
         }
       ])
 
@@ -446,7 +446,7 @@ export default function FinanceiroPage() {
       type: 'income',
       category: 'Sessão (Crédito)',
       description: 'Abatimento manual via Saldo em Haver',
-      status: 'paid'
+      status: 'CONCLUIDO'
     }])
 
     if (txError) {
@@ -528,7 +528,7 @@ export default function FinanceiroPage() {
       // 1. Atualiza status da transação para CONCLUIDO
       const { error: updateError } = await supabase
         .from('financial_transactions')
-        .update({ status: 'paid' })
+        .update({ status: 'CONCLUIDO' })
         .eq('id', t.id)
 
       if (updateError) throw updateError

@@ -126,7 +126,7 @@ export default function PsychologistDashboard() {
         .from('appointments')
         .select('*')
         .eq('patient_id', transactionToConfirm.patient_id)
-        .neq('payment_status', 'Pago')
+        .not('payment_status', 'in', '("Pago","paid")')
         .order('start_time', { ascending: true })
 
       if (pendingApts) {
@@ -267,7 +267,7 @@ export default function PsychologistDashboard() {
         supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('psychologist_id', targetUserId).gte('start_time', startOfDay).lte('start_time', endOfDay).neq('status', 'Cancelado'),
         supabase.from('emotion_journal').select('patient_id').eq('psychologist_id', targetUserId).lte('mood_level', 2).gte('created_at', yesterday),
         supabase.from('financial_transactions').select('amount').eq('psychologist_id', targetUserId).eq('type', 'income').gte('created_at', startOfMonthStr).lte('created_at', endOfMonthStr),
-        supabase.from('appointments').select('price, amount_paid, status, start_time').eq('psychologist_id', targetUserId).neq('payment_status', 'Pago'),
+        supabase.from('appointments').select('price, amount_paid, status, start_time').eq('psychologist_id', targetUserId).not('payment_status', 'in', '("Pago","paid")'),
         supabase.from('emotion_journal').select(`id, mood_level, notes, created_at, patients (id, full_name, phone)`).eq('psychologist_id', targetUserId).order('created_at', { ascending: false }).limit(5),
         supabase.from('appointments').select(`*, patients (id, full_name, phone)`).eq('psychologist_id', targetUserId).gte('start_time', now.toISOString()).lte('start_time', in24h).order('start_time', { ascending: true }),
         supabase.from('financial_transactions').select('amount, created_at').eq('psychologist_id', targetUserId).eq('type', 'income').gte('created_at', startChart),

@@ -88,7 +88,7 @@ export default function PatientPortalPage() {
           supabase.from('therapeutic_materials').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
           supabase.from('patient_documents').select('id').eq('patient_id', id).eq('status', 'Assinado').limit(1).maybeSingle(), // Procura Assinado
           supabase.from('patient_documents').select('*').eq('patient_id', id).in('status', ['Pendente', 'Gerado']).order('created_at', { ascending: false }).limit(1).maybeSingle(), // Procura Pendente
-          supabase.from('patient_documents').select('id').eq('patient_id', id).ilike('title', '%Comprovante%').eq('status', 'Pendente').maybeSingle()
+          supabase.from('patient_documents').select('id').eq('patient_id', id).ilike('title', '%Comprovante%').eq('status', 'Pendente').limit(1).maybeSingle()
         ])
         
         if (settingsRes.data) {
@@ -105,7 +105,10 @@ export default function PatientPortalPage() {
 
         if (matsRes.data) setMaterials(matsRes.data)
         if (aptsRes.data) setAppointments(aptsRes.data)
-        if (proofRes.data) setHasPendingProof(true)
+        
+        // Garante que só considere como pendente se encontrar exatamente o documento
+        if (proofRes.data) setHasPendingProof(true);
+        if (!proofRes.data) setHasPendingProof(false);
 
         // LÓGICA DE PRIORIDADE: Se tem Assinado, fica Verde e ignora o pendente!
         if (signedDocRes.data) {
@@ -227,10 +230,30 @@ export default function PatientPortalPage() {
       return;
     }
 
+    if (!id) {
+      toast({ variant: "destructive", title: "Sessão Inválida", description: "ID do paciente não identificado. Tente recarregar a página." });
+      return;
+    }
+
     setUploadingProof(true);
     const supabase = createClient();
 
     try {
+      // 0. Trava de Duplicidade (Blindagem contra múltiplos envios)
+      const { data: existingPending } = await supabase
+        .from('patient_documents')
+        .select('id')
+        .eq('patient_id', id)
+        .ilike('title', '%Comprovante%')
+        .eq('status', 'Pendente')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingPending) {
+        toast({ variant: "destructive", title: "Atenção", description: "Você já possui um envio em análise." });
+        return;
+      }
+
       // 1. Upload do Arquivo
       const fileExt = file.name.split('.').pop();
       const fileName = `${id}/comprovantes/${Date.now()}.${fileExt}`;
@@ -243,22 +266,37 @@ export default function PatientPortalPage() {
       const parsedAmount = parseFloat(amountToPay.replace(/\./g, '').replace(',', '.'));
       const finalAmount = isNaN(parsedAmount) ? 0 : parsedAmount;
 
-      // 3. Gravação Única (Usa o psychologist_id vindo do banco)
+      // 3. Busca de segurança extra para garantir o ID do psicólogo
+      const { data: patient } = await supabase.from('patients').select('psychologist_id').eq('id', id).single();
+      const safePsychologistId = patientData?.psychologist_id || patient?.psychologist_id;
+
+      // 4. Gravação Dupla: Documentos e Transações
+      const docPayload = {
+        patient_id: id, // Garante vínculo correto com o paciente
+        psychologist_id: safePsychologistId,
+        title: `Comprovante de Pagamento - ${new Date().toLocaleDateString('pt-BR')}`,
+        file_url: publicUrl,
+        status: 'Pendente'
+      };
+      const { error: docError } = await supabase.from('patient_documents').insert(docPayload);
+      if (docError) throw docError;
+
       // IMPORTANTE: pagamento enviado pelo paciente deve ficar como pending_review até validação manual
-      const { error: transError } = await supabase.from('financial_transactions').insert({
-        psychologist_id: patientData?.psychologist_id,
-        patient_id: id,
+      const transPayload = {
+        psychologist_id: safePsychologistId,
+        patient_id: id, // Garante vínculo correto com a transação
         amount: finalAmount,
         type: 'income',
         category: 'Sessão',
         description: 'Pagamento via Portal (Pix)',
         status: 'pending_review',
         receipt_url: publicUrl
-      });
+      };
+      const { error: transError } = await supabase.from('financial_transactions').insert(transPayload);
 
       if (transError) throw transError;
 
-      // 4. Feedback de Sucesso
+      // 5. Feedback de Sucesso
       toast({ title: "Enviado com Sucesso!", description: "Seu terapeuta foi notificado." });
       setHasPendingProof(true);
       setPaymentModalOpen(false);
