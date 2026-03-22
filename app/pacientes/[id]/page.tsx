@@ -204,6 +204,10 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         })
       })
 
+      if (!res.ok) {
+        throw new Error(`Erro na API (${res.status})`);
+      }
+
       const data = await res.json()
       
       if (data.text) {
@@ -213,6 +217,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         throw new Error(data.error || "A IA não retornou conteúdo.")
       }
     } catch (error: any) {
+      console.error("Erro na IA Mistral:", error)
       toast({ variant: "destructive", title: "Erro no Refinamento", description: error.message || "Erro ao conectar com a IA." })
     } finally {
       setIsGeneratingEvolution(false)
@@ -253,8 +258,9 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
           setEvolutions(data)
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao buscar evoluções:", error)
+      toast({ variant: "destructive", title: "Erro de Conexão", description: "Não foi possível carregar as evoluções." })
     } finally {
       setLoadingMoreEvolutions(false)
     }
@@ -516,13 +522,18 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
 
   const handleAddMaterial = async () => {
     if (!materialTitle || !materialUrl) return
-    const { data, error } = await supabase.from('therapeutic_materials').insert({
-      patient_id: id, psychologist_id: paciente.psychologist_id, title: materialTitle, file_url: materialUrl
-    }).select().single()
-    if (!error && data) {
-      setMaterials(prev => [data, ...prev])
-      setMaterialTitle(""); setMaterialUrl("");
-      toast({ title: "Link compartilhado!" })
+    try {
+      const { data, error } = await supabase.from('therapeutic_materials').insert({
+        patient_id: id, psychologist_id: paciente.psychologist_id, title: materialTitle, file_url: materialUrl
+      }).select().single()
+      if (error) throw error;
+      if (data) {
+        setMaterials(prev => [data, ...prev])
+        setMaterialTitle(""); setMaterialUrl("");
+        toast({ title: "Link compartilhado!" })
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao adicionar link", description: e.message })
     }
   }
 
@@ -694,9 +705,13 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
   }
 
   const handleUpdateMetaStatus = async (goalId: string, newStatus: string) => {
-    setMetas(prev => prev.map(g => g.id === goalId ? { ...g, status: newStatus } : g))
-    const { error } = await supabase.from('patient_goals').update({ status: newStatus }).eq('id', goalId)
-    if (error) toast({ variant: "destructive", title: "Erro ao atualizar status" })
+    try {
+      setMetas(prev => prev.map(g => g.id === goalId ? { ...g, status: newStatus } : g))
+      const { error } = await supabase.from('patient_goals').update({ status: newStatus }).eq('id', goalId)
+      if (error) throw error;
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao atualizar status", description: e.message })
+    }
   }
 
   const handleDeletePatient = async () => {
@@ -900,6 +915,32 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       setPaymentModalOpen(false)
     }
   }
+
+  const handleArchiveAgenda = async () => {
+    setSaving(true);
+    try {
+      const { error: insertError } = await supabase.from('clinical_evolutions').insert({
+          patient_id: id,
+          psychologist_id: paciente.psychologist_id,
+          content: `[PAUTA ENVIADA PELO PACIENTE VIA PORTAL]\n${sessionAgenda}`
+      });
+      if (insertError) throw insertError;
+      
+      const { error: updateError } = await supabase.from('patients').update({ next_session_agenda: "" }).eq('id', id);
+      if (updateError) throw updateError;
+      
+      setSessionAgenda("Pauta lida e arquivada nas Evoluções.");
+      toast({ title: "Pauta arquivada no histórico!" });
+      loadAllData();
+      setEvolutionPage(0);
+      setHasMoreEvolutions(true);
+      fetchEvolutions(0, evolutionYearFilter, false);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao arquivar pauta", description: e.message })
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleCurrencyInput = (value: string) => {
     const cleanValue = value.replace(/\D/g, "");
@@ -1193,32 +1234,42 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                       <div><strong>S:</strong> Relatos</div><div><strong>O:</strong> Sinais</div><div><strong>A:</strong> Análise</div><div><strong>P:</strong> Plano</div>
                     </div>
                   </div>
-                  <div className="relative">
+                  <div className="relative p-1">
                     <Textarea 
                       placeholder="Descreva aqui o atendimento..." 
-                      className="min-h-[200px] pb-16 text-sm text-slate-700 bg-white border-slate-300 rounded-xl resize-y" 
+                      className="min-h-[200px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl resize-y" 
                       value={newEvolution} 
                       onChange={e => setNewEvolution(e.target.value)} 
                     />
-                    <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-center justify-end gap-2 mt-3 w-full">
                       <Button 
                         variant="outline" 
-                        size="sm"
                         onClick={handleToggleRecording} 
-                        className={`font-bold transition-all shadow-sm ${isListening ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-white hover:bg-teal-50 text-teal-600 border-teal-200'}`}
+                        className={`w-full sm:w-auto font-bold transition-all shadow-sm ${isListening ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white hover:bg-teal-50 text-teal-600 border-teal-200'}`}
                       >
-                        <Mic className="mr-2 h-4 w-4" />
-                        {isListening ? "Gravando..." : "Ditar"}
+                        {isListening ? (
+                          <>
+                            <span className="relative flex h-3 w-3 mr-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
+                            </span>
+                            Gravando...
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="mr-2 h-4 w-4" /> Ditar
+                          </>
+                        )}
                       </Button>
+                      
                       <Button 
                         variant="outline" 
-                        size="sm" 
                         onClick={handleRefineEvolution} 
                         disabled={isGeneratingEvolution || !newEvolution.trim()}
-                        className="bg-white hover:bg-amber-50 text-amber-600 border-amber-200 font-bold transition-all shadow-sm"
+                        className="w-full sm:w-auto bg-white hover:bg-amber-50 text-amber-600 border-amber-200 font-bold transition-all shadow-sm"
                       >
                         {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        ✨ Profissionalizar Relato
+                        Profissionalizar Relato
                       </Button>
                     </div>
                   </div>
@@ -1313,24 +1364,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 <CardHeader className="pb-2 p-4 md:p-6"><CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2"><MessageSquarePlus size={16} className="text-teal-600" /> Pauta do Paciente</CardTitle></CardHeader>
                 <CardContent className="p-4 md:p-6 pt-0">
                   <div className="bg-white p-4 rounded-2xl border border-blue-200 italic text-slate-600 shadow-sm">"{sessionAgenda}"</div>
-                  <Button variant="ghost" size="sm" disabled={saving} className="mt-3 text-teal-600 hover:bg-teal-50 font-bold" onClick={async () => {
-                      setSaving(true);
-                      // Salva no prontuário (Evoluções)
-                      await supabase.from('clinical_evolutions').insert({
-                          patient_id: id,
-                          psychologist_id: paciente.psychologist_id,
-                          content: `[PAUTA ENVIADA PELO PACIENTE VIA PORTAL]\n${sessionAgenda}`
-                      });
-                      // Limpa a pauta
-                      await supabase.from('patients').update({ next_session_agenda: "" }).eq('id', id);
-                      setSessionAgenda("Pauta lida e arquivada nas Evoluções.");
-                      toast({ title: "Pauta arquivada no histórico!" });
-                      setSaving(false);
-                      loadAllData();
-                      setEvolutionPage(0);
-                      setHasMoreEvolutions(true);
-                      fetchEvolutions(0, evolutionYearFilter, false);
-                  }}>
+                <Button variant="ghost" size="sm" disabled={saving} className="mt-3 text-teal-600 hover:bg-teal-50 font-bold" onClick={handleArchiveAgenda}>
                     {saving ? <Loader2 className="animate-spin h-3 w-3 mr-2"/> : null}
                     Marcar como lida e Arquivar
                   </Button>
