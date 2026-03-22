@@ -249,48 +249,50 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
 
   const handleSubmit = async () => {
     setLoading(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // 1. Pega os dados reais para substituição
-    const nomeReal = professional?.full_name || "";
-    const crpReal = professional?.crp || "";
-
-    // 2. LIMPEZA SEGURA: Substitui apenas os termos entre colchetes
-    // Não usamos mais o comando que apaga tudo do final para não perder conteúdo
-    let conteudoFinal = formData.content
-      .replace(/\[Nome do Psicólogo\]/gi, nomeReal)
-      .replace(/\[Número do CRP\]/gi, crpReal)
-      .replace(/\[CRP\]/gi, crpReal)
-      .replace(/\[DATA\]/g, new Date().toLocaleDateString('pt-BR'))
-      // Remove apenas se houver uma assinatura IDENTICA à que vamos colocar ou placeholders
-      .replace(/Nome: {nomeReal}/g, '')
-      .replace(/CRP: {crpReal}/g, '')
-      .trim();
-
-    // 3. Salvamento
-    // Salvamos exatamente o que está no editor (já limpo de colchetes)
-    const { error } = await supabase.from('official_reports').insert({
-      psychologist_id: user?.id,
-      patient_id: formData.patient_id,
-      title: formData.title,
-      type: formData.type,
-      content: conteudoFinal, 
-      professional_name: nomeReal,
-      professional_crp: crpReal,
-      clinic_logo_url: professional?.logo_url,
-      clinic_name: professional?.clinic_name || headerTitle,
-      is_private: formData.is_private
-    });
-
-    if (!error) {
-      toast({ title: "✨ Documento arquivado com sucesso!" });
-      if (onDocumentCreated) onDocumentCreated();
-      setOpen(false);
-    } else {
-      toast({ variant: "destructive", title: "Erro ao salvar", description: error.message });
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+  
+      // 1. Pega os dados reais para substituição
+      const nomeReal = professional?.full_name || "";
+      const crpReal = professional?.crp || "";
+  
+      // 2. LIMPEZA SEGURA: Substitui apenas os termos entre colchetes
+      let conteudoFinal = formData.content
+        .replace(/\[Nome do Psicólogo\]/gi, nomeReal)
+        .replace(/\[Número do CRP\]/gi, crpReal)
+        .replace(/\[CRP\]/gi, crpReal)
+        .replace(/\[DATA\]/g, new Date().toLocaleDateString('pt-BR'))
+        .replace(/Nome: {nomeReal}/g, '')
+        .replace(/CRP: {crpReal}/g, '')
+        .trim();
+  
+      // 3. Salvamento
+      const { error } = await supabase.from('official_reports').insert({
+        psychologist_id: user?.id,
+        patient_id: formData.patient_id,
+        title: formData.title,
+        type: formData.type,
+        content: conteudoFinal, 
+        professional_name: nomeReal,
+        professional_crp: crpReal,
+        clinic_logo_url: professional?.logo_url,
+        clinic_name: professional?.clinic_name || headerTitle,
+        is_private: formData.is_private
+      });
+  
+      if (!error) {
+        toast({ title: "✨ Documento arquivado com sucesso!" });
+        if (onDocumentCreated) onDocumentCreated();
+        setOpen(false);
+      } else {
+        toast({ variant: "destructive", title: "Erro ao salvar", description: error.message });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro de conexão", description: e.message || "Verifique sua internet." });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

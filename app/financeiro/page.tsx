@@ -830,12 +830,10 @@ export default function FinanceiroPage() {
         <CardHeader className="flex flex-col xl:flex-row items-start xl:items-center justify-between border-b gap-4 p-6">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full xl:w-auto">
             <CardTitle className="text-lg font-black text-slate-800">Lançamentos</CardTitle>
-            <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1 rounded-xl border px-3">
-              <Label className="text-[10px] font-black text-slate-400 uppercase">De:</Label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-xs font-bold focus:ring-0 h-8" />
-              <div className="w-px h-4 bg-slate-200 mx-1" />
-              <Label className="text-[10px] font-black text-slate-400 uppercase">Até:</Label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-xs font-bold focus:ring-0 h-8" />
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 gap-2 shadow-sm">
+              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
+              <span className="text-slate-300">|</span>
+              <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
             </div>
           </div>
           <div className="relative w-full md:w-64"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" /><Input placeholder="Buscar paciente..." className="pl-9 bg-white h-9 rounded-xl border-slate-300" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
@@ -843,7 +841,7 @@ export default function FinanceiroPage() {
         <CardContent className="p-0">
           <Tabs defaultValue="todos" onValueChange={setCurrentTab}>
             <TabsList className="m-4 bg-slate-100 w-auto flex-wrap h-auto rounded-xl"><TabsTrigger value="todos" className="flex-1 rounded-lg">Todos</TabsTrigger><TabsTrigger value="pendentes" className="flex-1 rounded-lg">Pendentes</TabsTrigger><TabsTrigger value="pagos" className="flex-1 rounded-lg">Pagos</TabsTrigger></TabsList>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto w-full">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black tracking-widest border-y">
                   <tr><th className="p-4 w-[50px]"><input type="checkbox" onChange={toggleAll} checked={filteredAppointments.length > 0 && selectedItems.size === filteredAppointments.length} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" /></th><th className="p-4 text-left">Data</th><th className="p-4 text-left">Paciente</th><th className="p-4 text-left">Valor</th><th className="p-4 text-left hidden md:table-cell">Pendente</th><th className="p-4 text-left hidden md:table-cell">Status</th><th className="p-4 text-right">Ação</th></tr>
@@ -922,14 +920,13 @@ export default function FinanceiroPage() {
 
             <div className="flex flex-col sm:flex-row gap-3 items-center w-full xl:w-auto">
               {/* FILTRO DE DATA NO HISTÓRICO */}
-              <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border px-3 w-full sm:w-auto">
-                <Label className="text-[10px] font-black text-slate-400 uppercase">Período:</Label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-xs font-bold focus:ring-0 h-8 w-24" />
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 gap-2 shadow-sm w-full sm:w-auto">
+                <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
                 <span className="text-slate-300">|</span>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-xs font-bold focus:ring-0 h-8 w-24" />
+                <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
               </div>
 
-              <div className="flex gap-2 bg-slate-50 p-1 rounded-xl w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row gap-2 bg-slate-50 p-1 rounded-xl w-full sm:w-auto">
                 <Button variant={transactionFilter === 'todos' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTransactionFilter('todos')} className="text-xs font-bold rounded-lg h-8 flex-1 sm:flex-none">Todos</Button>
                 <Button variant={transactionFilter === 'pendentes' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTransactionFilter('pendentes')} className="text-xs font-bold rounded-lg h-8 text-amber-600 flex-1 sm:flex-none">
                   Pendentes {transactions.filter(t => t.status === 'pending_review').length > 0 && `(${transactions.filter(t => t.status === 'pending_review').length})`}
@@ -939,7 +936,7 @@ export default function FinanceiroPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto w-full">
             <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black tracking-widest border-y">
                 <tr>

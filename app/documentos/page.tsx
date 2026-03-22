@@ -14,6 +14,8 @@ export default function DocumentsPage() {
   const [reports, setReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [professionalData, setProfessionalData] = useState<any>(null)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   
   // Controle de Paginação
   const [currentPage, setCurrentPage] = useState(1)
@@ -24,6 +26,7 @@ export default function DocumentsPage() {
   const { toast } = useToast()
 
   const fetchDocuments = async () => {
+    try {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -66,15 +69,27 @@ export default function DocumentsPage() {
       query = query.ilike('title', `%${searchTerm}%`)
     }
 
+    if (startDate) {
+      query = query.gte('created_at', `${startDate}T00:00:00.000Z`)
+    }
+    if (endDate) {
+      query = query.lte('created_at', `${endDate}T23:59:59.999Z`)
+    }
+
     const { data, count } = await query
     if (data) setReports(data)
     if (count !== null) setTotalCount(count)
-    setLoading(false)
+    } catch (e) {
+      console.error('Erro ao buscar documentos:', e)
+      toast({ variant: 'destructive', title: 'Erro de conexão', description: 'Não foi possível buscar os documentos. Verifique sua internet.' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     fetchDocuments()
-  }, [searchTerm, currentPage, itemsPerPage])
+  }, [searchTerm, startDate, endDate, currentPage, itemsPerPage])
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage)
@@ -83,6 +98,7 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     const fetchProfile = async () => {
+      try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
@@ -94,6 +110,9 @@ export default function DocumentsPage() {
         .single()
         
       if (data) setProfessionalData(data)
+      } catch (e) {
+        console.warn('Erro ao buscar perfil:', e)
+      }
     }
     fetchProfile()
   }, [])
@@ -101,6 +120,7 @@ export default function DocumentsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza que deseja excluir este documento? Esta ação é irreversível.")) return
 
+    try {
     const { error } = await supabase
       .from('official_reports')
       .delete()
@@ -111,6 +131,9 @@ export default function DocumentsPage() {
     } else {
       toast({ title: "Documento excluído com sucesso" })
       setReports(prev => prev.filter(doc => doc.id !== id))
+    }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro de conexão", description: e.message })
     }
   }
 
@@ -228,16 +251,26 @@ export default function DocumentsPage() {
       </div>
 
       <Card className="border border-slate-200 shadow-md bg-white">
-        <CardHeader className="bg-slate-50 border-b border-slate-200">
-          <CardTitle className="text-lg">Filtros de Busca</CardTitle>
-          <div className="relative max-w-md mt-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input 
-              placeholder="Buscar por título do documento..." 
-              className="pl-10 bg-white border-slate-300"
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            />
+        <CardHeader className="bg-slate-50 border-b border-slate-200 py-4">
+          <CardTitle className="text-lg mb-2">Filtros de Busca</CardTitle>
+          <div className="flex flex-col md:flex-row items-center gap-4 w-full">
+            {/* FILTRO DE DATA PADRONIZADO */}
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 gap-2 shadow-sm w-full md:w-auto">
+              <Input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent px-1" />
+              <span className="text-slate-300">|</span>
+              <Input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent px-1" />
+            </div>
+
+            {/* BARRA DE PESQUISA ALINHADA */}
+            <div className="w-full md:flex-1 relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input 
+                placeholder="Buscar documento ou paciente..." 
+                className="pl-9 w-full bg-white border-slate-300 rounded-xl h-9"
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-6">
@@ -254,7 +287,7 @@ export default function DocumentsPage() {
           ) : (
             <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {reports.slice(0, itemsPerPage).map(report => (
+              {reports.map(report => (
                 <div key={report.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:shadow-md transition-all bg-white group gap-4 w-full overflow-hidden">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="h-10 w-10 bg-teal-50 rounded-lg flex items-center justify-center text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-colors shrink-0">
@@ -289,7 +322,7 @@ export default function DocumentsPage() {
               ))}
             </div>
 
-            {/* Interface de Navegação (Paginação) */}
+            {/* CONTROLES DE PAGINAÇÃO CENTRALIZADOS */}
             {totalCount > itemsPerPage && (
               <div className="flex items-center justify-center gap-4 mt-8 pt-6 border-t border-slate-100">
                 <Button

@@ -12,7 +12,7 @@ import ptBrLocale from '@fullcalendar/core/locales/pt-br'
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Calendar as CalendarIcon, Video, MapPin, Repeat, Trash2, XCircle, ChevronLeft, ChevronRight, Edit3, Save } from "lucide-react" 
 import { useToast } from "@/hooks/use-toast"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -58,16 +58,26 @@ function AgendaContent() {
   const fetchInitialData = async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user || !user.email) {
+      setLoading(false)
+      return
+    }
 
     // Lógica de Identificação de Papel (Admin / Assistente / Profissional)
     let targetUserId = user.id
-    const email = user.email || ''
+    const email = user.email
     const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email)
     let isAssistant = false
 
-    if (!isSuperAdmin) {
-       const { data: teamMember } = await supabase.from('clinic_team').select('psychologist_id').eq('email', email).eq('status', 'active').maybeSingle()
+    // Só busca na clinic_team se NÃO for super admin e o e-mail existir
+    if (!isSuperAdmin && email) {
+       const { data: teamMember } = await supabase
+         .from('clinic_team')
+         .select('psychologist_id')
+         .eq('email', email)
+         .eq('status', 'active')
+         .maybeSingle()
+       
        if (teamMember) {
          targetUserId = teamMember.psychologist_id
          isAssistant = true
@@ -222,20 +232,27 @@ function AgendaContent() {
 
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({ variant: "destructive", title: "Erro de autenticação", description: "Sessão não encontrada." });
+    if (!user || !user.email) {
+      toast({ variant: "destructive", title: "Erro de autenticação", description: "Sessão não encontrada ou e-mail indisponível." });
       setLoading(false);
       return;
     }
     
     // Lógica de Identificação para Agendamento
     let targetUserId = user.id
-    const email = user.email || ''
+    const email = user.email
     const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email)
     let isAssistant = false
 
-    if (!isSuperAdmin) {
-       const { data: teamMember } = await supabase.from('clinic_team').select('psychologist_id').eq('email', email).eq('status', 'active').maybeSingle()
+    // Só busca na clinic_team se NÃO for super admin e o e-mail existir
+    if (!isSuperAdmin && email) {
+       const { data: teamMember } = await supabase
+         .from('clinic_team')
+         .select('psychologist_id')
+         .eq('email', email)
+         .eq('status', 'active')
+         .maybeSingle()
+       
        if (teamMember) {
          targetUserId = teamMember.psychologist_id
          isAssistant = true
@@ -374,6 +391,7 @@ function AgendaContent() {
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto bg-white !opacity-100 border border-slate-200 shadow-2xl z-[100]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black text-slate-800">Agendar Consulta</DialogTitle>
+            <DialogDescription className="sr-only">Formulário para agendamento de novas sessões clínicas.</DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 pt-4">
@@ -382,7 +400,7 @@ function AgendaContent() {
               <select 
                 value={formData.patient_id} 
                 onChange={(e) => setFormData({...formData, patient_id: e.target.value})}
-                className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
               >
                 <option value="" disabled>Selecione o paciente</option>
                 {patients.map(p => (
@@ -398,7 +416,7 @@ function AgendaContent() {
                   type="date" 
                   value={formData.date} 
                   onChange={e => setFormData({...formData, date: e.target.value})} 
-                  className="bg-white border-slate-300 focus:ring-2 focus:ring-teal-500/20 h-11" 
+                  className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm appearance-none" 
                 />
               </div>
               <div className="space-y-2">
@@ -407,7 +425,7 @@ function AgendaContent() {
                   type="time" 
                   value={formData.time} 
                   onChange={e => setFormData({...formData, time: e.target.value})} 
-                  className="bg-white border-slate-300 focus:ring-2 focus:ring-teal-500/20 h-11" 
+                  className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm" 
                 />
               </div>
             </div>
@@ -418,7 +436,7 @@ function AgendaContent() {
                 <select 
                   value={formData.recurrence} 
                   onChange={(e) => setFormData({...formData, recurrence: e.target.value})}
-                  className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
                 >
                   <option value="Nenhuma">Não repetir (Sessão única)</option>
                   <option value="Semanal">Semanal</option>
@@ -449,7 +467,7 @@ function AgendaContent() {
                 <select 
                   value={formData.type} 
                   onChange={(e) => setFormData({...formData, type: e.target.value})}
-                  className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
                 >
                   <option value="Individual">Individual</option>
                   <option value="Casal">Casal</option>
@@ -459,7 +477,7 @@ function AgendaContent() {
                 <select 
                   value={formData.duration} 
                   onChange={(e) => setFormData({...formData, duration: e.target.value})}
-                  className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
                 >
                   <option value="50">50 min</option>
                   <option value="90">90 min</option>
@@ -473,12 +491,12 @@ function AgendaContent() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Valor (R$)</Label><Input value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="bg-white border-slate-200 focus:bg-white focus:ring-2 focus:ring-teal-500/20 shadow-sm" /></div>
+              <div className="space-y-2"><Label>Valor (R$)</Label><Input value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm" /></div>
               <div className="space-y-2"><Label>Pagamento</Label>
                 <select 
                   value={formData.payment_status} 
                   onChange={(e) => setFormData({...formData, payment_status: e.target.value})}
-                  className="flex h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
                 >
                   <option value="Pendente">Pendente</option>
                   <option value="Pago">Pago</option>
@@ -564,6 +582,7 @@ function AgendaContent() {
         <DialogContent className="max-w-sm bg-slate-50 rounded-[32px]">
           <DialogHeader>
             <DialogTitle>Gerenciar Agendamento</DialogTitle>
+            <DialogDescription className="sr-only">Opções para editar ou excluir uma sessão existente.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             {isEditing ? (
@@ -571,11 +590,11 @@ function AgendaContent() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label>Data</Label>
-                    <Input type="date" value={editFormData.date} onChange={e => setEditFormData({...editFormData, date: e.target.value})} className="bg-white" />
+                    <Input type="date" value={editFormData.date} onChange={e => setEditFormData({...editFormData, date: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl shadow-sm appearance-none" />
                   </div>
                   <div className="space-y-1">
                     <Label>Hora</Label>
-                    <Input type="time" value={editFormData.time} onChange={e => setEditFormData({...editFormData, time: e.target.value})} className="bg-white" />
+                    <Input type="time" value={editFormData.time} onChange={e => setEditFormData({...editFormData, time: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl shadow-sm" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -584,7 +603,7 @@ function AgendaContent() {
                       <select 
                         value={editFormData.modality} 
                         onChange={(e) => setEditFormData({...editFormData, modality: e.target.value})}
-                        className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm"
                       >
                         <option value="Presencial">Presencial</option>
                         <option value="Online">Online</option>
@@ -592,7 +611,7 @@ function AgendaContent() {
                    </div>
                    <div className="space-y-1">
                       <Label>Valor (R$)</Label>
-                      <Input value={editFormData.price} onChange={e => setEditFormData({...editFormData, price: e.target.value})} className="bg-white" />
+                      <Input value={editFormData.price} onChange={e => setEditFormData({...editFormData, price: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl shadow-sm" />
                    </div>
                 </div>
                 <div className="flex gap-2 pt-2">

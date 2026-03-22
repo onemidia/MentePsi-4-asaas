@@ -51,6 +51,7 @@ export default function PatientsPage() {
   const { toast } = useToast()
 
   const fetchPatients = useCallback(async () => {
+      try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
 
@@ -68,7 +69,11 @@ export default function PatientsPage() {
       if (data) {
         setPatients(data)
       }
-      setLoading(false)
+      } catch (error) {
+        console.error("Erro na busca de pacientes:", error)
+      } finally {
+        setLoading(false)
+      }
   }, [])
 
   useEffect(() => {
@@ -92,24 +97,32 @@ export default function PatientsPage() {
   })
 
   const handleStatusChange = async (id: string, newStatus: string) => {
-    setPatients(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p))
-    const supabase = createClient()
-    const { error } = await supabase.from('patients').update({ status: newStatus }).eq('id', id)
-    if (error) {
-      toast({ variant: "destructive", title: "Erro ao atualizar", description: error.message })
-      fetchPatients()
+    try {
+      setPatients(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p))
+      const supabase = createClient()
+      const { error } = await supabase.from('patients').update({ status: newStatus }).eq('id', id)
+      if (error) {
+        toast({ variant: "destructive", title: "Erro ao atualizar", description: error.message })
+        fetchPatients()
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro de conexão", description: e.message })
     }
   }
 
   const handleDeletePatient = async () => {
     if (!patientToDelete) return
-    const supabase = createClient()
-    const { error } = await supabase.from('patients').delete().eq('id', patientToDelete)
-    if (error) {
-      toast({ variant: "destructive", title: "Erro ao excluir", description: error.message })
-    } else {
-      toast({ title: "Paciente excluído" })
-      setPatients(prev => prev.filter(p => p.id !== patientToDelete))
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('patients').delete().eq('id', patientToDelete)
+      if (error) {
+        toast({ variant: "destructive", title: "Erro ao excluir", description: error.message })
+      } else {
+        toast({ title: "Paciente excluído" })
+        setPatients(prev => prev.filter(p => p.id !== patientToDelete))
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro de conexão", description: e.message })
     }
     setPatientToDelete(null)
   }
@@ -139,22 +152,18 @@ export default function PatientsPage() {
           <div className="flex flex-col gap-4">
             <CardTitle>Listagem</CardTitle>
             
-            <div className="flex flex-col md:flex-row items-end gap-4 w-full">
-              <div className="w-full md:w-auto space-y-1">
-                <Label className="text-xs font-bold text-slate-500">Início</Label>
-                <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-white border-slate-300 w-full md:w-[150px]" />
-              </div>
-
-              <div className="w-full md:w-auto space-y-1">
-                <Label className="text-xs font-bold text-slate-500">Fim</Label>
-                <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-white border-slate-300 w-full md:w-[150px]" />
+            <div className="flex flex-col md:flex-row items-center gap-4 w-full">
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 gap-2 shadow-sm w-full md:w-auto">
+                <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent px-1" />
+                <span className="text-slate-300">|</span>
+                <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent px-1" />
               </div>
 
               <div className="w-full md:flex-1 relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input 
                   placeholder="Buscar por nome..." 
-                  className="pl-9 w-full bg-white border-slate-300"
+                  className="pl-9 w-full bg-white border-slate-300 rounded-xl h-9"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -263,6 +272,7 @@ export default function PatientsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Excluir Paciente?</DialogTitle>
+            <DialogDescription className="sr-only">Confirme para apagar o registro do paciente.</DialogDescription>
             <DialogDescription>Tem certeza que deseja excluir este paciente? Esta ação não pode ser desfeita.</DialogDescription>
           </DialogHeader>
           <DialogFooter>

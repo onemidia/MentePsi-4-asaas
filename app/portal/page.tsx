@@ -118,19 +118,19 @@ export default function PortalManagementPage() {
         <CardHeader className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
           <CardTitle className="text-lg text-slate-700">Controle de Acessos</CardTitle>
           
-          <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-            <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border px-3 w-full sm:w-auto">
-              <Label className="text-[10px] font-black text-slate-400 uppercase">Cadastro:</Label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-xs font-bold focus:ring-0 h-8 w-24" />
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 gap-2 shadow-sm w-full sm:w-auto">
+              <Label className="text-[10px] font-black text-slate-400 uppercase hidden sm:block">Cadastro:</Label>
+              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent px-1" />
               <span className="text-slate-300">|</span>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-xs font-bold focus:ring-0 h-8 w-24" />
+              <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent px-1" />
             </div>
 
             <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input 
                 placeholder="Buscar paciente..." 
-                className="pl-9 bg-white border border-slate-300 w-full" 
+                className="pl-9 bg-white border border-slate-300 rounded-xl h-9 w-full" 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
               />

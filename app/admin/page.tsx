@@ -385,6 +385,10 @@ export default function AdminDashboard() {
       {/* FICHA DO USUÁRIO (SHEET) - Código original preservado aqui dentro */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
         <SheetContent className="overflow-y-auto sm:max-w-md">
+           <SheetHeader className="sr-only">
+             <SheetTitle>Ficha do Usuário</SheetTitle>
+             <SheetDescription>Detalhes do perfil e da assinatura do usuário selecionado.</SheetDescription>
+           </SheetHeader>
            {/* ... conteúdo da ficha que já tínhamos ... */}
            {selectedUser && (
              <div className="py-6 space-y-6">

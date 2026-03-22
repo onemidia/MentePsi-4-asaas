@@ -558,38 +558,48 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
 
   const updateAppointmentStatus = async (appointmentId: string, newStatus: string) => {
     setSaving(true);
-    
-    const { error: updateError } = await supabase
-      .from('appointments')
-      .update({ status: newStatus })
-      .eq('id', appointmentId);
-
-    if (updateError) {
-      toast({ variant: "destructive", title: "Erro ao atualizar status" });
-    } else {
-      toast({ title: "Status Atualizado com Sucesso!" });
-      await loadAllData(); // Recarrega os cards e a lista instantaneamente na tela
+    try {
+      const { error: updateError } = await supabase
+        .from('appointments')
+        .update({ status: newStatus })
+        .eq('id', appointmentId);
+  
+      if (updateError) {
+        toast({ variant: "destructive", title: "Erro ao atualizar status", description: updateError.message });
+      } else {
+        toast({ title: "Status Atualizado com Sucesso!" });
+        await loadAllData();
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Falha na comunicação", description: e.message });
+    } finally {
+      setSaving(false);
     }
-    
-    setSaving(false);
   }
 
   const handleSaveEvolution = async () => {
     if (!newEvolution.trim()) return
     setSaving(true)
-    const { error } = await supabase.from('clinical_evolutions').insert({
-      patient_id: id,
-      psychologist_id: paciente.psychologist_id,
-      content: newEvolution
-    })
-    if (!error) {
-      toast({ title: "Evolução salva!" })
-      setNewEvolution("")
-      setEvolutionPage(0)
-      setHasMoreEvolutions(true)
-      await fetchEvolutions(0, evolutionYearFilter, false) // 🔥 Atualização instantânea da lista otimizada
+    try {
+      const { error } = await supabase.from('clinical_evolutions').insert({
+        patient_id: id,
+        psychologist_id: paciente.psychologist_id,
+        content: newEvolution
+      })
+      if (error) throw error;
+      
+      if (!error) {
+        toast({ title: "Evolução salva!" })
+        setNewEvolution("")
+        setEvolutionPage(0)
+        setHasMoreEvolutions(true)
+        await fetchEvolutions(0, evolutionYearFilter, false)
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro de conexão", description: e.message })
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   const handleSaveMeta = async () => {
@@ -1042,7 +1052,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 </select>
               </div>
             </CardHeader>
-            <CardContent className="divide-y divide-slate-200 p-0">
+            <CardContent className="divide-y divide-slate-200 p-0 overflow-x-auto w-full">
               {currentSessions.length > 0 ? currentSessions.map(apt => {
                 const now = new Date(); const aptTime = new Date(apt.start_time);
                 const isPastTolerance = now.getTime() > (aptTime.getTime() + 90 * 60 * 1000);
@@ -1050,7 +1060,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 const isPaid = Math.round(Number(apt.amount_paid || 0) * 100) >= Math.round(Number(apt.price || 0) * 100);
                 const remaining = Math.max(0, Number(apt.price || 0) - Number(apt.amount_paid || 0));
                 return (
-                  <div key={apt.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-all border-b last:border-0">
+                  <div key={apt.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-slate-50 transition-all border-b last:border-0">
                     <div className="flex items-center gap-4">
                       <div className="flex flex-col items-center bg-white px-3 py-1 rounded-xl border min-w-[65px] shadow-sm text-center">
                         <span className="text-[10px] font-black text-teal-600 uppercase">{aptTime.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
@@ -1058,7 +1068,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                       </div>
                       <div>
                         <p className="font-bold text-slate-900 text-sm">{apt.modality || 'Individual'}</p>
-                        <div className="flex gap-2 items-center mt-1">
+                        <div className="flex flex-wrap gap-2 items-center mt-1">
                           <Badge className={`text-[9px] uppercase font-bold rounded-full border-none shadow-none hover:bg-opacity-100 ${
                             displayStatus === 'Realizada' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 
                             displayStatus === 'Cancelado' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 
@@ -1075,7 +1085,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                         </div>
                       </div>
                     </div>
-                    <select value={displayStatus || ''} onChange={(e) => updateAppointmentStatus(apt.id, e.target.value)} className={`w-[140px] h-8 text-[10px] font-bold rounded-lg border-none focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer ${displayStatus === 'Realizada' ? 'text-emerald-600 bg-emerald-50' : displayStatus === 'Cancelado' ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'}`}>
+                    <select value={displayStatus || ''} onChange={(e) => updateAppointmentStatus(apt.id, e.target.value)} className={`w-full sm:w-[140px] h-8 text-[10px] font-bold rounded-lg border-none focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer ${displayStatus === 'Realizada' ? 'text-emerald-600 bg-emerald-50' : displayStatus === 'Cancelado' ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'}`}>
                       <option value="Agendado">Agendado</option>
                       <option value="Realizada">Realizada</option>
                       <option value="Cancelado">Cancelado</option>
