@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import Image from 'next/image'
-import { Plus, Loader2, Sparkles, FileText, Lock } from "lucide-react"
+import { Plus, Loader2, Sparkles, FileText, Lock, Mic, History } from "lucide-react"
 import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
 import { useSubscription } from '@/hooks/use-subscription'
@@ -62,6 +62,11 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
   const [professional, setProfessional] = useState<any>(null)
   const [headerTitle, setHeaderTitle] = useState("")
   const [aiInstruction, setAiInstruction] = useState(""); // Novo estado para o chat
+  
+  const [isRecording, setIsRecording] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const initialContentRef = useRef<string>("")
+  const finalTranscriptRef = useRef<string>("")
   
   const [formData, setFormData] = useState({
     patient_id: preSelectedPatientId || '',
@@ -247,6 +252,188 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
     }
   };
 
+  const handleGenerateFromEvolutions = async () => {
+    if (!formData.patient_id) {
+      toast({ variant: "destructive", title: "Selecione o paciente", description: "É necessário selecionar um paciente para buscar as evoluções." });
+      return;
+    }
+
+    setGenerating(true);
+    const supabase = createClient();
+    
+    try {
+      // 1. VERIFICA COTA
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: hasQuota } = await supabase.rpc('check_and_increment_ai_usage', {
+        prof_id: user?.id
+      });
+
+      if (hasQuota === false) {
+        toast({ variant: "destructive", title: "Limite Atingido", description: "Você atingiu o limite de 30 documentos mensais." });
+        setGenerating(false);
+        return;
+      }
+
+      const selectedPatient = patients.find(p => p.id === formData.patient_id);
+      
+      // 2. BUSCA AS ÚLTIMAS 8 EVOLUÇÕES
+      const { data: evolutionsData, error: evolError } = await supabase
+        .from('clinical_evolutions')
+        .select('content, created_at')
+        .eq('patient_id', formData.patient_id)
+        .order('created_at', { ascending: false })
+        .limit(8);
+
+      if (evolError) throw evolError;
+
+      if (!evolutionsData || evolutionsData.length === 0) {
+        toast({ variant: "destructive", title: "Sem Evoluções", description: "Este paciente não possui evoluções registradas para gerar o documento." });
+        setGenerating(false);
+        return;
+      }
+
+      // 3. ENVIA PARA A MISTRAL COM O PROMPT ESPECÍFICO
+      const res = await fetch('/api/ai/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: "Laudo de Evolução Psicológica",
+          dadosPaciente: `Nome: ${selectedPatient?.full_name}, CPF: ${selectedPatient?.cpf}`,
+          evolucoes: evolutionsData.map(e => ({
+            content: e.content,
+            date: new Date(e.created_at).toLocaleDateString('pt-BR')
+          })),
+          instrucaoEspecial: `Com base nestas evoluções clínicas do último mês, gere um Laudo de Evolução Psicológica estruturado e timbrado para este paciente.` + (aiInstruction ? ` Observação do psicólogo: ${aiInstruction}` : "")
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.content) {
+        setFormData(prev => ({ 
+          ...prev, 
+          type: "Relatórios Psicológicos", // Altera automaticamente o tipo para encaixar na natureza do documento
+          title: formData.title || `Laudo de Evolução - ${selectedPatient?.full_name}`,
+          content: data.content 
+        }));
+        setAiInstruction(""); 
+        toast({ title: "✨ Laudo Gerado!", description: "O documento foi criado a partir do histórico clínico." });
+      } else {
+        throw new Error(data.error || "A IA não retornou conteúdo.");
+      }
+    } catch (error: any) {
+      console.error("Erro na geração por evoluções:", error);
+      toast({ variant: "destructive", title: "Erro na IA", description: error.message });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+      return
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      toast({ variant: "destructive", title: "Não suportado", description: "Seu navegador não suporta reconhecimento de voz." })
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'pt-BR'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    initialContentRef.current = formData.content
+    finalTranscriptRef.current = ""
+
+    recognition.onstart = () => {
+      setIsRecording(true)
+      toast({ title: "🎤 Ouvindo...", description: "Pode começar a falar. Clique novamente para parar." })
+    }
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = ''
+      let currentFinal = ''
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          currentFinal += event.results[i][0].transcript
+        } else {
+          interimTranscript += event.results[i][0].transcript
+        }
+      }
+
+      finalTranscriptRef.current += currentFinal
+
+      const separator = initialContentRef.current && !initialContentRef.current.endsWith(' ') && !initialContentRef.current.endsWith('\n') ? ' ' : ''
+      const newContent = initialContentRef.current + separator + finalTranscriptRef.current + interimTranscript
+      setFormData(prev => ({ ...prev, content: newContent }))
+    }
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error)
+      setIsRecording(false)
+    }
+
+    recognition.onend = () => {
+      setIsRecording(false)
+      if (finalTranscriptRef.current.trim().length > 0) {
+        setTimeout(() => {
+          if (window.confirm("Deseja que a IA organize este relato tecnicamente?")) {
+             handleVoiceRefinement(finalTranscriptRef.current)
+          }
+        }, 100)
+      }
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const handleVoiceRefinement = async (textToRefine: string) => {
+    setGenerating(true);
+    
+    try {
+      const res = await fetch('/api/ai/generate-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: "Relato Clínico",
+          dadosPaciente: formData.title,
+          evolucoes: [], 
+          instrucaoEspecial: `Organize, formalize tecnicamente e corrija a gramática do seguinte relato transcrito por voz. Mantenha todos os detalhes clínicos importantes descritos.`,
+          contentToRefine: textToRefine
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.content) {
+        const separator = initialContentRef.current && !initialContentRef.current.endsWith(' ') && !initialContentRef.current.endsWith('\n') ? ' ' : ''
+        setFormData(prev => ({ 
+          ...prev, 
+          content: initialContentRef.current + separator + data.content 
+        }));
+        toast({ title: "✨ Relato Refinado!", description: "A IA organizou sua transcrição." });
+      } else {
+        throw new Error(data.error || "Erro ao refinar texto.");
+      }
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Erro no Refinamento", 
+        description: "Não foi possível organizar o relato com a IA." 
+      });
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   const handleSubmit = async () => {
     setLoading(true);
     try {
@@ -366,7 +553,28 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
           <div className="space-y-0">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
               <Label>Corpo do Documento</Label>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={toggleRecording} 
+                  className={`w-full sm:w-auto font-bold transition-all ${isRecording ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-white hover:bg-teal-50 text-teal-600 border-teal-200'}`}
+                >
+                  <Mic className="mr-2 h-3 w-3" />
+                  {isRecording ? "Gravando..." : "Ditar"}
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleGenerateFromEvolutions} 
+                  disabled={generating || !formData.patient_id}
+                  className="w-full sm:w-auto bg-white hover:bg-blue-50 text-blue-600 border-blue-200 font-bold transition-all"
+                >
+                  {generating ? <Loader2 className="animate-spin mr-2 h-3 w-3" /> : <History className="mr-2 h-3 w-3" />}
+                  Gerar a partir das Evoluções
+                </Button>
+
                 <Button 
                   variant="outline" 
                   size="sm" 

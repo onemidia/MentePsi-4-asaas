@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
@@ -10,7 +10,7 @@ import {
   DollarSign, CheckCircle, Clock, Calendar as CalendarIcon, XCircle,
   Activity, Frown, Meh, Smile, ThumbsDown, ThumbsUp, CreditCard,
   FileText, Smartphone, MessageSquarePlus, Printer, Upload, Download, CheckCircle2, PlayCircle, PauseCircle,
-  Video, Link as LinkIcon, ChevronLeft, ChevronRight
+  Video, Link as LinkIcon, ChevronLeft, ChevronRight, Mic, Sparkles
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 // Garante que o import está correto
 import PatientCreditLog from '@/components/PatientCreditLog'
+import { useSpeechToText } from '@/hooks/use-speech-to-text'
 
 export default function FichaClinicaDigital() {
   const { id } = useParams()
@@ -64,6 +65,10 @@ export default function FichaClinicaDigital() {
   const [hasMoreEvolutions, setHasMoreEvolutions] = useState(true)
   const [evolutionYearFilter, setEvolutionYearFilter] = useState<string>('')
   const [loadingMoreEvolutions, setLoadingMoreEvolutions] = useState(false)
+
+  const contentBeforeRecordingRef = useRef("")
+  const [isGeneratingEvolution, setIsGeneratingEvolution] = useState(false)
+  const { transcript, isListening, startListening, stopListening } = useSpeechToText()
 
   const [lgpdModalOpen, setLgpdModalOpen] = useState(false);
   const [lgpdContent, setLgpdContent] = useState("");
@@ -164,6 +169,55 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     therapy_goals: '', lead_source: '', lead_details: '', observations: '', previous_therapy: 'Não', previous_therapy_notes: '',
     referred_by: '', general_observations: '', meeting_link: ''
   })
+
+  // EFEITOS E FUNÇÕES DE VOZ / IA
+  useEffect(() => {
+    if (isListening || transcript) {
+      const separator = contentBeforeRecordingRef.current && !contentBeforeRecordingRef.current.endsWith(' ') && !contentBeforeRecordingRef.current.endsWith('\n') ? ' ' : ''
+      setNewEvolution(contentBeforeRecordingRef.current + separator + transcript)
+    }
+  }, [transcript, isListening])
+
+  const handleToggleRecording = () => {
+    if (isListening) {
+      stopListening()
+    } else {
+      contentBeforeRecordingRef.current = newEvolution
+      startListening()
+    }
+  }
+
+  const handleRefineEvolution = async () => {
+    if (!newEvolution || newEvolution.length < 10) {
+      toast({ variant: "destructive", title: "Texto muito curto", description: "O relato precisa ter algum conteúdo para ser refinado." })
+      return
+    }
+
+    setIsGeneratingEvolution(true)
+    try {
+      const res = await fetch('/api/generate-evolution', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notes: newEvolution,
+          patientName: paciente.full_name
+        })
+      })
+
+      const data = await res.json()
+      
+      if (data.text) {
+        setNewEvolution(data.text)
+        toast({ title: "✨ Relato Profissionalizado!", description: "A IA organizou sua evolução." })
+      } else {
+        throw new Error(data.error || "A IA não retornou conteúdo.")
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro no Refinamento", description: error.message || "Erro ao conectar com a IA." })
+    } finally {
+      setIsGeneratingEvolution(false)
+    }
+  }
 
   // NOVO: Função isolada para buscar evoluções (Paginação Otimizada)
   const fetchEvolutions = useCallback(async (pageIndex: number, year: string, isLoadMore = false) => {
@@ -1139,8 +1193,36 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                       <div><strong>S:</strong> Relatos</div><div><strong>O:</strong> Sinais</div><div><strong>A:</strong> Análise</div><div><strong>P:</strong> Plano</div>
                     </div>
                   </div>
-                  <Textarea placeholder="Descreva aqui o atendimento..." className="min-h-[200px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={newEvolution} onChange={e => setNewEvolution(e.target.value)} />
-                  <Button onClick={handleSaveEvolution} disabled={saving || !newEvolution.trim()} className="w-full h-9 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-teal-600 hover:bg-teal-700 text-white">
+                  <div className="relative">
+                    <Textarea 
+                      placeholder="Descreva aqui o atendimento..." 
+                      className="min-h-[200px] pb-16 text-sm text-slate-700 bg-white border-slate-300 rounded-xl resize-y" 
+                      value={newEvolution} 
+                      onChange={e => setNewEvolution(e.target.value)} 
+                    />
+                    <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleToggleRecording} 
+                        className={`font-bold transition-all shadow-sm ${isListening ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-white hover:bg-teal-50 text-teal-600 border-teal-200'}`}
+                      >
+                        <Mic className="mr-2 h-4 w-4" />
+                        {isListening ? "Gravando..." : "Ditar"}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleRefineEvolution} 
+                        disabled={isGeneratingEvolution || !newEvolution.trim()}
+                        className="bg-white hover:bg-amber-50 text-amber-600 border-amber-200 font-bold transition-all shadow-sm"
+                      >
+                        {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        ✨ Profissionalizar Relato
+                      </Button>
+                    </div>
+                  </div>
+                  <Button onClick={handleSaveEvolution} disabled={saving || !newEvolution.trim() || isGeneratingEvolution} className="w-full h-9 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-teal-600 hover:bg-teal-700 text-white">
                     {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />} Salvar Evolução Instantaneamente
                   </Button>
                 </CardContent>

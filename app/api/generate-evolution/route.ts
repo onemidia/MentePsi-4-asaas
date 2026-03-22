@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     const prompt = `
       Você é um assistente especializado em psicologia clínica.
-      Sua tarefa é transformar anotações de sessão em uma Evolução Clínica formal e técnica.
+      Transforme estas notas brutas de sessão em um parágrafo técnico de evolução clínica psicológica, mantendo a ética e o vocabulário profissional.
       
       Regras:
       1. Use terminologia técnica (ex: em vez de "ele está triste", use "apresenta humor hipotímico").
