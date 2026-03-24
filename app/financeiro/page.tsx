@@ -60,6 +60,8 @@ export default function FinanceiroPage() {
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set())
   const [deleteAlertOpen, setDeleteAlertOpen] = useState(false)
   const [professionalData, setProfessionalData] = useState<any>(null)
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [lastPaymentTime, setLastPaymentTime] = useState<number>(0)
 
   const supabase = createClient()
   const searchParams = useSearchParams()
@@ -223,243 +225,298 @@ export default function FinanceiroPage() {
 
   // 💉 POLÍTICA CONTÁBIL DE SUCESSO (Integer Math)
   const handleProcessTransaction = async (patientId: string, amount: number, appointmentId?: string) => {
+    const now = Date.now()
+    if (isProcessingPayment || (now - lastPaymentTime < 2000)) {
+      return
+    }
+
+    setIsProcessingPayment(true)
+    setLastPaymentTime(now)
     setRefreshing(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) return
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
 
-    // 1. Registra a entrada do dinheiro
-    const { error } = await supabase
-      .from('financial_transactions')
-      .insert([
-        {
-          psychologist_id: user.id,
-          patient_id: patientId,
-          appointment_id: appointmentId || null,
-          amount: amount,
-          type: 'income',
-          category: 'Sessão',
-          description: appointmentId ? 'Pagamento de Sessão (Baixa Manual)' : 'Recebimento de paciente (Lançamento Inteligente)',
-          status: 'CONCLUIDO'
-        }
-      ])
+      if (!user) return
 
-    if (error) {
-      console.warn("Aviso detalhado na transação:", error)
-      toast({
-        variant: "destructive",
-        title: "Erro no financeiro",
-        description: error.message
-      })
-    } else {
+      // 🛑 VERIFICAÇÃO DE ESTADO (Idempotência)
       if (appointmentId) {
-        // 2.A. PAGAMENTO DE SESSÃO ESPECÍFICA (Baixa Manual)
-        // 💰 LÓGICA DE PAGAMENTO PARCIAL:
-        // Buscamos o valor já pago para somar, em vez de substituir.
-        let currentPaid = 0
-        let price = 0
+        const { data: aptCheck } = await supabase.from('appointments').select('amount_paid, price, payment_status').eq('id', appointmentId).maybeSingle()
         
-        // Se temos o agendamento selecionado em memória, usamos ele. Senão, buscamos no banco.
-        if (selectedApt && selectedApt.id === appointmentId) {
-          currentPaid = Number(selectedApt.amount_paid || 0)
-          price = Number(selectedApt.price || 0)
-        } else {
-          const { data: apt } = await supabase.from('appointments').select('amount_paid, price').eq('id', appointmentId).single()
-          if (apt) { currentPaid = Number(apt.amount_paid || 0); price = Number(apt.price || 0) }
-        }
-
-        const newTotalPaid = currentPaid + amount
-        const isFullyPaid = Math.round(newTotalPaid * 100) >= Math.round(price * 100)
-
-        const { error: aptError } = await supabase
-          .from('appointments')
-          .update({ amount_paid: newTotalPaid, payment_status: isFullyPaid ? 'Pago' : 'Pendente' })
-          .eq('id', appointmentId)
-
-        if (aptError) {
-          console.warn("Aviso ao atualizar agendamento:", aptError)
-          toast({ variant: "destructive", title: "Erro", description: "Falha ao atualizar agendamento: " + aptError.message })
-          setRefreshing(false)
+        if (aptCheck && (aptCheck.payment_status === 'Pago' || aptCheck.payment_status === 'paid' || Math.round(Number(aptCheck.amount_paid) * 100) >= Math.round(Number(aptCheck.price) * 100))) {
+          toast({ variant: "destructive", title: "Atenção", description: "Este agendamento já foi baixado." })
+          setNewTransactionOpen(false)
+          setPaymentModalOpen(false)
+          setSelectedApt(null)
           return
-        }
-      } else {
-        // 2.B. AMORTIZAÇÃO AUTOMÁTICA (Lançamento Inteligente)
-        // Distribui o valor entre as sessões mais antigas (FIFO)
-        let remainingAmount = amount
-        
-        const { data: pendingApts } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('patient_id', patientId)
-          .not('payment_status', 'in', '("Pago","paid")')
-          .order('start_time', { ascending: true }) // Mais antigas primeiro
-
-        if (pendingApts) {
-          for (const apt of pendingApts) {
-            if (remainingAmount <= 0.01) break // Acabou o dinheiro
-
-            const price = Number(apt.price)
-            const paid = Number(apt.amount_paid || 0)
-            const debt = price - paid
-
-            if (debt > 0) {
-              const payNow = Math.min(remainingAmount, debt)
-              const newPaid = paid + payNow
-              const isFullyPaid = Math.round(newPaid * 100) >= Math.round(price * 100)
-
-              await supabase
-                .from('appointments')
-                .update({ 
-                  amount_paid: newPaid, 
-                  payment_status: isFullyPaid ? 'Pago' : 'Pendente' 
-                })
-                .eq('id', apt.id)
-
-              remainingAmount -= payNow
-            }
-          }
-        }
-
-        // Se sobrou dinheiro após pagar tudo, vai para o Crédito
-        if (remainingAmount > 0.01) {
-           const { data: pat } = await supabase.from('patients').select('credit_balance').eq('id', patientId).single()
-           const currentCredit = Number(pat?.credit_balance || 0)
-           
-           await supabase.from('patients').update({
-             credit_balance: currentCredit + remainingAmount
-           }).eq('id', patientId)
         }
       }
 
-      // 🧾 GERAÇÃO AUTOMÁTICA DE RECIBO E ARMAZENAMENTO
-      try {
-        // Busca dados necessários se não estiverem em memória
-        const patient = patientsList.find(p => p.id === patientId)
-        const profName = professionalData?.full_name || "Alvino Buriti"
-        const profCRP = professionalData?.crp || "CRP não informado"
-        
-        if (patient && user) {
-           // 1. Contador de Recibos
-           let receiptNumber = 1
-           let { data: counter } = await supabase.from('receipt_counters').select('current_count').eq('psychologist_id', user.id).single()
-           if (!counter) {
-             const { data: newCounter } = await supabase.from('receipt_counters').insert({ psychologist_id: user.id, current_count: 0 }).select().single()
-             counter = newCounter
-           }
-           receiptNumber = (counter?.current_count || 0) + 1
-           await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', user.id)
+      // 1. Registra a entrada do dinheiro
+      const { error } = await supabase
+        .from('financial_transactions')
+        .insert([
+          {
+            psychologist_id: user.id,
+            patient_id: patientId,
+            appointment_id: appointmentId || null,
+            amount: amount,
+            type: 'income',
+            category: 'Sessão',
+            description: appointmentId ? 'Pagamento de Sessão (Baixa Manual)' : 'Recebimento de paciente (Lançamento Inteligente)',
+            status: 'CONCLUIDO'
+          }
+        ])
 
-           // ⚡ PERFORMANCE: Importação dinâmica sob demanda
-           const { jsPDF } = (await import('jspdf')).default ? await import('jspdf') : { jsPDF: (await import('jspdf')).jsPDF };
+      if (error) {
+        console.warn("Aviso detalhado na transação:", error)
+        toast({
+          variant: "destructive",
+          title: "Erro no financeiro",
+          description: error.message
+        })
+      } else {
+        if (appointmentId) {
+          // 2.A. PAGAMENTO DE SESSÃO ESPECÍFICA (Baixa Manual)
+          // 💰 LÓGICA DE PAGAMENTO PARCIAL:
+          // Buscamos o valor já pago para somar, em vez de substituir.
+          let currentPaid = 0
+          let price = 0
+          
+          // Se temos o agendamento selecionado em memória, usamos ele. Senão, buscamos no banco.
+          if (selectedApt && selectedApt.id === appointmentId) {
+            currentPaid = Number(selectedApt.amount_paid || 0)
+            price = Number(selectedApt.price || 0)
+          } else {
+            const { data: apt } = await supabase.from('appointments').select('amount_paid, price').eq('id', appointmentId).single()
+            if (apt) { currentPaid = Number(apt.amount_paid || 0); price = Number(apt.price || 0) }
+          }
 
-           // 2. Gera o PDF em memória (Blob)
-           const doc = new jsPDF()
-           doc.setFontSize(16); doc.setTextColor(13, 148, 136);
-           doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
-           doc.setTextColor(0, 0, 0); doc.setFontSize(10);
-           doc.text(profName, 105, 30, { align: "center" }); doc.text(`CRP: ${profCRP}`, 105, 35, { align: "center" })
-           doc.setFontSize(12);
-           doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf || '...'}`, 14, 50)
-           doc.text(`a importância de ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
-           doc.text(`referente a serviços de psicologia.`, 14, 64)
-           doc.text(`${professionalData?.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, 120, { align: "center" })
-           doc.setFontSize(8); doc.setTextColor(150);
-           doc.text(`Documento emitido automaticamente por ${professionalData?.clinic_name || "Sistema de Gestão"}.`, 105, 140, { align: "center" })
+          const newTotalPaid = currentPaid + amount
+          const isFullyPaid = Math.round(newTotalPaid * 100) >= Math.round(price * 100)
 
-           const pdfBlob = doc.output('blob')
+          const { error: aptError } = await supabase
+            .from('appointments')
+            .update({ amount_paid: newTotalPaid, payment_status: isFullyPaid ? 'Pago' : 'Pendente' })
+            .eq('id', appointmentId)
 
-           // 3. Upload para o Storage
-           const fileName = `${patientId}/recibo_${receiptNumber}_${Date.now()}.pdf`
-           const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, pdfBlob)
-           
-           if (!uploadError) {
-             const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName)
+          if (aptError) {
+            console.warn("Aviso ao atualizar agendamento:", aptError)
+            toast({ variant: "destructive", title: "Erro", description: "Falha ao atualizar agendamento: " + aptError.message })
+            return
+          }
+        } else {
+          // 2.B. AMORTIZAÇÃO AUTOMÁTICA (Lançamento Inteligente)
+          // Distribui o valor entre as sessões mais antigas (FIFO)
+          let remainingAmount = amount
+          
+          const { data: pendingApts } = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('patient_id', patientId)
+            .not('payment_status', 'in', '("Pago","paid")')
+            .order('start_time', { ascending: true }) // Mais antigas primeiro
+
+          if (pendingApts) {
+            for (const apt of pendingApts) {
+              if (remainingAmount <= 0.01) break // Acabou o dinheiro
+
+              // 🛑 VERIFICAÇÃO EXTRA DE CONCORRÊNCIA DENTRO DO LOOP
+              const { data: freshApt } = await supabase.from('appointments').select('payment_status, amount_paid, price').eq('id', apt.id).maybeSingle()
+              
+              if (freshApt && (freshApt.payment_status === 'Pago' || freshApt.payment_status === 'paid' || Math.round(Number(freshApt.amount_paid || 0) * 100) >= Math.round(Number(freshApt.price) * 100))) {
+                continue // Pula este agendamento, pois já foi processado concorrentemente
+              }
+
+              const price = Number(freshApt?.price ?? apt.price)
+              const paid = Number(freshApt?.amount_paid ?? apt.amount_paid ?? 0)
+              const debt = price - paid
+
+              if (debt > 0) {
+                const payNow = Math.min(remainingAmount, debt)
+                const newPaid = paid + payNow
+                const isFullyPaid = Math.round(newPaid * 100) >= Math.round(price * 100)
+
+                await supabase
+                  .from('appointments')
+                  .update({ 
+                    amount_paid: newPaid, 
+                    payment_status: isFullyPaid ? 'Pago' : 'Pendente' 
+                  })
+                  .eq('id', apt.id)
+
+                remainingAmount -= payNow
+              }
+            }
+          }
+
+          // Se sobrou dinheiro após pagar tudo, vai para o Crédito
+          if (remainingAmount > 0.01) {
+             const { data: pat } = await supabase.from('patients').select('credit_balance').eq('id', patientId).single()
+             const currentCredit = Number(pat?.credit_balance || 0)
              
-             // 4. Salva referência na Ficha Clínica (Documentos)
-             await supabase.from('patient_documents').insert({
-               patient_id: patientId,
-               psychologist_id: user.id,
-               title: `Recibo Nº ${String(receiptNumber).padStart(3, '0')} - ${format(new Date(), 'dd/MM/yyyy')}`,
-               file_url: publicUrl,
-               status: 'Gerado'
-             })
-           }
+             await supabase.from('patients').update({
+               credit_balance: currentCredit + remainingAmount
+             }).eq('id', patientId)
+          }
         }
-      } catch (err) { console.warn("Aviso ao gerar recibo automático:", err) }
 
-      toast({ title: "Pagamento registrado com sucesso!" })
-      await refreshData()
+        // 🧾 GERAÇÃO AUTOMÁTICA DE RECIBO E ARMAZENAMENTO
+        try {
+          // Busca dados necessários se não estiverem em memória
+          const patient = patientsList.find(p => p.id === patientId)
+          const profName = professionalData?.full_name || "Alvino Buriti"
+          const profCRP = professionalData?.crp || "CRP não informado"
+          
+          if (patient && user) {
+             // 1. Contador de Recibos
+             let receiptNumber = 1
+             let { data: counter } = await supabase.from('receipt_counters').select('current_count').eq('psychologist_id', user.id).single()
+             if (!counter) {
+               const { data: newCounter } = await supabase.from('receipt_counters').insert({ psychologist_id: user.id, current_count: 0 }).select().single()
+               counter = newCounter
+             }
+             receiptNumber = (counter?.current_count || 0) + 1
+             await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', user.id)
+
+             // ⚡ PERFORMANCE: Importação dinâmica sob demanda
+             const { jsPDF } = (await import('jspdf')).default ? await import('jspdf') : { jsPDF: (await import('jspdf')).jsPDF };
+
+             // 2. Gera o PDF em memória (Blob)
+             const doc = new jsPDF()
+             doc.setFontSize(16); doc.setTextColor(13, 148, 136);
+             doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
+             doc.setTextColor(0, 0, 0); doc.setFontSize(10);
+             doc.text(profName, 105, 30, { align: "center" }); doc.text(`CRP: ${profCRP}`, 105, 35, { align: "center" })
+             doc.setFontSize(12);
+             doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf || '...'}`, 14, 50)
+             doc.text(`a importância de ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
+             doc.text(`referente a serviços de psicologia.`, 14, 64)
+             doc.text(`${professionalData?.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, 120, { align: "center" })
+             doc.setFontSize(8); doc.setTextColor(150);
+             doc.text(`Documento emitido automaticamente por ${professionalData?.clinic_name || "Sistema de Gestão"}.`, 105, 140, { align: "center" })
+
+             const pdfBlob = doc.output('blob')
+
+             // 3. Upload para o Storage
+             const fileName = `${patientId}/recibo_${receiptNumber}_${Date.now()}.pdf`
+             const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, pdfBlob)
+             
+             if (!uploadError) {
+               const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName)
+               
+               // 4. Salva referência na Ficha Clínica (Documentos)
+               await supabase.from('patient_documents').insert({
+                 patient_id: patientId,
+                 psychologist_id: user.id,
+                 title: `Recibo Nº ${String(receiptNumber).padStart(3, '0')} - ${format(new Date(), 'dd/MM/yyyy')}`,
+                 file_url: publicUrl,
+                 status: 'Gerado'
+               })
+             }
+          }
+        } catch (err) { console.warn("Aviso ao gerar recibo automático:", err) }
+
+        toast({ title: "Pagamento registrado com sucesso!" })
+        await refreshData()
+      }
+      
+      setNewTransactionOpen(false)
+      setPaymentModalOpen(false)
+      setPaymentAmount('')
+      setSelectedApt(null)
+    } catch (e: any) {
+      console.error("Erro inesperado:", e)
+      toast({ variant: "destructive", title: "Erro", description: "Ocorreu um erro inesperado." })
+    } finally {
+      setIsProcessingPayment(false)
+      setRefreshing(false)
     }
-    
-    setRefreshing(false)
-    setNewTransactionOpen(false)
-    setPaymentModalOpen(false)
-    setPaymentAmount('')
-    setSelectedApt(null)
   }
 
   // 💰 NOVA LÓGICA: Usar Saldo em Haver
   const handleUseCredit = async () => {
     if (!selectedApt) return
+    
+    const now = Date.now()
+    if (isProcessingPayment || (now - lastPaymentTime < 2000)) {
+      return
+    }
+
+    setIsProcessingPayment(true)
+    setLastPaymentTime(now)
     setRefreshing(true)
     
-    const amountToPay = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
-    const currentCredit = Number(selectedApt.patients?.credit_balance || 0)
+    try {
+      const amountToPay = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
+      const currentCredit = Number(selectedApt.patients?.credit_balance || 0)
 
-    if (amountToPay > currentCredit) {
-      toast({ variant: "destructive", title: "Saldo insuficiente", description: "O valor a baixar é maior que o crédito disponível." })
+      if (amountToPay > currentCredit) {
+        toast({ variant: "destructive", title: "Saldo insuficiente", description: "O valor a baixar é maior que o crédito disponível." })
+        return
+      }
+
+      // 🛑 VERIFICAÇÃO DE ESTADO (Idempotência)
+      const { data: aptCheck } = await supabase.from('appointments').select('amount_paid, price, payment_status').eq('id', selectedApt.id).maybeSingle()
+      
+      if (aptCheck && (aptCheck.payment_status === 'Pago' || aptCheck.payment_status === 'paid' || Math.round(Number(aptCheck.amount_paid) * 100) >= Math.round(Number(aptCheck.price) * 100))) {
+        toast({ variant: "destructive", title: "Atenção", description: "Este agendamento já foi baixado." })
+        setPaymentModalOpen(false)
+        setSelectedApt(null)
+        return
+      }
+
+      // 💰 LÓGICA DE PAGAMENTO PARCIAL (CRÉDITO):
+      const currentPaid = Number(selectedApt.amount_paid || 0)
+      const price = Number(selectedApt.price || 0)
+      const newTotalPaid = currentPaid + amountToPay
+      const isFullyPaid = Math.round(newTotalPaid * 100) >= Math.round(price * 100)
+
+      // 1. Atualiza o agendamento
+      const { error: aptError } = await supabase.from('appointments').update({
+        amount_paid: newTotalPaid,
+        payment_status: isFullyPaid ? 'Pago' : 'Pendente'
+      }).eq('id', selectedApt.id)
+
+      if (aptError) {
+        toast({ variant: "destructive", title: "Erro", description: aptError.message })
+        return
+      }
+
+      // 2. Subtrai do saldo do paciente
+      await supabase.from('patients').update({
+        credit_balance: currentCredit - amountToPay
+      }).eq('id', selectedApt.patient_id)
+
+      // 3. Gera log de uso (Não é receita, é uso de crédito)
+      const { error: txError } = await supabase.from('financial_transactions').insert([{
+        psychologist_id: selectedApt.psychologist_id,
+        patient_id: selectedApt.patient_id,
+        appointment_id: selectedApt.id,
+        amount: amountToPay,
+        type: 'income',
+        category: 'Sessão (Crédito)',
+        description: 'Abatimento manual via Saldo em Haver',
+        status: 'CONCLUIDO'
+      }])
+
+      if (txError) {
+        toast({ variant: "destructive", title: "Erro", description: txError.message })
+        return
+      }
+
+      toast({ title: "Saldo utilizado com sucesso!" })
+      setPaymentModalOpen(false)
+      setPaymentAmount('')
+      setSelectedApt(null)
+      await refreshData()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message })
+    } finally {
+      setIsProcessingPayment(false)
       setRefreshing(false)
-      return
     }
-
-    // 💰 LÓGICA DE PAGAMENTO PARCIAL (CRÉDITO):
-    const currentPaid = Number(selectedApt.amount_paid || 0)
-    const price = Number(selectedApt.price || 0)
-    const newTotalPaid = currentPaid + amountToPay
-    const isFullyPaid = Math.round(newTotalPaid * 100) >= Math.round(price * 100)
-
-    // 1. Atualiza o agendamento
-    const { error: aptError } = await supabase.from('appointments').update({
-      amount_paid: newTotalPaid,
-      payment_status: isFullyPaid ? 'Pago' : 'Pendente'
-    }).eq('id', selectedApt.id)
-
-    if (aptError) {
-      toast({ variant: "destructive", title: "Erro", description: aptError.message })
-      setRefreshing(false)
-      return
-    }
-
-    // 2. Subtrai do saldo do paciente
-    await supabase.from('patients').update({
-      credit_balance: currentCredit - amountToPay
-    }).eq('id', selectedApt.patient_id)
-
-    // 3. Gera log de uso (Não é receita, é uso de crédito)
-    const { error: txError } = await supabase.from('financial_transactions').insert([{
-      psychologist_id: selectedApt.psychologist_id,
-      patient_id: selectedApt.patient_id,
-      appointment_id: selectedApt.id,
-      amount: amountToPay,
-      type: 'income',
-      category: 'Sessão (Crédito)',
-      description: 'Abatimento manual via Saldo em Haver',
-      status: 'CONCLUIDO'
-    }])
-
-    if (txError) {
-      toast({ variant: "destructive", title: "Erro", description: txError.message })
-      setRefreshing(false)
-      return
-    }
-
-    toast({ title: "Saldo utilizado com sucesso!" })
-    setPaymentModalOpen(false)
-    setPaymentAmount('')
-    setSelectedApt(null)
-    await refreshData()
-    setRefreshing(false)
   }
 
   const handleGenerateReceipt = (apt: any) => {
@@ -520,6 +577,13 @@ export default function FinanceiroPage() {
 
   // ✅ APROVAÇÃO DE PAGAMENTO DO PORTAL
   const handleConfirmPendingTransaction = async (t: any) => {
+    const now = Date.now()
+    if (isProcessingPayment || (now - lastPaymentTime < 2000)) {
+      return
+    }
+
+    setIsProcessingPayment(true)
+    setLastPaymentTime(now)
     setRefreshing(true)
     const supabase = createClient()
 
@@ -546,8 +610,15 @@ export default function FinanceiroPage() {
         for (const apt of pendingApts) {
           if (remainingAmount <= 0.01) break
 
-          const price = Number(apt.price)
-          const paid = Number(apt.amount_paid || 0)
+          // 🛑 VERIFICAÇÃO EXTRA DE CONCORRÊNCIA DENTRO DO LOOP
+          const { data: freshApt } = await supabase.from('appointments').select('payment_status, amount_paid, price').eq('id', apt.id).maybeSingle()
+          
+          if (freshApt && (freshApt.payment_status === 'Pago' || freshApt.payment_status === 'paid' || Math.round(Number(freshApt.amount_paid || 0) * 100) >= Math.round(Number(freshApt.price) * 100))) {
+            continue
+          }
+
+          const price = Number(freshApt?.price ?? apt.price)
+          const paid = Number(freshApt?.amount_paid ?? apt.amount_paid ?? 0)
           const debt = price - paid
 
           if (debt > 0) {
@@ -573,7 +644,13 @@ export default function FinanceiroPage() {
 
       toast({ title: "Pagamento confirmado!", description: "Valores baixados e saldo atualizado." })
       await refreshData()
-    } catch (error: any) { toast({ variant: "destructive", title: "Erro", description: error.message }) } finally { setRefreshing(false) }
+    } catch (error: any) { 
+      toast({ variant: "destructive", title: "Erro", description: error.message }) 
+    } finally { 
+      setIsProcessingPayment(false)
+      setLastPaymentTime(0)
+      setRefreshing(false) 
+    }
   }
 
   const formatBRL = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -1016,21 +1093,25 @@ export default function FinanceiroPage() {
             {/* DECISÃO DE FONTE DE PAGAMENTO */}
             {(Number(selectedApt?.patients?.credit_balance) || 0) > 0 ? (
               <div className="grid gap-2 pt-2">
-                <Button variant="outline" className="w-full border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 font-bold text-xs h-10 rounded-xl" onClick={handleUseCredit}>
+                <Button disabled={isProcessingPayment || refreshing} variant="outline" className="w-full border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 font-bold text-xs h-10 rounded-xl" onClick={handleUseCredit}>
+                  {(isProcessingPayment || refreshing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   [USAR CRÉDITO] - Saldo: {formatBRL(Number(selectedApt?.patients?.credit_balance || 0))}
                 </Button>
-                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-10 text-xs rounded-xl" onClick={() => {
+                <Button disabled={isProcessingPayment || refreshing} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-10 text-xs rounded-xl" onClick={() => {
                    const amount = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
                    handleProcessTransaction(selectedApt.patient_id, amount, selectedApt.id)
                 }}>
+                  {(isProcessingPayment || refreshing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   [NOVO PAGAMENTO] - Entrada de Caixa
                 </Button>
               </div>
             ) : (
-              <Button className="w-full bg-teal-600 font-bold h-12 rounded-2xl" onClick={() => {
+              <Button disabled={isProcessingPayment || refreshing} className="w-full bg-teal-600 font-bold h-12 rounded-2xl" onClick={() => {
                  const amount = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
                  handleProcessTransaction(selectedApt.patient_id, amount, selectedApt.id)
-              }}>Confirmar Baixa</Button>
+              }}>
+                {(isProcessingPayment || refreshing) ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processando...</> : "Confirmar Baixa"}
+              </Button>
             )}
           </div>
         </DialogContent>
@@ -1051,7 +1132,9 @@ export default function FinanceiroPage() {
               </select>
             </div>
             <div className="space-y-2"><Label className="font-bold text-teal-600">Valor Recebido (R$)</Label><Input value={transactionValue} onChange={e => handleCurrencyInput(e.target.value, setTransactionValue)} className="text-2xl font-black h-14 rounded-xl border-slate-300" /></div>
-            <Button className="w-full bg-teal-600 hover:bg-teal-700 font-bold h-14 rounded-2xl" onClick={() => handleProcessTransaction(selectedPatient, parseFloat(transactionValue.replace(/\./g, '').replace(',', '.')))}>Abater Dívidas</Button>
+            <Button disabled={isProcessingPayment || refreshing} className="w-full bg-teal-600 hover:bg-teal-700 font-bold h-14 rounded-2xl" onClick={() => handleProcessTransaction(selectedPatient, parseFloat(transactionValue.replace(/\./g, '').replace(',', '.')))}>
+              {(isProcessingPayment || refreshing) ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processando...</> : "Abater Dívidas"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

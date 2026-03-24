@@ -25,7 +25,9 @@ import {
   ShieldCheck,
   LifeBuoy,
   Info,
-  X
+  X,
+  Video,
+  Send
 } from "lucide-react"
 import dynamic from 'next/dynamic'
 
@@ -230,6 +232,7 @@ export default function PsychologistDashboard() {
       const startOfMonthStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
       const endOfMonthStr = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
       const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+      const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString()
       
       try {
         const { data: { user } } = await supabase.auth.getUser()
@@ -269,7 +272,7 @@ export default function PsychologistDashboard() {
         supabase.from('financial_transactions').select('amount, patients!inner(id)').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startOfMonthStr).lte('created_at', endOfMonthStr),
         supabase.from('appointments').select('price, amount_paid, status, start_time').eq('psychologist_id', targetUserId).not('payment_status', 'in', '("Pago","paid")'),
         supabase.from('emotion_journal').select(`id, mood_level, notes, created_at, patients (id, full_name, phone)`).eq('psychologist_id', targetUserId).order('created_at', { ascending: false }).limit(5),
-        supabase.from('appointments').select(`*, patients (id, full_name, phone)`).eq('psychologist_id', targetUserId).gte('start_time', now.toISOString()).lte('start_time', in24h).order('start_time', { ascending: true }),
+        supabase.from('appointments').select(`*, patients (id, full_name, phone, meeting_link)`).eq('psychologist_id', targetUserId).gte('start_time', fourHoursAgo).lte('start_time', in24h).order('start_time', { ascending: true }),
         supabase.from('financial_transactions').select('amount, created_at, patients!inner(id)').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startChart),
         supabase.from('appointments').select('status, start_time, payment_status').eq('psychologist_id', targetUserId).gte('start_time', startChart),
         supabase.from('patients').select('full_name, birth_date, phone, status, credit_balance').eq('psychologist_id', targetUserId),
@@ -301,21 +304,31 @@ export default function PsychologistDashboard() {
         id: item.id, patientId: item.patients?.id, name: item.patients?.full_name, mood: Number(item.mood_level), note: item.notes, time: new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), whatsapp: item.patients?.phone
       })) || [])
 
-      setAgenda(agendaRes.data?.map((item: any) => {
+      const rawAgenda = agendaRes.data || []
+      const validAgenda = rawAgenda.filter((item: any) => {
+        const aptTime = new Date(item.start_time)
+        const endTime = item.end_time ? new Date(item.end_time) : new Date(aptTime.getTime() + (item.duration || 50) * 60000)
+        return endTime > now
+      })
+
+      setAgenda(validAgenda.map((item: any) => {
         const dateObj = new Date(item.start_time)
         return {
           id: item.id,
           patientId: item.patients?.id,
           name: item.patients?.full_name,
           phone: item.patients?.phone,
+          meetingLink: item.patients?.meeting_link,
           time: dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
           formattedDate: dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), 
           startTime: item.start_time,
+          endTime: item.end_time,
+          duration: item.duration,
           type: item.modality || 'Sessão',
           status: item.status,
           reminderSent: item.reminder_sent
         }
-      }) || [])
+      }))
 
       const monthsData = []
       for (let i = 5; i >= 0; i--) {
@@ -492,22 +505,36 @@ export default function PsychologistDashboard() {
             </CardHeader>
             <CardContent className="space-y-4">
               {agenda.map((item) => {
-              const now = new Date()
-              const aptTime = new Date(item.startTime)
-              const isPast = now > aptTime
-              const displayStatus = (item.status === 'Agendado' && isPast) ? 'Realizada' : item.status;
+              const now = new Date();
+              const aptTime = new Date(item.startTime);
+              const endTime = item.endTime ? new Date(item.endTime) : new Date(aptTime.getTime() + (item.duration || 50) * 60000);
+              
+              let displayStatus = item.status;
+              if (item.status === 'Agendado') {
+                if (now >= endTime) {
+                  displayStatus = 'Realizada';
+                } else if (now >= aptTime) {
+                  displayStatus = 'Em Andamento';
+                }
+              }
 
               return (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div key={item.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 gap-3">
                   <div className="flex items-center gap-3">
                     <div className="flex flex-col items-center bg-white px-2 py-1 rounded border min-w-[50px]">
                       <span className="text-[10px] font-bold text-teal-600 leading-none mb-0.5">{item.formattedDate}</span>
                       <span className="text-xs font-bold text-slate-700 leading-none">{item.time}</span>
                     </div>
                     <div>
-                      <p className="font-medium text-sm text-slate-900">{item.name}</p>
-                      <Badge className={`text-[9px] h-4 px-2 rounded-full uppercase font-black shadow-none hover:bg-opacity-100 ${
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm text-slate-900">{item.name}</p>
+                        {item.type?.toLowerCase() === 'online' && (
+                          <Badge variant="outline" className="text-[9px] text-blue-600 border-blue-200 bg-blue-50 px-1.5 py-0 h-4 uppercase tracking-wider">Online</Badge>
+                        )}
+                      </div>
+                      <Badge className={`text-[9px] h-4 px-2 mt-1 rounded-full uppercase font-black shadow-none hover:bg-opacity-100 ${
                         displayStatus === 'Realizada' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 
+                        displayStatus === 'Em Andamento' ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 animate-pulse' :
                         displayStatus === 'Cancelado' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 
                         'bg-amber-100 text-amber-700 hover:bg-amber-100'
                       }`}>
@@ -515,14 +542,46 @@ export default function PsychologistDashboard() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap items-center gap-1 w-full sm:w-auto justify-end">
+                    {item.type?.toLowerCase() === 'online' && item.meetingLink && (
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 text-[10px] font-bold border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 px-2"
+                          onClick={() => window.open(item.meetingLink, '_blank')}
+                        >
+                          <Video className="h-3 w-3 mr-1" />
+                          Iniciar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 text-[10px] font-bold border-green-200 text-green-700 bg-green-50 hover:bg-green-100 px-2"
+                          onClick={() => {
+                            const fone = item.phone?.replace(/\D/g, '')
+                            if (!fone) return toast({ variant: "destructive", title: "Erro", description: "Paciente sem telefone." })
+                            const msg = `Olá, aqui está o link para nossa sessão de hoje: ${item.meetingLink}`
+                            window.open(`https://api.whatsapp.com/send?phone=55${fone}&text=${encodeURIComponent(msg)}`, '_blank')
+                          }}
+                        >
+                          <Send className="h-3 w-3 mr-1" />
+                          Link
+                        </Button>
+                      </>
+                    )}
                     <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      className={`h-8 w-8 ${item.reminderSent ? 'text-emerald-500' : 'text-slate-400'}`}
+                      size="sm" 
+                      variant="outline" 
+                      className={`h-8 text-[10px] font-bold px-2 ${
+                        item.reminderSent 
+                          ? 'border-emerald-300 text-emerald-800 bg-emerald-100 hover:bg-emerald-200' 
+                          : 'border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                      }`}
                       onClick={() => handleSendReminder(item)}
                     >
-                      <MessageCircle className="h-4 w-4" fill={item.reminderSent ? "currentColor" : "none"} />
+                      <MessageCircle className="h-3 w-3 mr-1" fill={item.reminderSent ? "currentColor" : "none"} />
+                      {item.reminderSent ? 'Avisado' : 'Lembrete'}
                     </Button>
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-teal-600" asChild>
                       <Link href={`/pacientes/${item.patientId}`}><Play className="h-4 w-4" /></Link>
