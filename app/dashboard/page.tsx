@@ -266,11 +266,11 @@ export default function PsychologistDashboard() {
       const [sessionsRes, crisisRes, paymentsRes, pendingRes, attentionRes, agendaRes, chartTransRes, chartAptsRes, patientsRes, pendingTransRes] = await Promise.all([
         supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('psychologist_id', targetUserId).gte('start_time', startOfDay).lte('start_time', endOfDay).neq('status', 'Cancelado'),
         supabase.from('emotion_journal').select('patient_id').eq('psychologist_id', targetUserId).lte('mood_level', 2).gte('created_at', yesterday),
-        supabase.from('financial_transactions').select('amount').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startOfMonthStr).lte('created_at', endOfMonthStr),
+        supabase.from('financial_transactions').select('amount, patients!inner(id)').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startOfMonthStr).lte('created_at', endOfMonthStr),
         supabase.from('appointments').select('price, amount_paid, status, start_time').eq('psychologist_id', targetUserId).not('payment_status', 'in', '("Pago","paid")'),
         supabase.from('emotion_journal').select(`id, mood_level, notes, created_at, patients (id, full_name, phone)`).eq('psychologist_id', targetUserId).order('created_at', { ascending: false }).limit(5),
         supabase.from('appointments').select(`*, patients (id, full_name, phone)`).eq('psychologist_id', targetUserId).gte('start_time', now.toISOString()).lte('start_time', in24h).order('start_time', { ascending: true }),
-        supabase.from('financial_transactions').select('amount, created_at').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startChart),
+        supabase.from('financial_transactions').select('amount, created_at, patients!inner(id)').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startChart),
         supabase.from('appointments').select('status, start_time, payment_status').eq('psychologist_id', targetUserId).gte('start_time', startChart),
         supabase.from('patients').select('full_name, birth_date, phone, status, credit_balance').eq('psychologist_id', targetUserId),
         supabase.from('financial_transactions').select('*, patients(full_name)').eq('psychologist_id', user?.id || targetUserId).eq('status', 'pending_review')
@@ -283,9 +283,8 @@ export default function PsychologistDashboard() {
         crisisAlerts: new Set(crisisRes.data?.map((d: any) => d.patient_id)).size,
         monthlyRevenue: paymentsRes.data?.reduce((acc: number, curr: any) => acc + (Number(curr.amount) || 0), 0) || 0,
         pendingRevenue: pendingRes.data?.reduce((acc: number, curr: any) => {
-          const isPast = new Date(curr.start_time) < new Date()
-          const effectiveStatus = (curr.status === 'Agendado' && isPast) ? 'Realizada' : curr.status
-          if (effectiveStatus === 'Realizada') {
+          const effectiveStatus = curr.status?.toLowerCase() || ''
+          if (['agendado', 'confirmado', 'pendente', 'realizada'].includes(effectiveStatus)) {
             return acc + ((Number(curr.price) || 0) - (Number(curr.amount_paid) || 0))
           }
           return acc
@@ -329,9 +328,8 @@ export default function PsychologistDashboard() {
         
         const revenue = monthTrans.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0)
         const realizadas = monthApts.filter((a: any) => {
-            const isPast = new Date(a.start_time) < new Date()
-            const isDone = a.status === 'Realizada' || (a.status === 'Agendado' && isPast)
-            return isDone && (a.payment_status === 'Pago' || a.payment_status === 'paid')
+            const status = a.status?.toLowerCase() || ''
+            return ['agendado', 'confirmado', 'pendente', 'realizada'].includes(status)
         }).length
         const agendadas = monthApts.length 
         const absenteismo = agendadas > 0 ? Math.round(((agendadas - realizadas) / agendadas) * 100) : 0

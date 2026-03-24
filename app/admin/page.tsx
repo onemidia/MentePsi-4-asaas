@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/client'
+import { createAdminClient } from '@/lib/client'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { 
   Users, 
@@ -49,7 +49,7 @@ export default function AdminDashboard() {
   const itemsPerPage = 10
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
-  const supabase = createClient()
+  const supabase = createAdminClient()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -58,52 +58,62 @@ export default function AdminDashboard() {
       try {
         setLoading(true)
         
-        // 1. Busca Perfis explicitando as colunas
-        const { data: profiles } = await supabase
+        // 1. Busca Perfis
+        const { data: profiles, error: pError } = await supabase
           .from('professional_profile')
           .select('user_id, full_name, email, created_at')
           .order('created_at', { ascending: false })
   
-        // 2. Busca Assinaturas
-        const { data: subs } = await supabase
+        if (pError) throw pError;
+
+        // 2. Busca Assinaturas com o nome do plano
+        const { data: subs, error: sError } = await supabase
           .from('subscriptions')
           .select('user_id, status, plan_id, current_period_end, grace_period_until, saas_plans(slug, price_monthly)')
 
-      if (profiles) {
-        const mergedData = profiles.map(profile => {
-          const userSub = subs?.find(s => s.user_id === profile.user_id)
-          const rawStatus = (userSub?.status || 'trialing').toLowerCase()
-          const periodEnd = userSub?.current_period_end ? new Date(userSub.current_period_end) : null
-          const graceEnd = userSub?.grace_period_until ? new Date(userSub.grace_period_until) : null
-          const now = new Date()
+        if (sError) throw sError;
 
-          let filterCategory = 'trialing'
-          if (rawStatus === 'active' || rawStatus === 'confirmed' || rawStatus === 'received') filterCategory = 'active'
-          else if (rawStatus === 'trialing') {
-            filterCategory = (periodEnd && periodEnd < now) ? 'past_due' : 'trialing'
-          }
-          else if (rawStatus === 'past_due' || rawStatus === 'overdue' || rawStatus === 'inadimplente') filterCategory = 'past_due'
-          else if (rawStatus === 'canceled' || rawStatus === 'vencido') filterCategory = 'canceled'
-          
-          return {
-            ...profile,
-            // Fallbacks de segurança para não sumir da tela
-            id: profile.user_id,
-            full_name: profile.full_name || 'Sem Nome',
-            email: profile.email || 'E-mail não sincronizado',
-            created_at: profile.created_at || new Date().toISOString(),
-            subscription_status: rawStatus, 
-            filter_status: filterCategory,
-            plan_type: userSub?.saas_plans?.slug || 'professional',
-            plan_price: userSub?.saas_plans?.price_monthly || 59.90,
-            grace_period_until: userSub?.grace_period_until,
-            current_period_end: userSub?.current_period_end
-          }
-        })
-        setAllProfiles(mergedData)
-      }
+        if (profiles) {
+          const mergedData = profiles.map(profile => {
+            // Encontra a assinatura vinculada ao user_id do perfil
+            const userSub = subs?.find(s => s.user_id === profile.user_id)
+            
+            // Se não encontrar assinatura, assume 'trialing' (Em Teste)
+            const rawStatus = (userSub?.status || 'trialing').toLowerCase()
+            const periodEnd = userSub?.current_period_end ? new Date(userSub.current_period_end) : null
+            const now = new Date()
+
+            let filterCategory = 'trialing'
+            if (['active', 'confirmed', 'received'].includes(rawStatus)) {
+              filterCategory = 'active'
+            } else if (rawStatus === 'trialing') {
+              filterCategory = (periodEnd && periodEnd < now) ? 'past_due' : 'trialing'
+            } else if (['past_due', 'overdue', 'inadimplente'].includes(rawStatus)) {
+              filterCategory = 'past_due'
+            } else if (['canceled', 'vencido'].includes(rawStatus)) {
+              filterCategory = 'canceled'
+            }
+            
+            return {
+              ...profile,
+              id: profile.user_id,
+              full_name: profile.full_name || 'Sem Nome',
+              email: profile.email || 'E-mail não sincronizado',
+              created_at: profile.created_at || new Date().toISOString(),
+              subscription_status: rawStatus, 
+              filter_status: filterCategory,
+              plan_type: userSub?.saas_plans?.slug || 'professional',
+              // Aqui garantimos que o preço venha do banco ou use o padrão para o MRR
+              plan_price: userSub?.saas_plans?.price_monthly || 59.90,
+              grace_period_until: userSub?.grace_period_until,
+              current_period_end: userSub?.current_period_end
+            }
+          })
+          setAllProfiles(mergedData)
+        }
       } catch (e) {
-        console.warn("Aviso ao carregar Admin Dashboard:", e)
+        console.error("Erro na auditoria do Admin Dashboard:", e)
+        toast({ variant: "destructive", title: "Erro ao carregar dados", description: "Verifique as permissões de RLS." })
       } finally {
         setLoading(false)
       }

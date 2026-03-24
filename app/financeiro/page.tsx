@@ -77,7 +77,7 @@ export default function FinanceiroPage() {
       if (apts) setAppointments(apts)
   
       // 2. Busca Transações Financeiras (para o cálculo real de caixa)
-      const { data: trans } = await supabase.from('financial_transactions').select('*').eq('psychologist_id', user.id).order('created_at', { ascending: false })
+      const { data: trans } = await supabase.from('financial_transactions').select('*, patients!inner(id)').eq('psychologist_id', user.id).order('created_at', { ascending: false })
       if (trans) {
         setTransactions(trans)
       }
@@ -173,9 +173,8 @@ export default function FinanceiroPage() {
     const tempoToleranciaMs = 90 * 60 * 1000
     const pendenteRealCents = appointmentsNoPeriodo
       .filter(a => {
-        const isPast = new Date(new Date(a.start_time).getTime() + tempoToleranciaMs) < new Date()
-        const effectiveStatus = (a.status === 'Agendado' && isPast) ? 'Realizada' : a.status
-        return effectiveStatus === 'Realizada' && a.payment_status !== 'Pago' && a.payment_status !== 'paid'
+        const effectiveStatus = a.status?.toLowerCase() || ''
+        return ['agendado', 'confirmado', 'pendente', 'realizada'].includes(effectiveStatus) && a.payment_status !== 'Pago' && a.payment_status !== 'paid'
       })
       .reduce((acc, a) => {
         const price = Math.round(Number(a.price) * 100)
@@ -184,7 +183,7 @@ export default function FinanceiroPage() {
       }, 0)
 
     let previsaoCents = appointmentsNoPeriodo
-      .filter(a => isAfter(new Date(a.start_time), hoje) && a.status === 'Agendado')
+      .filter(a => isAfter(new Date(a.start_time), hoje) && ['Agendado', 'Confirmado', 'Pendente'].includes(a.status))
       .reduce((acc, a) => acc + Math.round(Number(a.price) * 100), 0)
 
     const totalCreditCents = patientsList.reduce((acc, p) => acc + Math.round((Number(p.credit_balance) || 0) * 100), 0)
