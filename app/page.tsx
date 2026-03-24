@@ -40,11 +40,11 @@ export default function LandingPage() {
       <section className="pt-20 pb-12 lg:pt-32 lg:pb-16 bg-gradient-to-b from-slate-50 to-white">
         <div className="container mx-auto px-6 text-center">
           <h1 className="text-4xl lg:text-6xl font-extrabold text-slate-900 tracking-tight mb-6 max-w-4xl mx-auto">
-            Gestão Clínica Inteligente para <span className="text-teal-600">Psicólogos Modernos</span>
+            Gestão Clínica Inteligente para <span className="text-teal-600">Profissionais da Saúde e Terapeutas</span>
           </h1>
           <p className="text-lg text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed">
             Simplifique seus atendimentos, organize prontuários e automatize o financeiro. 
-            Tudo o que você precisa para focar no que realmente importa: seus pacientes.
+            Tudo o que você precisa para focar no que realmente importa: seus clientes e pacientes.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Button size="lg" asChild className="h-14 px-8 text-lg bg-teal-600 hover:bg-teal-700 text-white shadow-xl shadow-teal-200">
@@ -84,11 +84,11 @@ export default function LandingPage() {
             <FeatureCard 
               icon={<Calendar className="h-8 w-8 text-teal-600" />}
               title="Agenda Inteligente"
-              description="Controle sessões, envie lembretes automáticos via WhatsApp e evite faltas."
+              description="Controle sessões que se adaptam a diferentes tempos de atendimento, envie lembretes automáticos via WhatsApp e evite faltas."
             />
             <FeatureCard 
               icon={<ShieldCheck className="h-8 w-8 text-teal-600" />}
-              title="Prontuário Seguro"
+              title="Prontuário e Ficha Digital"
               description="Evoluções e documentos protegidos por criptografia de dados avançada."
             />
             <FeatureCard 
@@ -148,7 +148,7 @@ export default function LandingPage() {
               </h2>
               
               <p className="text-lg text-slate-600 font-serif leading-relaxed italic mb-8">
-                "Olá, eu sou a Aline Correa. Como psicóloga, sempre busquei uma forma de organizar meus prontuários e agenda sem perder a essência do acolhimento. O MentePsi nasceu dessa busca por um cuidado mais humano e organizado. Uma solução pensada por quem vivencia a psicologia todos os dias."
+                "Olá, eu sou a Aline Correa. Como psicóloga, sempre busquei uma forma de organizar meus prontuários e agenda sem perder a essência do acolhimento. O MentePsi nasceu dessa busca por um cuidado mais humano e organizado. Uma solução pensada por quem vivencia a clínica todos os dias."
               </p>
 
               <div className="flex items-center gap-4">
@@ -175,7 +175,7 @@ export default function LandingPage() {
                 <span className="font-bold text-white text-lg tracking-tight">MentePsi</span>
               </div>
               <p className="text-sm text-slate-400">
-                O braço direito do psicólogo clínico. Organização e cuidado em cada detalhe.
+                O braço direito do profissional de saúde e bem-estar. Organização e cuidado em cada detalhe.
               </p>
               <div className="flex items-center justify-center md:justify-start gap-2 pt-2">
                 <span className="inline-flex items-center px-3 py-1 rounded-full bg-slate-800 text-[10px] font-bold text-teal-400 border border-teal-900/50">
@@ -224,7 +224,7 @@ export default function LandingPage() {
           <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500 font-medium">
             <p>© {new Date().getFullYear()} MentePsi. Todos os direitos reservados.</p>
             <div className="flex gap-4">
-              <span>Feito por e para Psicólogos</span>
+              <span>Feito por e para quem cuida</span>
             </div>
           </div>
         </div>

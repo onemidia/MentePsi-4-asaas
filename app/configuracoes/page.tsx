@@ -47,6 +47,7 @@ type ProfileData = {
   rg: string;
   genero: string;
   estado_civil: string;
+  occupation_type: string;
 }
 
 type PaymentHistory = {
@@ -84,7 +85,8 @@ const initialProfileState: Partial<ProfileData> = {
   cpf: '',
   rg: '',
   genero: '',
-  estado_civil: ''
+  estado_civil: '',
+  occupation_type: 'psicologo'
 };
 
 export default function SettingsPage() {
@@ -124,7 +126,7 @@ export default function SettingsPage() {
             agency, bank_account, account_type, default_session_value, default_session_duration, 
             clinic_name, address, cep, city, state, work_hours_start, work_hours_end, 
             whatsapp_reminders_enabled, reminder_lead_time, reminder_template, 
-            birthday_message_template, cpf, rg, genero, estado_civil
+            birthday_message_template, cpf, rg, genero, estado_civil, occupation_type
           `)
           .eq('user_id', userId)
           .maybeSingle();
@@ -167,6 +169,7 @@ export default function SettingsPage() {
             logo_url: profData.logo_url || '',
             reminder_template: profData.reminder_template || initialProfileState.reminder_template,
             birthday_message_template: profData.birthday_message_template || initialProfileState.birthday_message_template,
+            occupation_type: profData.occupation_type || 'psicologo',
           }));
         }
       } catch (error) {
@@ -255,6 +258,7 @@ export default function SettingsPage() {
       default_session_duration: Number(profile.default_session_duration) || 0,
       logo_url: profile.logo_url || '',
       pix_key: profile.pix_key?.trim() || '',
+      occupation_type: profile.occupation_type || 'psicologo',
       updated_at: new Date().toISOString()
     };
 
@@ -329,6 +333,8 @@ export default function SettingsPage() {
 
   if (!isMounted) return null;
 
+  const registryLabel = profile.occupation_type === 'psiquiatra' ? 'CRM' : profile.occupation_type === 'nutricionista' ? 'CRN' : profile.occupation_type === 'fonoaudiologo' ? 'CRFa' : profile.occupation_type === 'fisioterapeuta' ? 'CREFITO' : profile.occupation_type === 'terapeuta_holistico' ? 'CRT' : profile.occupation_type === 'psicanalista' ? 'Registro Profissional (RNTP / RP)' : profile.occupation_type === 'psicopedagogo' ? 'Registro Profissional (ABPp / CBO)' : profile.occupation_type === 'outro' ? 'Registro Profissional' : 'CRP';
+
   return (
     <div className="container mx-auto p-6 space-y-8 bg-slate-100 min-h-[100dvh]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -382,14 +388,31 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="full_name">Nome Profissional</Label>
                   <Input id="full_name" value={profile.full_name || ''} onChange={handleInputChange} className="border-slate-300" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="crp">CRP</Label>
-                  <Input id="crp" value={profile.crp || ''} onChange={handleInputChange} className="border-slate-300" />
+                  <Label htmlFor="occupation_type">Profissão</Label>
+                  <Select value={profile.occupation_type || 'psicologo'} onValueChange={(value) => handleSelectChange('occupation_type', value)}>
+                    <SelectTrigger className="border-slate-300"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="psicologo">Psicólogo(a)</SelectItem>
+                      <SelectItem value="psiquiatra">Psiquiatra</SelectItem>
+                      <SelectItem value="psicanalista">Psicanalista</SelectItem>
+                      <SelectItem value="psicopedagogo">Psicopedagogo(a)</SelectItem>
+                      <SelectItem value="nutricionista">Nutricionista</SelectItem>
+                      <SelectItem value="fonoaudiologo">Fonoaudiólogo(a)</SelectItem>
+                      <SelectItem value="fisioterapeuta">Fisioterapeuta</SelectItem>
+                      <SelectItem value="terapeuta_holistico">Terapeuta Holístico(a)</SelectItem>
+                      <SelectItem value="outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="crp">{registryLabel}</Label>
+                  <Input id="crp" placeholder={`Digite seu ${registryLabel}...`} value={profile.crp || ''} onChange={handleInputChange} className="border-slate-300" />
                 </div>
               </div>
 

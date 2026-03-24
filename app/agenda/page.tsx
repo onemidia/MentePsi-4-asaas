@@ -84,10 +84,11 @@ function AgendaContent() {
        }
     }
 
-    const [aptRes, patRes, subRes] = await Promise.all([
+    const [aptRes, patRes, subRes, profRes] = await Promise.all([
       supabase.from('appointments').select('id, start_time, end_time, status, patient_id, modality, price, patients(full_name)').eq('psychologist_id', targetUserId),
       supabase.from('patients').select('id, full_name, session_value').eq('psychologist_id', targetUserId).order('full_name'),
-      supabase.from('subscriptions').select('status').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).single()
+      supabase.from('subscriptions').select('status').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).single(),
+      supabase.from('professional_profile').select('default_session_duration').eq('user_id', targetUserId).maybeSingle()
     ])
     
     if (aptRes.data) {
@@ -107,6 +108,10 @@ function AgendaContent() {
       })))
     }
     if (patRes.data) setPatients(patRes.data)
+
+    if (profRes.data?.default_session_duration) {
+      setFormData(prev => ({ ...prev, duration: String(profRes.data.default_session_duration) }))
+    }
     
     // Passe Livre para Admin e Assistente
     if (isSuperAdmin || isAssistant) {
@@ -297,7 +302,7 @@ function AgendaContent() {
       }
       
       const start = currentStart.toISOString()
-      const end = new Date(currentStart.getTime() + parseInt(formData.duration) * 60000).toISOString()
+      const end = new Date(currentStart.getTime() + (parseInt(formData.duration) || 50) * 60000).toISOString()
 
       appointmentsToInsert.push({
         psychologist_id: targetUserId,
@@ -473,15 +478,14 @@ function AgendaContent() {
                   <option value="Casal">Casal</option>
                 </select>
               </div>
-              <div className="space-y-2"><Label>Duração</Label>
-                <select 
+              <div className="space-y-2"><Label>Duração (minutos)</Label>
+                <Input 
+                  type="number"
+                  min="1"
                   value={formData.duration} 
                   onChange={(e) => setFormData({...formData, duration: e.target.value})}
-                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
-                >
-                  <option value="50">50 min</option>
-                  <option value="90">90 min</option>
-                </select>
+                  className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm"
+                />
               </div>
             </div>
             

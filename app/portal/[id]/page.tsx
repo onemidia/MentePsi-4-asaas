@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { createClient } from '@/lib/client'
+import { createClient } from '@supabase/supabase-js'
 import { canUseFeature } from '@/lib/planLimits'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,6 +22,12 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+})
 
 export default function PatientPortalPage() {
   const params = useParams()
@@ -68,49 +74,51 @@ export default function PatientPortalPage() {
   const fetchPortalData = useCallback(async (isRefresh = false) => {
     if (!id) return;
     if (isRefresh) setRefreshing(true); else setLoading(true);
-
-    const supabase = createClient()
     
     try {
       const { data: patient } = await supabase.from('patients').select('*').eq('id', id).single()
 
       if (patient) {
         const { data: profProfile } = await supabase.from('professional_profile').select('full_name, phone, clinic_name, logo_url, pix_key, bank, agency, bank_account').eq('user_id', patient.psychologist_id).maybeSingle()
-        const { data: subData } = await supabase.from('subscriptions').select('status, current_period_end').eq('user_id', patient.psychologist_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
 
         setPatientData({ ...patient, professional_profile: profProfile })
         setSessionAgenda(patient.next_session_agenda || "")
         
-        // BUSCA MULTIPLA: Procura tanto o assinado quanto o pendente
-        const [settingsRes, aptsRes, matsRes, signedDocRes, pendingDocRes, proofRes] = await Promise.all([
-          supabase.from('portal_settings').select('*').eq('patient_id', id).maybeSingle(),
-          supabase.from('appointments').select('*').eq('patient_id', id).order('start_time', { ascending: true }), // UX: Mais próximos primeiro
-          supabase.from('therapeutic_materials').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
-          supabase.from('patient_documents').select('id').eq('patient_id', id).eq('status', 'Assinado').limit(1).maybeSingle(), // Procura Assinado
-          supabase.from('patient_documents').select('*').eq('patient_id', id).in('status', ['Pendente', 'Gerado']).order('created_at', { ascending: false }).limit(1).maybeSingle(), // Procura Pendente
-          supabase.from('patient_documents').select('id').eq('patient_id', id).ilike('title', '%Comprovante%').eq('status', 'Pendente').limit(1).maybeSingle()
-        ])
+        const { data: settingsRes } = await supabase.from('portal_settings').select('*').eq('patient_id', id).maybeSingle()
         
-        if (settingsRes.data) {
-          const isSubActive = subData?.status === 'active' || subData?.status === 'trialing';
+        const isActive = settingsRes ? settingsRes.active === true : true;
 
-          setPermissions({
-            active: settingsRes.data.active && isSubActive,
-            journal: settingsRes.data.journal,
-            financials: settingsRes.data.financials,
-            materials: settingsRes.data.materials,
-            documents: settingsRes.data.documents
-          })
+        const currentPermissions = {
+          active: isActive,
+          journal: settingsRes?.journal ?? true,
+          financials: settingsRes?.financials ?? true,
+          materials: settingsRes?.materials ?? true,
+          documents: settingsRes?.documents ?? true
+        };
+        setPermissions(currentPermissions);
+
+        if (isActive === false) {
+          if (isRefresh) toast({ title: "Dados atualizados!" });
+          setLoading(false);
+          setRefreshing(false);
+          return;
         }
 
+        // BUSCA CONDICIONAL: Só carrega se o módulo estiver habilitado e o portal ativo
+        const [aptsRes, matsRes, signedDocRes, pendingDocRes, proofRes] = await Promise.all([
+          supabase.from('appointments').select('*').eq('patient_id', id).order('start_time', { ascending: true }),
+          currentPermissions.materials ? supabase.from('therapeutic_materials').select('*').eq('patient_id', id).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
+          currentPermissions.documents ? supabase.from('patient_documents').select('id').eq('patient_id', id).eq('status', 'Assinado').limit(1).maybeSingle() : Promise.resolve({ data: null }),
+          currentPermissions.documents ? supabase.from('patient_documents').select('*').eq('patient_id', id).in('status', ['Pendente', 'Gerado']).order('created_at', { ascending: false }).limit(1).maybeSingle() : Promise.resolve({ data: null }),
+          currentPermissions.financials ? supabase.from('patient_documents').select('id').eq('patient_id', id).ilike('title', '%Comprovante%').eq('status', 'Pendente').limit(1).maybeSingle() : Promise.resolve({ data: null })
+        ])
+        
         if (matsRes.data) setMaterials(matsRes.data)
         if (aptsRes.data) setAppointments(aptsRes.data)
         
-        // Garante que só considere como pendente se encontrar exatamente o documento
         if (proofRes.data) setHasPendingProof(true);
         if (!proofRes.data) setHasPendingProof(false);
 
-        // LÓGICA DE PRIORIDADE: Se tem Assinado, fica Verde e ignora o pendente!
         if (signedDocRes.data) {
            setLgpdSigned(true);
            setPendingDoc(null);
@@ -153,7 +161,6 @@ export default function PatientPortalPage() {
     try {
       // Usando a captura nativa que consertou o bug!
       const signatureData = sigCanvas.current.getCanvas().toDataURL('image/png');
-      const supabase = createClient();
       
       // Manda o Supabase criar o documento Assinado (Que sabemos que funciona 100%)
       const { error: insertError } = await supabase.from('patient_documents').insert({
@@ -189,7 +196,6 @@ export default function PatientPortalPage() {
 
   const handleSubmitMood = async () => {
     if (mood === null) return
-    const supabase = createClient()
     const { error } = await supabase.from('emotion_journal').insert({
       patient_id: id, psychologist_id: patientData?.psychologist_id, mood_level: mood, notes: note
     })
@@ -201,7 +207,6 @@ export default function PatientPortalPage() {
 
   const handleSaveAgenda = async () => {
     setIsSavingAgenda(true);
-    const supabase = createClient();
     const { data: currentPatient } = await supabase.from('patients').select('next_session_agenda').eq('id', id).single();
     const currentAgenda = currentPatient?.next_session_agenda || "";
     
@@ -236,7 +241,6 @@ export default function PatientPortalPage() {
     }
 
     setUploadingProof(true);
-    const supabase = createClient();
 
     try {
       // 0. Trava de Duplicidade (Blindagem contra múltiplos envios)
@@ -389,7 +393,7 @@ export default function PatientPortalPage() {
   if (!isMounted || !id) return null
   if (loading) return <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 font-bold text-slate-400"><Loader2 className="animate-spin mr-2 h-6 w-6"/> Carregando Portal...</div>
   
-  if (!permissions.active) {
+  if (permissions.active === false) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 p-6 text-center">
         <Card className="max-w-sm p-8 rounded-[32px] shadow-xl border-none bg-white">
@@ -472,7 +476,7 @@ export default function PatientPortalPage() {
         </Card>
       )}
 
-      {permissions.documents && (
+    {permissions.documents === true && (
       <Card className="w-full shadow-md border-slate-100 bg-white">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -501,12 +505,12 @@ export default function PatientPortalPage() {
       <Tabs defaultValue="hoje" className="w-full">
         <TabsList className="flex flex-wrap justify-center gap-3 mb-8 bg-transparent h-auto p-0 w-full">
           <TabsTrigger value="hoje" className="data-[state=active]:bg-teal-600 data-[state=active]:text-white bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full px-6 py-2 text-sm font-medium transition-all shadow-sm">Hoje</TabsTrigger>
-          {permissions.financials && <TabsTrigger value="agenda" className="data-[state=active]:bg-teal-600 data-[state=active]:text-white bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full px-6 py-2 text-sm font-medium transition-all shadow-sm">Agenda</TabsTrigger>}
-          {permissions.materials && <TabsTrigger value="materiais" className="data-[state=active]:bg-teal-600 data-[state=active]:text-white bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full px-6 py-2 text-sm font-medium transition-all shadow-sm">Materiais</TabsTrigger>}
+        {permissions.financials === true && <TabsTrigger value="agenda" className="data-[state=active]:bg-teal-600 data-[state=active]:text-white bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full px-6 py-2 text-sm font-medium transition-all shadow-sm">Agenda</TabsTrigger>}
+        {permissions.materials === true && <TabsTrigger value="materiais" className="data-[state=active]:bg-teal-600 data-[state=active]:text-white bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full px-6 py-2 text-sm font-medium transition-all shadow-sm">Materiais</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="hoje" className="space-y-6">
-          {permissions.journal && (
+        {permissions.journal === true && (
             !submitted ? (
               <Card className="shadow-xl border-none rounded-[32px] bg-white">
                 <CardHeader className="text-center pb-2"><CardTitle className="text-xl font-bold">Como você está hoje?</CardTitle></CardHeader>
@@ -533,9 +537,9 @@ export default function PatientPortalPage() {
           </Card>
         </TabsContent>
 
-        {permissions.financials && (
+      {permissions.financials === true && (
         <TabsContent value="agenda" className="space-y-4">
-          {permissions.financials && totalPending > 0 && (
+        {totalPending > 0 && (
             <Card className="border-amber-200 bg-amber-50/50 shadow-sm rounded-2xl mb-6">
               <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
@@ -602,7 +606,7 @@ export default function PatientPortalPage() {
         </TabsContent>
         )}
 
-        {permissions.materials && (
+      {permissions.materials === true && (
           <TabsContent value="materiais" className="space-y-4">
             {materials.length === 0 ? <p className="text-center py-10 text-slate-400 text-sm italic font-medium">Nenhum material compartilhado pelo seu terapeuta.</p> : materials.map(mat => (
                 <Card key={mat.id} className="border-none shadow-md rounded-2xl bg-white cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => window.open(mat.file_url, '_blank')}>
