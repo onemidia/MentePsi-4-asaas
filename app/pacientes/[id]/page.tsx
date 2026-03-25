@@ -1250,23 +1250,23 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                       <Sparkles size={14} /> Ferramentas de Registro
                     </Label>
                     <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                      {/* BOTÃO DITAR VIVO */}
                       <Button 
-                        variant="outline" 
                         onClick={handleToggleRecording} 
-                        className={`flex-1 sm:flex-none font-bold transition-all shadow-sm rounded-xl h-9 text-xs ${isListening ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white hover:bg-teal-50 text-teal-700 border-teal-200'}`}
+                        className={`flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-xs border-none ${isListening ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
                       >
                         {isListening ? (
-                          <><span className="relative flex h-2 w-2 mr-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span></span> Gravando...</>
+                          <><span className="relative flex h-2 w-2 mr-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span></span> Gravando...</>
                         ) : (
-                          <><Mic className="mr-2 h-4 w-4" /> Ditar</>
+                          <><Mic className="mr-2 h-4 w-4" /> Ditar Atendimento</>
                         )}
                       </Button>
                       
+                      {/* BOTÃO IA VIVO (Acende quando tem texto) */}
                       <Button 
-                        variant="outline" 
                         onClick={handleRefineEvolution} 
                         disabled={isGeneratingEvolution || !newEvolution.trim()}
-                        className="flex-1 sm:flex-none bg-white hover:bg-amber-50 text-amber-600 border-amber-200 font-bold transition-all shadow-sm rounded-xl h-9 text-xs"
+                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-xs disabled:opacity-40 disabled:cursor-not-allowed bg-amber-600 hover:bg-amber-500 text-white border-none"
                       >
                         {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
                         Resumo Inteligente (IA)
