@@ -184,42 +184,57 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     }
   }
 
-  const handleRefineEvolution = async () => {
-    if (!newEvolution || newEvolution.length < 10) {
-      toast({ variant: "destructive", title: "Texto muito curto", description: "O relato precisa ter algum conteúdo para ser refinado." })
-      return
-    }
+  const handleRefineEvolution = async (modo: 'simples' | 'inteligente' | 'soap') => {
+      if (!newEvolution || newEvolution.length < 10) {
+        toast({ variant: "destructive", title: "Texto muito curto", description: "O relato precisa ter algum conteúdo para ser refinado." })
+        return
+      }
 
-    setIsGeneratingEvolution(true)
-    try {
-      const res = await fetch('/api/generate-evolution', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          notes: `ATENÇÃO IA: O texto a seguir é um rascunho de uma evolução clínica. Transforme-o em um resumo clínico, breve, objetivo e em parágrafo único. NÃO use formatação markdown (sem negritos, sem hashtags, sem tópicos). Foque apenas no essencial do atendimento para o arquivo do prontuário: \n\n${newEvolution}`,
-          patientName: paciente.full_name
+      setIsGeneratingEvolution(true)
+      try {
+        let promptInteligente = "";
+
+        // CÉREBRO 1: S.O.A.P (Organizado em 4 tópicos)
+        if (modo === 'soap') {
+          promptInteligente = `ATENÇÃO IA: O texto a seguir é um relato clínico livre. Analise as informações e reescreva o texto organizando-o RIGOROSAMENTE no formato S.O.A.P. Extraia do texto do profissional e separe nas categorias exatas:\nS (Subjetivo): [O que o paciente relatou]\nO (Objetivo): [O que o profissional observou]\nA (Avaliação): [A análise clínica]\nP (Plano): [Os próximos passos].\nSeja direto e clínico. NÃO use formatação markdown como negritos (**) ou hashtags (#):\n\n${newEvolution}`;
+        } 
+        // CÉREBRO 2: SIMPLES (1 parágrafo super rápido)
+        else if (modo === 'simples') {
+          promptInteligente = `ATENÇÃO IA: O texto a seguir é um relato clínico livre. Transforme-o em um resumo clínico extremamente breve, objetivo e em PARÁGRAFO ÚNICO. Remova floreios. NÃO use formatação markdown (sem negritos, sem hashtags, sem tópicos). Foque APENAS no estritamente essencial para arquivamento:\n\n${newEvolution}`;
+        } 
+        // CÉREBRO 3: INTELIGENTE (Texto profissional, 2 a 3 parágrafos fluidos)
+        else {
+          promptInteligente = `ATENÇÃO IA: O texto a seguir é um relato clínico livre. Organize e reescreva-o com vocabulário técnico e profissional da área da saúde. Crie um texto coeso, lógico e claro, estruturado em texto corrido (pode ter 2 ou 3 parágrafos curtos). Ele deve ser mais bem escrito e detalhado que um resumo simples, mas muito profissional. NÃO use formatação markdown (sem negritos, sem tópicos, sem hashtags):\n\n${newEvolution}`;
+        }
+
+        const res = await fetch('/api/generate-evolution', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notes: promptInteligente,
+            patientName: paciente.full_name
+          })
         })
-      })
 
-      if (!res.ok) {
-        throw new Error(`Erro na API (${res.status})`);
-      }
+        if (!res.ok) {
+          throw new Error(`Erro na API (${res.status})`);
+        }
 
-      const data = await res.json()
-      
-      if (data.text) {
-        setNewEvolution(data.text)
-        toast({ title: "✨ Relato Profissionalizado!", description: "A IA organizou sua evolução." })
-      } else {
-        throw new Error(data.error || "A IA não retornou conteúdo.")
+        const data = await res.json()
+        
+        if (data.text) {
+          setNewEvolution(data.text)
+          toast({ title: "✨ Relato Profissionalizado!", description: "A IA organizou sua evolução." })
+        } else {
+          throw new Error(data.error || "A IA não retornou conteúdo.")
+        }
+      } catch (error: any) {
+        console.error("Erro na IA Mistral:", error)
+        toast({ variant: "destructive", title: "Erro no Refinamento", description: error.message || "Erro ao conectar com a IA." })
+      } finally {
+        setIsGeneratingEvolution(false)
       }
-    } catch (error: any) {
-      console.error("Erro na IA Mistral:", error)
-      toast({ variant: "destructive", title: "Erro no Refinamento", description: error.message || "Erro ao conectar com a IA." })
-    } finally {
-      setIsGeneratingEvolution(false)
     }
-  }
 
   // NOVO: Função isolada para buscar evoluções (Paginação Otimizada)
   const fetchEvolutions = useCallback(async (pageIndex: number, year: string, isLoadMore = false) => {
@@ -1249,27 +1264,47 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     <Label className="text-[11px] font-bold text-teal-700 uppercase tracking-tight flex items-center gap-2">
                       <Sparkles size={14} /> Ferramentas de Registro
                     </Label>
-                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                      {/* BOTÃO DITAR VIVO */}
+                    <div className="flex flex-wrap gap-2 w-full sm:w-auto mt-2">
+                      {/* 1. BOTÃO DITAR (Microfone) */}
                       <Button 
                         onClick={handleToggleRecording} 
-                        className={`flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-xs border-none ${isListening ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
+                        className={`flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] border-none ${isListening ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
                       >
                         {isListening ? (
                           <><span className="relative flex h-2 w-2 mr-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span></span> Gravando...</>
                         ) : (
-                          <><Mic className="mr-2 h-4 w-4" /> Ditar Atendimento</>
+                          <><Mic className="mr-2 h-4 w-4" /> Ditar</>
                         )}
                       </Button>
                       
-                      {/* BOTÃO IA VIVO (Acende quando tem texto) */}
+                      {/* 2. BOTÃO IA SIMPLES (Amarelo) */}
                       <Button 
-                        onClick={handleRefineEvolution} 
+                        onClick={() => handleRefineEvolution('simples')} 
                         disabled={isGeneratingEvolution || !newEvolution.trim()}
-                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-xs disabled:opacity-40 disabled:cursor-not-allowed bg-amber-600 hover:bg-amber-500 text-white border-none"
+                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed bg-amber-500 hover:bg-amber-600 text-white border-none"
+                      >
+                        {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        Resumo Simples
+                      </Button>
+
+                      {/* 3. BOTÃO IA INTELIGENTE (Roxo/Indigo) */}
+                      <Button 
+                        onClick={() => handleRefineEvolution('inteligente')} 
+                        disabled={isGeneratingEvolution || !newEvolution.trim()}
+                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed bg-indigo-500 hover:bg-indigo-600 text-white border-none"
                       >
                         {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        Resumo Inteligente (IA)
+                        Texto Profissional
+                      </Button>
+
+                      {/* 4. BOTÃO IA S.O.A.P (Azul) */}
+                      <Button 
+                        onClick={() => handleRefineEvolution('soap')} 
+                        disabled={isGeneratingEvolution || !newEvolution.trim()}
+                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 text-white border-none"
+                      >
+                        {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <FileText className="mr-2 h-4 w-4" />}
+                        Gerar S.O.A.P
                       </Button>
                     </div>
                   </div>
