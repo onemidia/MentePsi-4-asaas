@@ -196,7 +196,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          notes: newEvolution,
+          notes: `ATENÇÃO IA: O texto a seguir é um rascunho de uma evolução clínica. Transforme-o em um resumo clínico, breve, objetivo e em parágrafo único. NÃO use formatação markdown (sem negritos, sem hashtags, sem tópicos). Foque apenas no essencial do atendimento para o arquivo do prontuário: \n\n${newEvolution}`,
           patientName: paciente.full_name
         })
       })
@@ -1244,42 +1244,21 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2"><Plus size={16} className="text-teal-600"/> Registrar Evolução Clínica</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6 space-y-4">
-                  <div className="space-y-3 bg-teal-50/50 p-3 rounded-xl border border-teal-200">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Estrutura de Prontuário</Label>
-                      <Button variant="outline" size="sm" className="h-9 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-slate-100 text-slate-600 hover:bg-slate-200 border-none" onClick={() => setNewEvolution(prev => prev + "--- MÉTODO S.O.A.P ---\nS (Subjetivo): \nO (Objetivo): \nA (Avaliação): \nP (Plano): ")}>
-                        <Plus size={14} className="mr-1"/> Injetar Modelo SOAP
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-[9px] leading-tight text-teal-600/80 font-medium text-center">
-                      <div><strong>S:</strong> Relatos</div><div><strong>O:</strong> Sinais</div><div><strong>A:</strong> Análise</div><div><strong>P:</strong> Plano</div>
-                    </div>
-                  </div>
-                  <div className="relative p-1">
-                    <Textarea 
-                      placeholder="Descreva aqui o atendimento..." 
-                      className="min-h-[200px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl resize-y" 
-                      value={newEvolution} 
-                      onChange={e => setNewEvolution(e.target.value)} 
-                    />
-                    <div className="flex flex-col sm:flex-row items-center justify-end gap-2 mt-3 w-full">
+                  {/* NOVA BARRA DE FERRAMENTAS (NO TOPO) */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between bg-teal-50/50 p-3 rounded-xl border border-teal-200 gap-4 mb-2">
+                    <Label className="text-[11px] font-bold text-teal-700 uppercase tracking-tight flex items-center gap-2">
+                      <Sparkles size={14} /> Ferramentas de Registro
+                    </Label>
+                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                       <Button 
                         variant="outline" 
                         onClick={handleToggleRecording} 
-                        className={`w-full sm:w-auto font-bold transition-all shadow-sm ${isListening ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white hover:bg-teal-50 text-teal-600 border-teal-200'}`}
+                        className={`flex-1 sm:flex-none font-bold transition-all shadow-sm rounded-xl h-9 text-xs ${isListening ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white hover:bg-teal-50 text-teal-700 border-teal-200'}`}
                       >
                         {isListening ? (
-                          <>
-                            <span className="relative flex h-3 w-3 mr-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
-                            </span>
-                            Gravando...
-                          </>
+                          <><span className="relative flex h-2 w-2 mr-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span></span> Gravando...</>
                         ) : (
-                          <>
-                            <Mic className="mr-2 h-4 w-4" /> Ditar
-                          </>
+                          <><Mic className="mr-2 h-4 w-4" /> Ditar</>
                         )}
                       </Button>
                       
@@ -1287,15 +1266,27 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                         variant="outline" 
                         onClick={handleRefineEvolution} 
                         disabled={isGeneratingEvolution || !newEvolution.trim()}
-                        className="w-full sm:w-auto bg-white hover:bg-amber-50 text-amber-600 border-amber-200 font-bold transition-all shadow-sm"
+                        className="flex-1 sm:flex-none bg-white hover:bg-amber-50 text-amber-600 border-amber-200 font-bold transition-all shadow-sm rounded-xl h-9 text-xs"
                       >
                         {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        Profissionalizar Relato
+                        Resumo Inteligente (IA)
                       </Button>
                     </div>
                   </div>
-                  <Button onClick={handleSaveEvolution} disabled={saving || !newEvolution.trim() || isGeneratingEvolution} className="w-full h-9 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-teal-600 hover:bg-teal-700 text-white">
-                    {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />} Salvar Evolução Instantaneamente
+
+                  {/* ÁREA DE TEXTO LIMPA */}
+                  <div className="relative">
+                    <Textarea 
+                      placeholder="Descreva o atendimento de forma livre. A IA pode organizar para você depois..." 
+                      className="min-h-[200px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl resize-y" 
+                      value={newEvolution} 
+                      onChange={e => setNewEvolution(e.target.value)} 
+                    />
+                  </div>
+                  
+                  {/* BOTÃO SALVAR */}
+                  <Button onClick={handleSaveEvolution} disabled={saving || !newEvolution.trim() || isGeneratingEvolution} className="w-full h-12 text-[12px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-teal-600 hover:bg-teal-700 text-white mt-2">
+                    {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-5 w-5" />} Salvar Evolução
                   </Button>
                 </CardContent>
               </Card>
