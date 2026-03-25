@@ -53,9 +53,6 @@ export default function FichaClinicaDigital() {
   const [newGoalOpen, setNewGoalOpen] = useState(false)
   const [newGoal, setNewGoal] = useState({ title: '', description: '', deadline: '' })
   const [transactions, setTransactions] = useState<any[]>([])
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
-  const [paymentAmount, setPaymentAmount] = useState('')
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
   const [professional, setProfessional] = useState<any>(null)
 
   const [evolutions, setEvolutions] = useState<any[]>([])
@@ -358,7 +355,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         
         // 💉 CORREÇÃO: Matemática de Centavos para Total Pago
         paid: (transRes.data || [])
-          .filter((t: any) => t.type === 'income' && (t.status === 'CONCLUIDO' || t.status === 'paid'))
+          .filter((t: any) => t.type === 'income' && t.status === 'CONCLUIDO')
           .reduce((acc: number, curr: any) => acc + Math.round(Number(curr.amount) * 100), 0) / 100,
         
         done: apts.filter((a: any) => isFinalized(a)).length,
@@ -800,8 +797,8 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
         txFound = selectedTransaction
       }
 
+      // A. OBRIGATÓRIO: Registrar a transação como 'CONCLUIDO'
       if (txFound && txFound.id) {
-        // 1. Atualiza status da transação para CONCLUIDO e o VALOR (caso tenha sido editado)
         const { error: txError } = await supabase
           .from('financial_transactions')
           .update({ status: 'CONCLUIDO', amount: finalAmount })
@@ -809,15 +806,35 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
 
         if (txError) throw txError
       } else {
-        toast({ variant: "destructive", title: "Aviso", description: "Transação financeira não encontrada, mas documento aprovado." })
+        // Se a transação não existir na memória, força a inserção para garantir que o Dashboard/Cards recebam o valor exato
+        await supabase.from('financial_transactions').insert({
+          psychologist_id: paciente.psychologist_id,
+          patient_id: id,
+          amount: finalAmount,
+          type: 'income',
+          category: 'Sessão',
+          status: 'CONCLUIDO',
+          description: 'Baixa via Ficha do Paciente',
+          receipt_url: docUrl
+        })
       }
 
-      // 2. Atualiza status do documento vinculado
+      // B. OBRIGATÓRIO: Atualizar o documento para 'Confirmado' (Isso ativa o AppShell instantaneamente)
+      if (selectedTransaction?.id && !selectedTransaction?.receipt_url) {
+         await supabase.from('patient_documents').update({ status: 'Confirmado' }).eq('id', selectedTransaction.id);
+      }
       if (docUrl) {
          await supabase.from('patient_documents')
-           .update({ status: 'Aprovado' })
+           .update({ status: 'Confirmado' })
            .eq('file_url', docUrl)
       }
+
+      // Fallback de Segurança Global: Garante que todos os comprovantes pendentes deste paciente sumam
+      await supabase.from('patient_documents')
+        .update({ status: 'Confirmado' })
+        .eq('patient_id', id)
+        .ilike('title', '%Comprovante%')
+        .eq('status', 'Pendente')
 
       // 3. Amortização Automática (Lógica Financeira Padrão)
       let remainingAmount = finalAmount
@@ -861,9 +878,18 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       }
 
       // 4. Sobra vai para crédito
-      if (remainingAmount > 0.01) {
-         const { data: pat } = await supabase.from('patients').select('credit_balance').eq('id', id).single()
-         await supabase.from('patients').update({ credit_balance: (Number(pat?.credit_balance) || 0) + remainingAmount }).eq('id', id)
+      if (remainingAmount > 0) {
+         const { data: pat, error: fetchErr } = await supabase.from('patients').select('credit_balance').eq('id', id).single()
+         if (pat && !fetchErr) {
+           const currentCredit = Number(pat.credit_balance || 0)
+           const newCredit = Math.round((currentCredit + remainingAmount) * 100) / 100
+           const { error: creditError } = await supabase.from('patients').update({ credit_balance: newCredit }).eq('id', id)
+           if (!creditError) {
+             await loadAllData()
+           } else {
+             console.error("[CRÍTICO] Falha ao atualizar saldo no portal:", creditError)
+           }
+         }
       }
 
       // 5. Geração Automática do Recibo em PDF
@@ -905,7 +931,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
           }
       }
 
-      toast({ title: "Pagamento Confirmado", description: "Recibo gerado, saldo e sessões atualizados com sucesso." })
+      toast({ title: 'Baixa efetuada e totais atualizados' })
       router.refresh() // 🔄 Força atualização dos Server Components
       await loadAllData()
     } catch (error: any) {
@@ -941,11 +967,6 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       setSaving(false);
     }
   };
-
-  const handleCurrencyInput = (value: string) => {
-    const cleanValue = value.replace(/\D/g, "");
-    setPaymentAmount((Number(cleanValue) / 100).toFixed(2).replace('.', ','));
-  }
 
   const getMoodIcon = (score: number) => {
     const icons: any = { 1: Frown, 2: ThumbsDown, 3: Meh, 4: ThumbsUp, 5: Smile }
@@ -1134,7 +1155,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
             <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 border-b border-slate-200 p-6 gap-4">
               <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">Histórico de Atendimentos</CardTitle>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center bg-white border border-slate-300 rounded-xl px-3 gap-2 shadow-sm">
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 gap-2 shadow-sm">
                   <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
                   <span className="text-slate-300">|</span>
                   <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
@@ -1480,11 +1501,6 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                {(linkedTransaction || file.status === 'Pendente') && (
-                                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-bold shadow-sm" onClick={() => handleOpenPaymentModal(linkedTransaction || file)} disabled={saving}>
-                                        <CheckCircle2 className="h-3 w-3 mr-1"/> Confirmar
-                                    </Button>
-                                )}
                                 <Button variant="ghost" size="sm" onClick={() => window.open(file.file_url, '_blank')} className="text-blue-600 font-bold text-xs h-8">
                                   Visualizar
                                 </Button>
@@ -1551,18 +1567,24 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-                {documents.slice((currentPage - 1) * 10, currentPage * 10).map(doc => (
-                  <Card key={doc.id} className="p-4 border border-slate-200 shadow-md text-left relative rounded-[24px] group">
-                    <div className="flex justify-between items-start mb-2">
-                      <Badge className={`text-[10px] border-none ${doc.status === 'Assinado' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{doc.status}</Badge>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" onClick={() => handleDeleteDocument(doc)} title="Excluir Documento">
-                        <Trash2 size={14} />
-                      </Button>
+                {documents.slice((currentPage - 1) * 10, currentPage * 10).map(doc => {
+                  const linkedTransaction = transactions.find(t => t.receipt_url === doc.file_url && t.status === 'pending_review');
+                  return (
+                  <Card key={doc.id} className="p-4 border border-slate-200 shadow-md text-left relative rounded-[24px] group flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <Badge className={`text-[10px] border-none ${doc.status === 'Assinado' ? 'bg-green-100 text-green-700' : doc.status === 'Confirmado' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{doc.status}</Badge>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" onClick={() => handleDeleteDocument(doc)} title="Excluir Documento">
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                      <h4 className="font-bold text-xs truncate mb-4 text-slate-800">{doc.title}</h4>
                     </div>
-                    <h4 className="font-bold text-xs truncate mb-4 text-slate-800">{doc.title}</h4>
-                    <Button variant="outline" size="sm" className="w-full h-8 rounded-xl text-[10px] uppercase font-bold border-slate-300 text-slate-600 hover:bg-slate-50" onClick={() => setViewDoc(doc)}>Ver Documento</Button>
+                    <div className="flex flex-col gap-2 mt-auto">
+                      <Button variant="outline" size="sm" className="w-full h-8 rounded-xl text-[10px] uppercase font-bold border-slate-300 text-slate-600 hover:bg-slate-50" onClick={() => setViewDoc(doc)}>Ver Documento</Button>
+                    </div>
                   </Card>
-                ))}
+                )})}
               </div>
               <PaginationControls totalCount={documents.length} />
             </CardContent></Card>
@@ -1828,20 +1850,6 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
         </DialogContent>
       </Dialog>
 
-      {/* MODAL DE CONFIRMAÇÃO DE PAGAMENTO (PORTAL) */}
-      <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
-        <DialogContent className="max-w-xs rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Confirmar Recebimento</DialogTitle>
-            <DialogDescription className="sr-only">Confirme o valor do pagamento.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <Label className="text-xs font-bold text-slate-400 uppercase text-center block">Valor Efetivo (R$)</Label>
-            <Input value={paymentAmount} onChange={e => handleCurrencyInput(e.target.value)} className="text-2xl font-black text-teal-600 text-center rounded-xl border-slate-300" />
-            <Button onClick={handleProcessPayment} disabled={saving} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 rounded-xl shadow-sm">{saving ? <Loader2 className="animate-spin"/> : "Confirmar Baixa"}</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

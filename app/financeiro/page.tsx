@@ -7,7 +7,7 @@ import { createClient } from '@/lib/client'
 import { 
   DollarSign, Clock, CheckCircle2, Search, Plus, ReceiptText, 
   Loader2, TrendingUp, AlertCircle, Download, 
-  AlertTriangle, RotateCcw, MessageCircle, Check, FileText, Trash2
+  AlertTriangle, RotateCcw, MessageCircle, Check, FileText, Trash2, Paperclip
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -40,11 +40,19 @@ export default function FinanceiroPage() {
   const [totals, setTotals] = useState({ recebidoNoPeriodo: 0, pendenteNoPeriodo: 0, previsaoNoPeriodo: 0, creditoTotal: 0, recebidoMesAtual: 0 })
   
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
-  const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
+  const [endDate, setEndDate] = useState(() => {
+    const future = new Date()
+    future.setDate(future.getDate() + 30)
+    return format(future, 'yyyy-MM-dd')
+  })
   const [searchTerm, setSearchTerm] = useState('')
   const [currentTab, setCurrentTab] = useState('todos')
   const [newTransactionOpen, setNewTransactionOpen] = useState(false)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [confirmPendingModalOpen, setConfirmPendingModalOpen] = useState(false)
+  const [pendingTxToConfirm, setPendingTxToConfirm] = useState<any>(null)
+  const [confirmPendingAmount, setConfirmPendingAmount] = useState('')
+  const [pendingPortalDocs, setPendingPortalDocs] = useState<any[]>([])
   
   // PAGINAÇÃO (Estados Independentes)
   const [pageLancamentos, setPageLancamentos] = useState(0)
@@ -83,6 +91,15 @@ export default function FinanceiroPage() {
       if (trans) {
         setTransactions(trans)
       }
+
+      // 3. NOVO: Busca documentos pendentes do portal
+      const { data: docs } = await supabase
+        .from('patient_documents')
+        .select('*, patients(full_name)')
+        .ilike('title', '%Comprovante%')
+        .eq('status', 'Pendente')
+        .eq('psychologist_id', user.id);
+      setPendingPortalDocs(docs || []);
     } catch (e) {
       console.warn("Aviso ao buscar financeiro:", e)
     }
@@ -152,6 +169,10 @@ export default function FinanceiroPage() {
 
     const appointmentsNoPeriodo = appointments.filter(a => {
       const date = new Date(a.start_time)
+      if (currentTab === 'pendentes') {
+        // Aba Pendentes ignora o endDate para exibir TUDO no futuro sem travas
+        return date >= start
+      }
       return date >= start && date <= end
     })
 
@@ -171,9 +192,8 @@ export default function FinanceiroPage() {
     const recebidoMesAtualCents = transactionsMesAtual.reduce((acc, t) => acc + Math.round(Number(t.amount) * 100), 0)
     
     // 2. Lógica de Pendência (Valores a Receber)
-    // Filtra apenas sessões DO PERÍODO SELECIONADO que já aconteceram (Realizadas ou Passadas)
-    const tempoToleranciaMs = 90 * 60 * 1000
-    const pendenteRealCents = appointmentsNoPeriodo
+    // GLOBAL: Ignora filtro de data da tela para que o totalizador reflita a realidade absoluta do consultório
+    const pendenteRealCents = appointments
       .filter(a => {
         const effectiveStatus = a.status?.toLowerCase() || ''
         return ['agendado', 'confirmado', 'pendente', 'realizada'].includes(effectiveStatus) && a.payment_status !== 'Pago' && a.payment_status !== 'paid'
@@ -203,13 +223,27 @@ export default function FinanceiroPage() {
     if (currentTab === 'pendentes') result = result.filter(a => a.payment_status !== 'Pago' && a.payment_status !== 'paid')
     else if (currentTab === 'pagos') result = result.filter(a => a.payment_status === 'Pago' || a.payment_status === 'paid')
     if (searchTerm) result = result.filter(a => a.patients?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()))
+
+    // ↕️ ORDENAÇÃO INTELIGENTE
+    result.sort((a, b) => {
+      if (currentTab === 'pendentes') {
+        return new Date(a.start_time).getTime() - new Date(b.start_time).getTime() // Antigas/Atrasadas primeiro
+      }
+      return new Date(b.start_time).getTime() - new Date(a.start_time).getTime() // Recentes primeiro
+    })
+
     setFilteredAppointments(result)
   }, [appointments, transactions, patientsList, currentTab, searchTerm, startDate, endDate])
 
   // 🔔 EFEITO: Aplica filtro vindo da URL (Dashboard)
   useEffect(() => {
-    if (searchParams.get('filter') === 'pendentes') {
+    if (searchParams.get('filter') === 'pendentes' || searchParams.get('pending_receipt') === 'true') {
       setTransactionFilter('pendentes')
+      setCurrentTab('pendentes')
+      refreshData() // GATILHO QUE FALTAVA
+      setTimeout(() => {
+        document.getElementById('lancamentos-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 500)
     }
   }, [searchParams])
 
@@ -218,7 +252,8 @@ export default function FinanceiroPage() {
     const tDate = new Date(t.created_at)
     const start = startOfDay(parseISO(startDate))
     const end = parseISO(endDate + "T23:59:59")
-    const dateMatch = tDate >= start && tDate <= end
+    // Se for pendente de revisão, ignora o filtro de data para sempre alertar a Alinne
+    const dateMatch = t.status === 'pending_review' ? true : (tDate >= start && tDate <= end)
     const statusMatch = transactionFilter === 'pendentes' ? t.status === 'pending_review' : true
     return dateMatch && statusMatch
   })
@@ -418,7 +453,7 @@ export default function FinanceiroPage() {
           }
         } catch (err) { console.warn("Aviso ao gerar recibo automático:", err) }
 
-        toast({ title: "Pagamento registrado com sucesso!" })
+        toast({ title: 'Baixa efetuada e totais atualizados' })
         await refreshData()
       }
       
@@ -573,10 +608,14 @@ export default function FinanceiroPage() {
     await refreshData()
   }
 
-  const pendingCount = (transactions || []).filter(t => t.status === 'pending_review').length
+  const openConfirmPending = (t: any) => {
+    setPendingTxToConfirm(t)
+    setConfirmPendingAmount(Number(t.amount).toFixed(2).replace('.', ','))
+    setConfirmPendingModalOpen(true)
+  }
 
   // ✅ APROVAÇÃO DE PAGAMENTO DO PORTAL
-  const handleConfirmPendingTransaction = async (t: any) => {
+  const handleConfirmPendingTransaction = async (t: any, finalAmount: number) => {
     const now = Date.now()
     if (isProcessingPayment || (now - lastPaymentTime < 2000)) {
       return
@@ -588,16 +627,64 @@ export default function FinanceiroPage() {
     const supabase = createClient()
 
     try {
-      // 1. Atualiza status da transação para CONCLUIDO
-      const { error: updateError } = await supabase
-        .from('financial_transactions')
-        .update({ status: 'CONCLUIDO' })
-        .eq('id', t.id)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado.");
 
-      if (updateError) throw updateError
+      const isDocument = !!t.file_url;
+      const receiptUrl = isDocument ? t.file_url : t.receipt_url;
+
+      if (isDocument) {
+        // 1. Grava no Financeiro
+        const { error: insertError } = await supabase.from('financial_transactions').insert({ 
+          psychologist_id: user.id, 
+          patient_id: t.patient_id, 
+          amount: finalAmount, 
+          type: 'income', 
+          category: 'Sessão', 
+          description: 'Pagamento via Portal', 
+          status: 'CONCLUIDO', 
+          receipt_url: receiptUrl 
+        });
+        if (insertError) throw insertError;
+
+        if (t.doc_id) {
+          // 1. Precise DB UPDATE com verificação de contagem
+          const { error: docError, count } = await supabase
+            .from('patient_documents')
+            .update({ status: 'Confirmado' }, { count: 'exact' }) // Adicionei 'count' para diagnosticar
+            .eq('id', t.doc_id); // PRECISÃO ABSOLUTA NO ID
+
+          if (docError) throw docError;
+
+          // LOG DIAGNÓSTICO (Crucial para sabermos se o banco aceitou a ordem)
+          if (count === 0) {
+            console.warn('Alerta Técnico: O banco de dados NÃO encontrou o documento com ID:', t.doc_id, 'para atualizar. O banner persistirá no F5.');
+          } else {
+            console.log('Sucesso:', count, 'documento(s) carimbado(s) como confirmado.');
+          }
+        } else {
+          console.error('Erro Técnico: ID do documento não foi passado para a função de confirmação.');
+        }
+      } else {
+        // Fallback para aprovar as transações pendentes geradas pela versão antiga do sistema
+        const { error: updateError } = await supabase.from('financial_transactions').update({ status: 'CONCLUIDO', amount: finalAmount }).eq('id', t.id)
+        if (updateError) throw updateError
+        
+        if (receiptUrl) {
+          await supabase.from('patient_documents').update({ status: 'Confirmado' }).eq('file_url', receiptUrl)
+        }
+      }
+
+      // Fallback global de segurança para limpar a fila
+      await supabase
+         .from('patient_documents')
+         .update({ status: 'Confirmado' })
+         .eq('patient_id', t.patient_id)
+         .ilike('title', '%Comprovante%')
+         .eq('status', 'Pendente')
 
       // 2. Amortização Automática (Lógica FIFO - Primeiro a entrar, primeiro a sair)
-      let remainingAmount = Number(t.amount)
+      let remainingAmount = finalAmount
       
       const { data: pendingApts } = await supabase
         .from('appointments')
@@ -642,13 +729,75 @@ export default function FinanceiroPage() {
          await supabase.from('patients').update({ credit_balance: (Number(pat?.credit_balance) || 0) + remainingAmount }).eq('id', t.patient_id)
       }
 
-      toast({ title: "Pagamento confirmado!", description: "Valores baixados e saldo atualizado." })
+      // 4. Geração Automática de Recibo
+      try {
+        const patient = patientsList.find(p => p.id === t.patient_id)
+        const profName = professionalData?.full_name || "Alvino Buriti"
+        const profCRP = professionalData?.crp || "CRP não informado"
+        
+        if (patient && user) {
+           let receiptNumber = 1
+           let { data: counter } = await supabase.from('receipt_counters').select('current_count').eq('psychologist_id', user.id).single()
+           if (!counter) {
+             const { data: newCounter } = await supabase.from('receipt_counters').insert({ psychologist_id: user.id, current_count: 0 }).select().single()
+             counter = newCounter
+           }
+           receiptNumber = (counter?.current_count || 0) + 1
+           await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', user.id)
+
+           const { jsPDF } = (await import('jspdf')).default ? await import('jspdf') : { jsPDF: (await import('jspdf')).jsPDF };
+
+           const doc = new jsPDF()
+           doc.setFontSize(16); doc.setTextColor(13, 148, 136);
+           doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
+           doc.setTextColor(0, 0, 0); doc.setFontSize(10);
+           doc.text(profName, 105, 30, { align: "center" }); doc.text(`CRP: ${profCRP}`, 105, 35, { align: "center" })
+           doc.setFontSize(12);
+           doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf || '...'}`, 14, 50)
+           doc.text(`a importância de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
+           doc.text(`referente a serviços de psicologia.`, 14, 64)
+           doc.text(`${professionalData?.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, 120, { align: "center" })
+           doc.setFontSize(8); doc.setTextColor(150);
+           doc.text(`Documento emitido automaticamente por ${professionalData?.clinic_name || "Sistema de Gestão"}.`, 105, 140, { align: "center" })
+
+           const pdfBlob = doc.output('blob')
+           const fileName = `${t.patient_id}/recibo_${receiptNumber}_${Date.now()}.pdf`
+           const { error: uploadError } = await supabase.storage.from('patient-documents').upload(fileName, pdfBlob)
+           
+           if (!uploadError) {
+             const { data: { publicUrl } } = supabase.storage.from('patient-documents').getPublicUrl(fileName)
+             await supabase.from('patient_documents').insert({
+               patient_id: t.patient_id, psychologist_id: user.id, title: `Recibo Nº ${String(receiptNumber).padStart(3, '0')} - ${format(new Date(), 'dd/MM/yyyy')}`, file_url: publicUrl, status: 'Gerado'
+             })
+           }
+        }
+      } catch (err) { console.warn("Aviso ao gerar recibo automático:", err) }
+
+      toast({ title: 'Baixa efetuada e totais atualizados' })
+      
+      // Limpeza Imediata da Tela e do Modal
+      setConfirmPendingModalOpen(false)
+      setPendingTxToConfirm(null)
+      
+      await fetchFinanceiro() 
       await refreshData()
+
+      // 3. Atualiza a tela e limpa a fila
+      if (isDocument) {
+        setPendingPortalDocs(prev => prev.filter(d => d.id !== t.doc_id && d.id !== t.id));
+      } else {
+        setPendingPortalDocs(prev => prev.filter(d => d.patient_id !== t.patient_id));
+      }
+
+      // Grito global para o banner sumir
+      window.dispatchEvent(new Event('atualizar_notificacoes'));
     } catch (error: any) { 
       toast({ variant: "destructive", title: "Erro", description: error.message }) 
     } finally { 
       setIsProcessingPayment(false)
       setLastPaymentTime(0)
+      setConfirmPendingModalOpen(false)
+      setPendingTxToConfirm(null) // Garante a limpeza em caso de erro
       setRefreshing(false) 
     }
   }
@@ -862,17 +1011,6 @@ export default function FinanceiroPage() {
   return (
     <div className="p-6 space-y-6 bg-slate-100 min-h-[100dvh]">
       
-      {/* ⚠️ BANNER DE ALERTA FINANCEIRO */}
-      {pendingCount > 0 && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in slide-in-from-top-2">
-          <div className="flex items-center gap-3 text-amber-800">
-            <AlertTriangle className="h-6 w-6 text-amber-600" />
-            <p className="font-bold text-sm sm:text-base">⚠️ Você tem <span className="text-lg">{pendingCount}</span> novos comprovantes do Portal aguardando conferência.</p>
-          </div>
-          <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-sm" onClick={() => setTransactionFilter('pendentes')}>Ver e Aprovar</Button>
-        </div>
-      )}
-
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div><div className="flex items-center gap-2"><h1 className="text-3xl font-black text-slate-800 tracking-tight">Financeiro</h1>{refreshing && <Loader2 className="animate-spin text-teal-600 h-5 w-5" />}</div><p className="text-slate-500 font-medium text-sm">Gestão por período e lançamentos inteligentes.</p></div>
         <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
@@ -896,13 +1034,13 @@ export default function FinanceiroPage() {
         <StatCard title="Recebido no Mês" value={totals.recebidoMesAtual} icon={<DollarSign/>} color="emerald" subtitle={format(new Date(), 'MMMM/yyyy', { locale: ptBR })} />
         
         <StatCard title="Recebido no Período" value={totals.recebidoNoPeriodo} icon={<CheckCircle2/>} color="teal" subtitle="Filtro selecionado" />
-        <StatCard title="Valores a Receber" value={totals.pendenteNoPeriodo} icon={<AlertCircle/>} color="red" subtitle="Sessões já realizadas" />
+        <StatCard title="Valores a Receber" value={totals.pendenteNoPeriodo} icon={<AlertCircle/>} color="red" subtitle="Total geral acumulado" />
         <StatCard title="Projeção do Período" value={totals.previsaoNoPeriodo} icon={<TrendingUp/>} color="blue" subtitle="Agendamentos futuros" />
         {/* 💉 CARD CORRIGIDO: Agora reflete os R$ 95,00 ou R$ 1.150,00 dependendo do saldo do banco */}
         <StatCard title="Crédito Clientes" value={totals.creditoTotal} icon={<Clock/>} color="amber" subtitle="Total acumulado em haver" />
       </div>
 
-      <Card className="border border-slate-200 shadow-md overflow-hidden bg-white rounded-[24px]">
+      <Card id="lancamentos-table" className="border border-slate-200 shadow-md overflow-hidden bg-white rounded-[24px]">
         <CardHeader className="flex flex-col xl:flex-row items-start xl:items-center justify-between border-b gap-4 p-6">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full xl:w-auto">
             <CardTitle className="text-lg font-black text-slate-800">Lançamentos</CardTitle>
@@ -911,6 +1049,18 @@ export default function FinanceiroPage() {
               <span className="text-slate-300">|</span>
               <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
             </div>
+            
+            {/* NOVO: Fila de Recibos Global no topo da tabela */}
+            {pendingPortalDocs.length > 0 && (
+              <Button className="bg-amber-500 hover:bg-amber-600 text-white font-bold animate-pulse shadow-sm" onClick={() => {
+                const firstDoc = pendingPortalDocs[0];
+                setPendingTxToConfirm({ ...firstDoc, doc_id: firstDoc.id }); // Pega o primeiro da fila e garante o preenchimento do doc_id
+                setConfirmPendingAmount('');
+                setConfirmPendingModalOpen(true);
+              }}>
+                <Paperclip className="h-4 w-4 mr-2"/> Avaliar Recibos ({pendingPortalDocs.length})
+              </Button>
+            )}
           </div>
           <div className="relative w-full md:w-64"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" /><Input placeholder="Buscar paciente..." className="pl-9 bg-white h-9 rounded-xl border-slate-300" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
         </CardHeader>
@@ -926,12 +1076,20 @@ export default function FinanceiroPage() {
                   {loading ? (<tr><td colSpan={7} className="p-10 text-center"><Loader2 className="animate-spin mx-auto text-teal-600"/></td></tr>) : filteredAppointments?.slice(pageLancamentos * 10, (pageLancamentos + 1) * 10).map(apt => {
                     const pendente = Number(apt.price) - Number(apt.amount_paid || 0);
                     const isPaid = apt.payment_status === 'Pago' || apt.payment_status === 'paid';
+                    const isOverdue = !isPaid && new Date(apt.start_time) < new Date();
+                    
+                    
                     return (
-                      <tr key={apt.id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={apt.id} className={`hover:bg-slate-50/50 transition-colors ${isOverdue && currentTab === 'pendentes' ? 'bg-red-50/40' : ''}`}>
                         <td className="p-4"><input type="checkbox" checked={selectedItems.has(apt.id)} onChange={() => toggleSelection(apt.id)} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" /></td>
-                        <td className="p-4 text-slate-600">{format(new Date(apt.start_time), "dd/MM/yyyy HH:mm")}</td>
+                        <td className={`p-4 ${isOverdue && currentTab === 'pendentes' ? 'text-red-700 font-bold' : 'text-slate-600'}`}>
+                          <div className="flex items-center gap-1.5">
+                            {format(new Date(apt.start_time), "dd/MM/yyyy HH:mm")}
+                            {isOverdue && currentTab === 'pendentes' && <AlertCircle className="h-4 w-4 text-red-500 animate-pulse" title="Pagamento Atrasado" />}
+                          </div>
+                        </td>
                         <td className="p-4"><span className="font-bold text-slate-700">{apt.patients?.full_name}</span></td>
-                        <td className="p-4 font-bold">{formatBRL(Number(apt.price))}</td>
+                        <td className={`p-4 font-bold ${isOverdue && currentTab === 'pendentes' ? 'text-red-600' : ''}`}>{formatBRL(Number(apt.price))}</td>
                         <td className="p-4 hidden md:table-cell"><span className={pendente > 0.01 ? "text-red-600 font-black" : "text-slate-400"}>{formatBRL(pendente)}</span></td>
                         <td className="p-4 hidden md:table-cell"><Badge variant="outline" className={isPaid ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-amber-50 text-amber-700 border-amber-200'}>{isPaid ? 'Pago' : 'Pendente'}</Badge></td>
                         <td className="p-4 text-right flex justify-end gap-2">
@@ -1043,23 +1201,21 @@ export default function FinanceiroPage() {
                       {t.type === 'income' ? '+' : '-'}{formatBRL(Number(t.amount))}
                     </td>
                     <td className="p-4 text-right flex justify-end items-center gap-2">
-                      {t.receipt_url && (
-                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm h-8 text-xs" asChild>
-                          <Link href={`/pacientes/${t.patient_id}?tab=portal`}>
-                            <FileText className="mr-2 h-4 w-4"/> VER COMPROVANTE
-                          </Link>
-                        </Button>
-                      )}
                       {t.status === 'pending_review' ? (
-                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-bold shadow-sm" asChild>
-                          <Link href={`/pacientes/${t.patient_id}?tab=portal`}>
-                            <Check className="h-3 w-3 mr-1"/> Ver e Aprovar
-                          </Link>
+                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white h-8 text-xs font-bold shadow-sm animate-pulse" onClick={() => openConfirmPending(t)}>
+                          {t.receipt_url ? <Paperclip className="h-3 w-3 mr-1"/> : <Check className="h-3 w-3 mr-1"/>} Conferir e Baixar
                         </Button>
                       ) : (
-                        <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 text-xs font-bold rounded-lg" onClick={() => handleReverseTransaction(t)}>
-                          <RotateCcw className="h-3 w-3 mr-2"/> Estornar
-                        </Button>
+                        <>
+                          {t.receipt_url && (
+                            <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50 h-8 text-xs font-bold shadow-sm" onClick={() => window.open(t.receipt_url, '_blank')}>
+                              <Paperclip className="mr-2 h-4 w-4"/> Comprovante
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 text-xs font-bold rounded-lg" onClick={() => handleReverseTransaction(t)}>
+                            <RotateCcw className="h-3 w-3 mr-2"/> Estornar
+                          </Button>
+                        </>
                       )}
                     </td>
                   </tr>
@@ -1113,6 +1269,51 @@ export default function FinanceiroPage() {
                 {(isProcessingPayment || refreshing) ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processando...</> : "Confirmar Baixa"}
               </Button>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmPendingModalOpen} onOpenChange={setConfirmPendingModalOpen}>
+        <DialogContent className="max-w-[95vw] md:max-w-4xl rounded-[24px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-teal-700">Conferência de Recebimento</DialogTitle>
+            <DialogDescription>
+              {pendingTxToConfirm?.patients?.full_name ? (
+                <>Comprovante enviado por <strong>{pendingTxToConfirm.patients.full_name}</strong>. Verifique e confirme o valor exato a ser baixado.</>
+              ) : "Verifique o comprovante enviado pelo paciente e confirme o valor exato a ser baixado."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            {/* Lado Esquerdo: Comprovante */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center min-h-[300px] md:h-[400px]">
+              {(pendingTxToConfirm?.file_url || pendingTxToConfirm?.receipt_url) ? (
+                (pendingTxToConfirm?.file_url || pendingTxToConfirm?.receipt_url).toLowerCase().includes('.pdf') ? (
+                  <iframe src={pendingTxToConfirm.file_url || pendingTxToConfirm.receipt_url} className="w-full h-full min-h-[300px]" />
+                ) : (
+                  <img src={pendingTxToConfirm.file_url || pendingTxToConfirm.receipt_url} alt="Comprovante" className="max-w-full max-h-[400px] object-contain p-2" />
+                )
+              ) : (
+                <div className="flex flex-col items-center text-slate-400">
+                  <FileText className="h-10 w-10 mb-2 opacity-50" />
+                  <p className="text-sm font-medium">Nenhum comprovante anexado</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Lado Direito: Confirmação */}
+            <div className="flex flex-col justify-center space-y-6 px-2 md:px-4">
+              <div className="space-y-2 text-center">
+                <Label className="text-xs font-bold text-slate-400 uppercase tracking-widest block">Valor Efetivo (R$)</Label>
+                <Input value={confirmPendingAmount} onChange={e => handleCurrencyInput(e.target.value, setConfirmPendingAmount)} className="text-4xl font-black text-teal-600 text-center rounded-xl border-slate-300 h-16 bg-teal-50/30" />
+                <p className="text-[10px] text-slate-500 font-medium mt-2">O sistema amortizará as sessões pendentes mais antigas usando o valor confirmado.</p>
+              </div>
+              <Button onClick={() => {
+                 const amt = parseFloat(confirmPendingAmount.replace(/\./g, '').replace(',', '.'))
+                 handleConfirmPendingTransaction(pendingTxToConfirm, amt)
+              }} disabled={isProcessingPayment || refreshing} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-14 rounded-xl shadow-md text-base transition-all hover:scale-[1.02]">
+                {(isProcessingPayment || refreshing) ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Processando...</> : "Confirmar e Dar Baixa"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

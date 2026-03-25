@@ -285,21 +285,6 @@ export default function PatientPortalPage() {
       const { error: docError } = await supabase.from('patient_documents').insert(docPayload);
       if (docError) throw docError;
 
-      // IMPORTANTE: pagamento enviado pelo paciente deve ficar como pending_review até validação manual
-      const transPayload = {
-        psychologist_id: safePsychologistId,
-        patient_id: id, // Garante vínculo correto com a transação
-        amount: finalAmount,
-        type: 'income',
-        category: 'Sessão',
-        description: 'Pagamento via Portal (Pix)',
-        status: 'pending_review',
-        receipt_url: publicUrl
-      };
-      const { error: transError } = await supabase.from('financial_transactions').insert(transPayload);
-
-      if (transError) throw transError;
-
       // 5. Feedback de Sucesso
       toast({ title: "Enviado com Sucesso!", description: "Seu terapeuta foi notificado." });
       setHasPendingProof(true);
@@ -681,7 +666,7 @@ export default function PatientPortalPage() {
                       <Input id="proof-upload" type="file" accept="image/*,application/pdf" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} disabled={uploadingProof} className="hidden" />
                       
                       <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 shadow-md mt-2" onClick={() => handleUploadProof(selectedFile)} disabled={uploadingProof || !selectedFile}>
-                        {uploadingProof ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Enviando...</> : "ENVIAR PAGAMENTO PARA CONFERÊNCIA"}
+                        {uploadingProof ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> ENVIANDO...</> : "ENVIAR PAGAMENTO PARA CONFERÊNCIA"}
                       </Button>
 
                       <div className="relative flex items-center py-1"><div className="flex-grow border-t border-slate-200"></div><span className="flex-shrink-0 mx-2 text-slate-300 text-[10px] uppercase font-bold">OU</span><div className="flex-grow border-t border-slate-200"></div></div>

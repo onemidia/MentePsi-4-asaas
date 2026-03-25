@@ -10,7 +10,8 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Trash2
+  Trash2,
+  Loader2
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -48,6 +49,7 @@ export default function PatientsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [patientToDelete, setPatientToDelete] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
   const fetchPatients = useCallback(async () => {
@@ -112,19 +114,36 @@ export default function PatientsPage() {
 
   const handleDeletePatient = async () => {
     if (!patientToDelete) return
+    
+    setIsDeleting(true)
     try {
       const supabase = createClient()
+      
+      // 1. Limpeza em Cascata (Deleta dependências para evitar erro de Chave Estrangeira)
+      await Promise.all([
+        supabase.from('appointments').delete().eq('patient_id', patientToDelete),
+        supabase.from('patient_documents').delete().eq('patient_id', patientToDelete),
+        supabase.from('financial_transactions').delete().eq('patient_id', patientToDelete),
+        supabase.from('emotion_journal').delete().eq('patient_id', patientToDelete),
+        supabase.from('clinical_evolutions').delete().eq('patient_id', patientToDelete),
+        supabase.from('portal_settings').delete().eq('patient_id', patientToDelete),
+        supabase.from('therapeutic_materials').delete().eq('patient_id', patientToDelete)
+      ])
+
+      // 2. Execução Final: Deleta o paciente
       const { error } = await supabase.from('patients').delete().eq('id', patientToDelete)
       if (error) {
         toast({ variant: "destructive", title: "Erro ao excluir", description: error.message })
       } else {
         toast({ title: "Paciente excluído" })
-        setPatients(prev => prev.filter(p => p.id !== patientToDelete))
+        await fetchPatients()
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro de conexão", description: e.message })
+    } finally {
+      setIsDeleting(false)
+      setPatientToDelete(null)
     }
-    setPatientToDelete(null)
   }
 
   return (
@@ -276,8 +295,10 @@ export default function PatientsPage() {
             <DialogDescription>Tem certeza que deseja excluir este paciente? Esta ação não pode ser desfeita.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPatientToDelete(null)}>Cancelar</Button>
-            <Button variant="destructive" onClick={handleDeletePatient}>Confirmar</Button>
+            <Button variant="outline" onClick={() => setPatientToDelete(null)} disabled={isDeleting}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDeletePatient} disabled={isDeleting}>
+              {isDeleting ? <><Loader2 className="animate-spin mr-2 h-4 w-4" /> EXCLUINDO...</> : 'Confirmar'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

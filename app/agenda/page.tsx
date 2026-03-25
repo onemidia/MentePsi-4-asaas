@@ -49,7 +49,6 @@ function AgendaContent() {
     duration: '50',
     modality: 'Presencial',
     price: '0,00',
-    payment_status: 'Pendente',
     observations: '',
     recurrence: 'Nenhuma',
     repeat_count: 1
@@ -286,6 +285,10 @@ function AgendaContent() {
 
     const startDate = new Date(`${formData.date}T${formData.time}:00`)
     
+    // 1. Busca o saldo atual do paciente antes de agendar
+    const { data: patData } = await supabase.from('patients').select('credit_balance').eq('id', formData.patient_id).single()
+    let availableCredit = Number(patData?.credit_balance || 0)
+
     const appointmentsToInsert = []
     const numericPrice = parseFloat(String(formData.price).replace(/\./g, '').replace(',', '.')) || 0
     const daysToAdd = formData.recurrence === 'Semanal' ? 7 : 
@@ -304,23 +307,58 @@ function AgendaContent() {
       const start = currentStart.toISOString()
       const end = new Date(currentStart.getTime() + (parseInt(formData.duration) || 50) * 60000).toISOString()
 
+      let paymentStatus = 'Pendente'
+      let amountPaid = 0
+
+      // 2. Abatimento Automático caso o paciente tenha saldo para cobrir a sessão
+      if (availableCredit >= numericPrice && numericPrice > 0) {
+        paymentStatus = 'Pago'
+        amountPaid = numericPrice
+        availableCredit = Math.round((availableCredit - numericPrice) * 100) / 100
+      }
+
       appointmentsToInsert.push({
         psychologist_id: targetUserId,
         patient_id: formData.patient_id,
         start_time: start,
         end_time: end,
         price: numericPrice,
-        payment_status: formData.payment_status,
-        amount_paid: formData.payment_status === 'Pago' ? numericPrice : 0,
+        payment_status: paymentStatus,
+        amount_paid: amountPaid,
         status: 'Agendado',
         modality: formData.modality,
         observations: formData.observations || null
       })
     }
 
-    const { error } = await supabase.from('appointments').insert(appointmentsToInsert)
+    // 3. Insere os agendamentos e retorna os dados (.select()) para vincularmos ao extrato
+    const { data: insertedApts, error } = await supabase.from('appointments').insert(appointmentsToInsert).select()
 
     if (!error) {
+      // 4. Sincronização do Financeiro e atualização do saldo "Em Haver"
+      const consumedCredit = Math.round((Number(patData?.credit_balance || 0) - availableCredit) * 100) / 100
+      
+      if (consumedCredit > 0 && insertedApts) {
+        const txsToInsert = insertedApts
+          .filter(apt => apt.payment_status === 'Pago')
+          .map(apt => ({
+            psychologist_id: targetUserId,
+            patient_id: formData.patient_id,
+            appointment_id: apt.id,
+            amount: apt.amount_paid,
+            type: 'usage',
+            category: 'Sessão (Crédito)',
+            description: 'Abatimento automático via Saldo em Haver',
+            status: 'CONCLUIDO'
+          }))
+          
+        if (txsToInsert.length > 0) {
+          await supabase.from('financial_transactions').insert(txsToInsert)
+        }
+        
+        await supabase.from('patients').update({ credit_balance: availableCredit }).eq('id', formData.patient_id)
+      }
+
       toast({ title: "Sucesso!", description: loopCount > 1 ? `${loopCount} sessões agendadas!` : "Consulta agendada!" })
       setOpen(false)
       await fetchInitialData()
@@ -494,18 +532,9 @@ function AgendaContent() {
               <Button type="button" variant="outline" onClick={() => setFormData({...formData, modality: 'Online'})} className={`gap-2 ${formData.modality === 'Online' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'bg-white'}`}><Video size={16}/> Online</Button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Valor (R$)</Label><Input value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm" /></div>
-              <div className="space-y-2"><Label>Pagamento</Label>
-                <select 
-                  value={formData.payment_status} 
-                  onChange={(e) => setFormData({...formData, payment_status: e.target.value})}
-                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
-                >
-                  <option value="Pendente">Pendente</option>
-                  <option value="Pago">Pago</option>
-                </select>
-              </div>
+            <div className="space-y-2">
+              <Label>Valor da Sessão (R$)</Label>
+              <Input value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm" />
             </div>
 
             <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white font-black h-12 shadow-lg shadow-teal-100" onClick={handleSchedule} disabled={loading}>

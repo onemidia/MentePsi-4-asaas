@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createAdminClient } from '@/lib/client'
+import { createClient } from '@/lib/client'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { 
   Users, 
@@ -49,7 +49,7 @@ export default function AdminDashboard() {
   const itemsPerPage = 10
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
-  const supabase = createAdminClient()
+  const supabase = createClient()
   const router = useRouter()
   const { toast } = useToast()
 
