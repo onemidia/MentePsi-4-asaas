@@ -10,7 +10,7 @@ import {
   DollarSign, CheckCircle, Clock, Calendar as CalendarIcon, XCircle,
   Activity, Frown, Meh, Smile, ThumbsDown, ThumbsUp, CreditCard,
   FileText, Smartphone, MessageSquarePlus, Printer, Upload, Download, CheckCircle2, PlayCircle, PauseCircle,
-  Video, Link as LinkIcon, ChevronLeft, ChevronRight, Mic, Sparkles
+  Video, Link as LinkIcon, ChevronLeft, ChevronRight, Mic, Sparkles, Search
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -60,7 +60,10 @@ export default function FichaClinicaDigital() {
   // NOVO: Paginação e Filtro das Evoluções
   const [evolutionPage, setEvolutionPage] = useState(0)
   const [hasMoreEvolutions, setHasMoreEvolutions] = useState(true)
-  const [evolutionYearFilter, setEvolutionYearFilter] = useState<string>('')
+  const [evoStartDate, setEvoStartDate] = useState('')
+  const [evoEndDate, setEvoEndDate] = useState('')
+  const [evoSearch, setEvoSearch] = useState('')
+  const [totalEvolutions, setTotalEvolutions] = useState(0)
   const [loadingMoreEvolutions, setLoadingMoreEvolutions] = useState(false)
 
   const contentBeforeRecordingRef = useRef("")
@@ -236,39 +239,33 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
       }
     }
 
-  // NOVO: Função isolada para buscar evoluções (Paginação Otimizada)
-  const fetchEvolutions = useCallback(async (pageIndex: number, year: string, isLoadMore = false) => {
+  // NOVO: Função isolada para buscar evoluções (Paginação Otimizada com Busca DB e Datas)
+  const fetchEvolutions = useCallback(async (pageIndex: number, start: string, end: string, searchStr: string) => {
     setLoadingMoreEvolutions(true)
     try {
       let query = supabase
         .from('clinical_evolutions')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('patient_id', id as string)
         .order('created_at', { ascending: false })
 
-      if (year) {
-        query = query
-          .gte('created_at', `${year}-01-01T00:00:00.000Z`)
-          .lte('created_at', `${year}-12-31T23:59:59.999Z`)
+      if (start) query = query.gte('created_at', `${start}T00:00:00.000Z`)
+      if (end) query = query.lte('created_at', `${end}T23:59:59.999Z`)
+
+      if (searchStr) {
+        query = query.ilike('content', `%${searchStr}%`)
       }
 
       const from = pageIndex * 10
       const to = from + 9 // Limit de 10
 
-      const { data, error } = await query.range(from, to)
+      const { data, count, error } = await query.range(from, to)
       if (error) throw error
 
       if (data) {
+        setTotalEvolutions(count || 0)
         setHasMoreEvolutions(data.length === 10)
-        if (isLoadMore) {
-          setEvolutions(prev => {
-            const existingIds = new Set(prev.map(e => e.id))
-            const newEvolutions = data.filter(e => !existingIds.has(e.id))
-            return [...prev, ...newEvolutions]
-          })
-        } else {
-          setEvolutions(data)
-        }
+        setEvolutions(data)
       }
     } catch (error: any) {
       console.error("Erro ao buscar evoluções:", error)
@@ -276,13 +273,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     } finally {
       setLoadingMoreEvolutions(false)
     }
-  }, [id, supabase])
-
-  const handleLoadMoreEvolutions = () => {
-    const nextPage = evolutionPage + 1
-    setEvolutionPage(nextPage)
-    fetchEvolutions(nextPage, evolutionYearFilter, true)
-  }
+  }, [id, supabase, toast])
 
   //  LOGICA DE CARGA CENTRALIZADA PARA ATUALIZAÇÃO INSTANTÂNEA
   const loadAllData = useCallback(async () => {
@@ -399,11 +390,15 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
   // NOVO: Gatilho inicial para carregar as evoluções paginadas
   useEffect(() => {
     if (id && isMounted) {
-      setEvolutionPage(0)
-      setHasMoreEvolutions(true)
-      fetchEvolutions(0, evolutionYearFilter, false)
+      // Adicionamos um pequeno delay (debounce implícito) para não travar o banco enquanto digita
+      const timer = setTimeout(() => {
+        setEvolutionPage(0)
+        setHasMoreEvolutions(true)
+        fetchEvolutions(0, evoStartDate, evoEndDate, evoSearch)
+      }, 500)
+      return () => clearTimeout(timer)
     }
-  }, [id, evolutionYearFilter, fetchEvolutions, isMounted])
+  }, [id, evoStartDate, evoEndDate, evoSearch, fetchEvolutions, isMounted])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -670,7 +665,8 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         setNewEvolution("")
         setEvolutionPage(0)
         setHasMoreEvolutions(true)
-        await fetchEvolutions(0, evolutionYearFilter, false)
+        setEvoSearch("") // Limpa a busca para exibir a evolução recém-criada
+        await fetchEvolutions(0, evoStartDate, evoEndDate, "")
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro de conexão", description: e.message })
@@ -975,7 +971,8 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       loadAllData();
       setEvolutionPage(0);
       setHasMoreEvolutions(true);
-      fetchEvolutions(0, evolutionYearFilter, false);
+      setEvoSearch("");
+      fetchEvolutions(0, evoStartDate, evoEndDate, "");
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao arquivar pauta", description: e.message })
     } finally {
@@ -1309,11 +1306,11 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     </div>
                   </div>
 
-                  {/* ÁREA DE TEXTO LIMPA */}
+                  {/* ÁREA DE TEXTO AMPLIADA */}
                   <div className="relative">
                     <Textarea 
                       placeholder="Descreva o atendimento de forma livre. A IA pode organizar para você depois..." 
-                      className="min-h-[200px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl resize-y" 
+                      className="min-h-[400px] md:min-h-[500px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl resize-y leading-relaxed p-4" 
                       value={newEvolution} 
                       onChange={e => setNewEvolution(e.target.value)} 
                     />
@@ -1326,19 +1323,41 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 </CardContent>
               </Card>
               <div className="space-y-4">
-                <div className="flex justify-between items-center mb-4 ml-2">
-                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Histórico Cronológico</Label>
-                  <select 
-                    value={evolutionYearFilter} 
-                    onChange={(e) => setEvolutionYearFilter(e.target.value)}
-                    className="h-8 px-3 rounded-lg border border-slate-200 text-xs font-medium focus:ring-teal-500 bg-white"
-                  >
-                    <option value="">Todos os anos</option>
-                    <option value="2025">2025</option>
-                    <option value="2024">2024</option>
-                    <option value="2023">2023</option>
-                    <option value="2022">2022</option>
-                  </select>
+                {/* CABEÇALHO DO HISTÓRICO COM FILTROS PADRONIZADOS */}
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 mt-8 gap-4 border-t border-slate-200 pt-6">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight whitespace-nowrap ml-2">
+                    Histórico Cronológico
+                  </Label>
+                  
+                  <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                    {/* CAMPO DE BUSCA */}
+                    <div className="relative w-full sm:w-auto flex-grow sm:flex-grow-0">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input 
+                        placeholder="Buscar palavra ou nome..." 
+                        className="pl-9 h-9 text-xs bg-white border-slate-200 rounded-xl w-full sm:w-56 focus-visible:ring-teal-500 shadow-sm"
+                        value={evoSearch}
+                        onChange={(e) => setEvoSearch(e.target.value)}
+                      />
+                    </div>
+
+                    {/* FILTRO DE PERÍODO (Idêntico ao de Sessões) */}
+                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 gap-2 shadow-sm w-full sm:w-auto">
+                      <Input 
+                        type="date" 
+                        value={evoStartDate} 
+                        onChange={e => setEvoStartDate(e.target.value)} 
+                        className="h-9 border-none focus-visible:ring-0 text-xs w-full sm:w-[120px] bg-transparent px-0" 
+                      />
+                      <span className="text-slate-300">|</span>
+                      <Input 
+                        type="date" 
+                        value={evoEndDate} 
+                        onChange={e => setEvoEndDate(e.target.value)} 
+                        className="h-9 border-none focus-visible:ring-0 text-xs w-full sm:w-[120px] bg-transparent px-0" 
+                      />
+                    </div>
+                  </div>
                 </div>
                 {evolutions.map((evo) => (
                   <Card key={evo.id} className="border border-slate-200 shadow-md rounded-[24px] border-l-4 border-l-teal-500 bg-white">
@@ -1349,31 +1368,44 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </Card>
                 ))}
                 
-                {/* BOTÃO DE CARREGAR MAIS */}
-                {hasMoreEvolutions && evolutions.length > 0 && (
-                  <div className="mt-6 flex justify-center">
-                    <Button 
-                      variant="outline" 
-                      onClick={handleLoadMoreEvolutions} 
-                      disabled={loadingMoreEvolutions}
-                      className="w-full sm:w-auto text-teal-700 border-teal-200 bg-teal-50 hover:bg-teal-100 font-bold rounded-xl"
-                    >
-                      {loadingMoreEvolutions ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
-                      {loadingMoreEvolutions ? "Carregando..." : "Carregar Evoluções Anteriores"}
-                    </Button>
-                  </div>
-                )}
-
-                {!hasMoreEvolutions && evolutions.length > 0 && (
-                  <p className="text-center text-xs text-slate-400 mt-6 font-medium">
-                    Todas as evoluções deste período foram carregadas.
-                  </p>
-                )}
                 {evolutions.length === 0 && !loadingMoreEvolutions && (
                   <p className="text-center text-xs text-slate-400 mt-6 font-medium">
                     Nenhuma evolução encontrada.
                   </p>
                 )}
+
+                {/* CONTROLES DE PAGINAÇÃO (Idêntico a Sessões) */}
+                <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-200 gap-4 mt-6 bg-slate-50/50 rounded-b-[24px]">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => { 
+                      setEvolutionPage(p => p - 1); 
+                      fetchEvolutions(evolutionPage - 1, evoStartDate, evoEndDate, evoSearch); 
+                    }} 
+                    disabled={evolutionPage === 0} 
+                    className="w-full sm:w-auto rounded-xl h-9 font-bold text-[10px] uppercase text-slate-600 shadow-sm border-slate-300 bg-white hover:bg-slate-100"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-2"/> ANTERIOR
+                  </Button>
+                  
+                  <span className="text-xs text-slate-500 font-medium">
+                    Página {evolutionPage + 1} de {Math.max(1, Math.ceil(totalEvolutions / 10))}
+                  </span>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => { 
+                      setEvolutionPage(p => p + 1); 
+                      fetchEvolutions(evolutionPage + 1, evoStartDate, evoEndDate, evoSearch); 
+                    }} 
+                    disabled={(evolutionPage + 1) * 10 >= totalEvolutions} 
+                    className="w-full sm:w-auto rounded-xl h-9 font-bold text-[10px] uppercase text-slate-600 shadow-sm border-slate-300 bg-white hover:bg-slate-100"
+                  >
+                    PRÓXIMO <ChevronRight className="h-4 w-4 ml-2"/>
+                  </Button>
+                </div>
               </div>
             </>
         </div>
