@@ -192,14 +192,20 @@ function CheckoutContent() {
 
   // Máscara de Telefone Celular
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/\D/g, '').slice(0, 11);
-    let formattedValue = rawValue;
-    if (rawValue.length <= 10) {
-      formattedValue = rawValue.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
+    let value = e.target.value;
+    
+    // Se tiver um '+' em qualquer lugar da string, ativa o modo internacional
+    if (value.includes('+')) {
+      // Formato Internacional: remove letras, mas permite +, números, espaços, hifens e parênteses
+      value = value.replace(/[^\d+ \-()]/g, '');
+      setInfoData(prev => ({ ...prev, phone: value.slice(0, 25) }));
     } else {
-      formattedValue = rawValue.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2');
+      // Formato Brasil: aplica a máscara (XX) XXXXX-XXXX
+      value = value.replace(/\D/g, ''); // Tira tudo que não é número
+      value = value.replace(/^(\d{2})(\d)/g, '($1) $2'); // Coloca parênteses
+      value = value.replace(/(\d)(\d{4})$/, '$1-$2'); // Coloca hífen
+      setInfoData(prev => ({ ...prev, phone: value.slice(0, 15) }));
     }
-    setInfoData({ ...infoData, phone: formattedValue });
   };
 
   // Validações
@@ -207,7 +213,8 @@ function CheckoutContent() {
   const isValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
   
   const cleanPhone = infoData.phone.replace(/\D/g, '');
-  const isValidPhone = cleanPhone.length === 10 || cleanPhone.length === 11;
+  const isInternational = infoData.phone.includes('+');
+  const isValidPhone = isInternational ? cleanPhone.length >= 8 : (cleanPhone.length === 10 || cleanPhone.length === 11);
 
   const isFormValid = infoData.name.trim().length > 0 && isValidCpf && isValidPhone;
 
@@ -271,8 +278,7 @@ function CheckoutContent() {
                   value={infoData.phone} 
                   onChange={handlePhoneChange} 
                   inputMode="numeric"
-                  placeholder="(00) 00000-0000" 
-                  maxLength={15}
+                  placeholder="(00) 00000-0000 ou +1..."
                   required 
                   className={!isValidPhone && infoData.phone.length > 0 ? "border-red-500 focus-visible:ring-red-500" : ""}
                 />

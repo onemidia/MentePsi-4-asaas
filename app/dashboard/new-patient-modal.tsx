@@ -42,10 +42,17 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
 
   // Máscaras
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '')
-    value = value.replace(/^(\d{2})(\d)/g, '($1) $2')
-    value = value.replace(/(\d)(\d{4})$/, '$1-$2')
-    setFormData({ ...formData, phone: value.slice(0, 15) })
+    let value = e.target.value;
+    
+    if (value.includes('+')) {
+      value = value.replace(/[^\d+ \-()]/g, '');
+      setFormData({ ...formData, phone: value.slice(0, 25) });
+    } else {
+      value = value.replace(/\D/g, ''); 
+      value = value.replace(/^(\d{2})(\d)/g, '($1) $2'); 
+      value = value.replace(/(\d)(\d{4})$/, '$1-$2'); 
+      setFormData({ ...formData, phone: value.slice(0, 15) });
+    }
   }
 
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,7 +194,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
             <div className="space-y-2">
               <Label className="font-bold text-slate-700">Telefone / WhatsApp</Label>
               <Input
-                placeholder="(00) 00000-0000"
+                placeholder="(00) 00000-0000 ou +1..."
                 value={formData.phone}
                 onChange={handlePhoneChange}
                 className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-teal-500/20"

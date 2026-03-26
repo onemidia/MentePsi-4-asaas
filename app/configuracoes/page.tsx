@@ -186,6 +186,23 @@ export default function SettingsPage() {
     setProfile(prev => ({ ...prev, [id]: value }));
   };
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    
+    // Se tiver um '+' em qualquer lugar da string, ativa o modo internacional
+    if (value.includes('+')) {
+      // Formato Internacional: remove letras, mas permite +, números, espaços, hifens e parênteses
+      value = value.replace(/[^\d+ \-()]/g, '');
+      setProfile(prev => ({ ...prev, phone: value.slice(0, 25) }));
+    } else {
+      // Formato Brasil: aplica a máscara (XX) XXXXX-XXXX
+      value = value.replace(/\D/g, ''); // Tira tudo que não é número
+      value = value.replace(/^(\d{2})(\d)/g, '($1) $2'); // Coloca parênteses
+      value = value.replace(/(\d)(\d{4})$/, '$1-$2'); // Coloca hífen
+      setProfile(prev => ({ ...prev, phone: value.slice(0, 15) }));
+    }
+  };
+
   const handleSelectChange = (id: string, value: string | number) => {
     setProfile(prev => ({ ...prev, [id]: value }));
   };
@@ -478,7 +495,7 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="phone">Telefone/WhatsApp</Label>
-                  <Input id="phone" type="tel" value={profile.phone || ''} onChange={handleInputChange} className="border-slate-300" />
+                  <Input id="phone" type="tel" value={profile.phone || ''} onChange={handlePhoneChange} placeholder="(00) 00000-0000 ou +1..." className="border-slate-300" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="default_session_value">Valor Padrão da Sessão (R$)</Label>

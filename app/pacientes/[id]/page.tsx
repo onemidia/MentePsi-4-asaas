@@ -113,12 +113,22 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
     }
   };
 
-  // 🎭 MÁSCARAS DE INPUT (Sem bibliotecas externas)
+  // 🎭 MÁSCARA INTELIGENTE (Brasil ou Internacional)
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '')
-    value = value.replace(/^(\d{2})(\d)/g, '($1) $2')
-    value = value.replace(/(\d)(\d{4})$/, '$1-$2')
-    setPaciente((prev: any) => ({ ...prev, phone: value.slice(0, 15) }))
+    let value = e.target.value;
+    
+    // Se tiver um '+' em qualquer lugar da string, ativa o modo internacional
+    if (value.includes('+')) {
+      // Formato Internacional: remove letras, mas permite +, números, espaços, hifens e parênteses
+      value = value.replace(/[^\d+ \-()]/g, '');
+      setPaciente((prev: any) => ({ ...prev, phone: value.slice(0, 25) }));
+    } else {
+      // Formato Brasil: aplica a máscara (XX) XXXXX-XXXX
+      value = value.replace(/\D/g, ''); // Tira tudo que não é número
+      value = value.replace(/^(\d{2})(\d)/g, '($1) $2'); // Coloca parênteses
+      value = value.replace(/(\d)(\d{4})$/, '$1-$2'); // Coloca hífen
+      setPaciente((prev: any) => ({ ...prev, phone: value.slice(0, 15) }));
+    }
   }
 
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,7 +173,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
   })
 
   const [paciente, setPaciente] = useState<any>({
-    full_name: '', cpf: '', rg: '', birth_date: '', gender: '', marital_status: '', profession: '', education: '', nationality: '', session_value: '', status: 'Ativo',
+    full_name: '', cpf: '', rg: '', birth_date: '', gender: '', marital_status: '', profession: '', education: '', nationality: '', religion: '', session_value: '', status: 'Ativo',
     phone: '', email: '', cep: '', city: '', address: '', address_number: '', neighborhood: '', complement: '', state: '', emergency_name: '', emergency_phone: '', emergency_kinship: '',
     country: 'Brasil', has_insurance: false, medical_history: '', psychiatric_history: '', medications: '', allergies: '', family_history: '',
     therapy_goals: '', lead_source: '', lead_details: '', observations: '', previous_therapy: 'Não', previous_therapy_notes: '',
@@ -558,6 +568,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
         profession: paciente.profession,
         education: paciente.education,
         nationality: paciente.nationality,
+        religion: paciente.religion,
         
         // Financeiro e Status
         session_value: paciente.session_value ? parseFloat(String(paciente.session_value)) : null,
@@ -1129,6 +1140,15 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </select>
                 </div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Nacionalidade</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.nationality || ''} onChange={e => setPaciente({...paciente, nationality: e.target.value})} /></div>
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Religião / Crença</Label>
+                  <Input 
+                    className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" 
+                    value={paciente.religion || ''} 
+                    onChange={e => setPaciente({...paciente, religion: e.target.value})} 
+                    placeholder="Ex: Católica, Evangélica, Espírita..."
+                  />
+                </div>
                 
                 {/* NOVOS CAMPOS: STATUS E FINANCEIRO */}
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Status do Paciente</Label>
@@ -1145,7 +1165,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               <div className="space-y-4 border-t border-slate-200 pt-6">
                 <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2 mb-6"><MapPin size={16}/> Contato e Localização</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Telefone / WhatsApp</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.phone || ''} onChange={handlePhoneChange} placeholder="(00) 00000-0000" maxLength={15} /></div>
+                  <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Telefone / WhatsApp</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.phone || ''} onChange={handlePhoneChange} placeholder="(00) 00000-0000 ou +1..." /></div>
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">CEP</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.cep || ''} onChange={e => setPaciente({...paciente, cep: e.target.value})} /></div>
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">País</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.country || 'Brasil'} onChange={e => setPaciente({...paciente, country: e.target.value})} /></div>
                   <div className="md:col-span-2 space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Logradouro (Rua)</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.address || ''} onChange={e => setPaciente({...paciente, address: e.target.value})} /></div>
@@ -1727,7 +1747,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
         <div className="w-full block clear-both animate-in fade-in">
           <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-4 md:p-6 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Telefone Principal *</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.phone || ''} onChange={handlePhoneChange} placeholder="(00) 00000-0000" maxLength={15} /></div>
+              <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Telefone Principal *</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.phone || ''} onChange={handlePhoneChange} placeholder="(00) 00000-0000 ou +1..." /></div>
               <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Email de Contato</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.email || ''} onChange={e => setPaciente({...paciente, email: e.target.value})} /></div>
             </div>
             <div className="space-y-4 border-t border-slate-200 pt-6">
