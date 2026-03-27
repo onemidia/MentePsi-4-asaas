@@ -808,21 +808,52 @@ export default function FinanceiroPage() {
     setter((Number(cleanValue) / 100).toFixed(2).replace('.', ','));
   }
 
+  // 🖨️ FUNÇÃO PARA GERAR O RELATÓRIO GERAL DA TELA EM PDF
+  const gerarPDFRelatorio = () => {
+    const janela = window.open('', '', 'width=900,height=700');
+    if (!janela) return toast({ variant: "destructive", title: "Aviso", description: "Permita os pop-ups do navegador." });
+
+    let html = `
+      <html><head><title>Relatório Financeiro</title>
+      <style>
+        body { font-family: sans-serif; padding: 30px; color: #333; }
+        h1 { color: #0f172a; font-size: 24px; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: left; font-size: 13px; }
+        th { background-color: #f8fafc; color: #666; }
+      </style></head><body>
+      <h1>Relatório Financeiro - MentePsi</h1>
+      <table>
+        <thead><tr><th>Data</th><th>Paciente</th><th>Valor</th><th>Pago</th><th>Pendente</th><th>Status</th></tr></thead>
+        <tbody>
+    `;
+
+    filteredAppointments.forEach(item => {
+      const data = new Date(item.start_time).toLocaleDateString('pt-BR');
+      const pac = item.patients?.full_name || 'N/A';
+      const valor = Number(item.price || 0).toFixed(2).replace('.', ',');
+      const pago = Number(item.amount_paid || 0).toFixed(2).replace('.', ',');
+      const pend = (Number(item.price || 0) - Number(item.amount_paid || 0)).toFixed(2).replace('.', ',');
+      html += `<tr><td>${data}</td><td>${pac}</td><td>R$ ${valor}</td><td>R$ ${pago}</td><td>R$ ${pend}</td><td>${item.payment_status}</td></tr>`;
+    });
+
+    html += `</tbody></table></body></html>`;
+    janela.document.write(html);
+    janela.document.close();
+    janela.focus();
+    setTimeout(() => { janela.print(); janela.close(); }, 500);
+  };
+
   const handleExportExcel = async () => {
-    // ⚡ PERFORMANCE: Importação dinâmica do XLSX
-    const XLSX = await import('xlsx');
-    
-    const data = filteredAppointments.map(apt => {
-      const pendente = Number(apt.price) - Number(apt.amount_paid || 0)
-      return {
-        "Data": format(new Date(apt.start_time), "dd/MM/yyyy HH:mm"),
-        "Paciente": apt.patients?.full_name || "N/A",
-        "Valor (R$)": Number(apt.price),
-        "Pago (R$)": Number(apt.amount_paid || 0),
-        "Pendente (R$)": pendente,
-        "Status": apt.payment_status
-      }
-    })
+    const XLSX = await import('xlsx')
+    const data = filteredAppointments.map(a => ({
+      Data: format(new Date(a.start_time), "dd/MM/yyyy"),
+      Paciente: a.patients?.full_name,
+      Valor: a.price,
+      Pago: a.amount_paid || 0,
+      Pendente: Number(a.price) - Number(a.amount_paid || 0),
+      Status: a.payment_status
+    }))
 
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -910,99 +941,87 @@ export default function FinanceiroPage() {
     if (selected.length === 0) return
 
     try {
-    const firstPatientId = selected[0].patient_id
-    const mixed = selected.some(a => a.patient_id !== firstPatientId)
-    if (mixed) {
-      toast({ variant: "destructive", title: "Erro no Recibo", description: "Selecione sessões de apenas um paciente." })
-      return
-    }
-
-    const patient = selected[0].patients
-
-    // Validação de Dados Obrigatórios
-    if (!patient?.cpf) {
-      toast({ variant: "destructive", title: "CPF Ausente", description: `O paciente ${patient?.full_name} não possui CPF cadastrado.` })
-      return
-    }
-
-    // Dados do Profissional (Com Fallback para Alvino Buriti)
-    const profName = professionalData?.full_name || "Alvino Buriti"
-    const profCRP = professionalData?.crp || "CRP não informado"
-    const profAddress = professionalData?.address || "Endereço não informado"
-
-    // 🔢 LÓGICA DO CONTADOR DE RECIBOS
-    // 1. Busca ou Cria o contador
-    const { data: { user } } = await supabase.auth.getUser()
-    let receiptNumber = 1
-    
-    if (user) {
-      let { data: counter } = await supabase.from('receipt_counters').select('current_count').eq('psychologist_id', user.id).single()
-      
-      if (!counter) {
-        const { data: newCounter } = await supabase.from('receipt_counters').insert({ psychologist_id: user.id, current_count: 0 }).select().single()
-        counter = newCounter
+      const firstPatientId = selected[0].patient_id
+      const mixed = selected.some(a => a.patient_id !== firstPatientId)
+      if (mixed) {
+        toast({ variant: "destructive", title: "Erro no Recibo", description: "Selecione sessões de apenas um paciente." })
+        return
       }
+
+      const patient = selected[0].patients
+
+      // 🛑 CORREÇÃO 1: CPF agora é opcional. Se não tiver, não trava o sistema!
+      const patientCpf = patient?.cpf || "Não informado"
+
+      const profName = professionalData?.full_name || "Alvino Buriti"
+      const profCRP = professionalData?.crp || "CRP não informado"
+      const profAddress = professionalData?.address || "Endereço não informado"
+
+      // Contador de Recibos
+      const { data: { user } } = await supabase.auth.getUser()
+      let receiptNumber = 1
+      if (user) {
+        let { data: counter } = await supabase.from('receipt_counters').select('current_count').eq('psychologist_id', user.id).single()
+        if (!counter) {
+          const { data: newCounter } = await supabase.from('receipt_counters').insert({ psychologist_id: user.id, current_count: 0 }).select().single()
+          counter = newCounter
+        }
+        receiptNumber = (counter?.current_count || 0) + 1
+        await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', user.id)
+      }
+
+      // 🛑 CORREÇÃO 2: Removida a biblioteca "autotable" que estava travando o botão
+      const { jsPDF } = (await import('jspdf')).default ? await import('jspdf') : { jsPDF: (await import('jspdf')).jsPDF };
+      const doc = new jsPDF()
       
-      receiptNumber = (counter?.current_count || 0) + 1
+      doc.setFontSize(16)
+      doc.setTextColor(13, 148, 136)
+      doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
       
-      // 2. Incrementa o contador no banco
-      await supabase.from('receipt_counters').update({ current_count: receiptNumber }).eq('psychologist_id', user.id)
-    }
+      doc.setTextColor(0, 0, 0)
+      doc.setFontSize(10)
+      doc.text(profName, 105, 30, { align: "center" })
+      doc.text(`CRP: ${profCRP} | ${profAddress}`, 105, 35, { align: "center" })
 
-    // ⚡ PERFORMANCE: Carregamento dinâmico das libs de PDF
-    const { jsPDF } = (await import('jspdf')).default ? await import('jspdf') : { jsPDF: (await import('jspdf')).jsPDF };
-    const autoTable = (await import('jspdf-autotable')).default;
+      const total = selected.reduce((acc, curr) => acc + Number(curr.price), 0)
+      
+      doc.setFontSize(12)
+      doc.text(`Recebi de ${patient.full_name}, CPF: ${patientCpf}`, 14, 50)
+      doc.text(`a importância de ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
+      doc.text(`referente aos serviços de psicoterapia listados abaixo:`, 14, 64)
 
-    const doc = new jsPDF()
-    
-    // Header
-    doc.setFontSize(16)
-    doc.setTextColor(13, 148, 136) // Teal color
-    doc.text(`RECIBO DE PAGAMENTO Nº ${String(receiptNumber).padStart(3, '0')}`, 105, 20, { align: "center" })
-    
-    doc.setTextColor(0, 0, 0)
-    doc.setFontSize(10)
-    doc.text(profName, 105, 30, { align: "center" })
-    doc.text(`CRP: ${profCRP} | ${profAddress}`, 105, 35, { align: "center" })
+      // Desenha a tabela manualmente (Super seguro, nunca trava)
+      let y = 75;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Data", 14, y);
+      doc.text("Descrição", 60, y);
+      doc.text("Valor", 150, y);
+      y += 2;
+      doc.line(14, y, 196, y); 
+      y += 8;
 
-    // Body
-    const total = selected.reduce((acc, curr) => acc + Number(curr.price), 0)
-    
-    doc.setFontSize(12)
-    doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf}`, 14, 50)
-    doc.text(`a importância de ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
-    doc.text(`referente aos serviços de psicoterapia listados abaixo:`, 14, 64)
+      doc.setFont("helvetica", "normal");
+      selected.forEach(a => {
+         doc.text(format(new Date(a.start_time), "dd/MM/yyyy"), 14, y);
+         doc.text("Sessão de Psicoterapia", 60, y);
+         doc.text(Number(a.price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 150, y);
+         y += 8;
+      });
 
-    // Table
-    const tableData = selected.map(a => [
-      format(new Date(a.start_time), "dd/MM/yyyy"),
-      "Sessão de Psicoterapia",
-      Number(a.price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    ])
+      y += 20;
+      doc.text("________________________________________________", 105, y, { align: "center" })
+      doc.text("Assinatura do Profissional", 105, y + 5, { align: "center" })
+      doc.text(`${professionalData?.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, y + 15, { align: "center" })
 
-    autoTable(doc, {
-      startY: 70,
-      head: [['Data', 'Descrição', 'Valor']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [13, 148, 136] }
-    })
+      doc.setFontSize(8)
+      doc.setTextColor(150)
+      doc.text("Documento emitido em conformidade com a Resolução CFP nº 010/05.", 105, 285, { align: "center" })
 
-    // Footer
-    const finalY = (doc as any).lastAutoTable.finalY + 40
-    doc.text("________________________________________________", 105, finalY, { align: "center" })
-    doc.text("Assinatura do Profissional", 105, finalY + 5, { align: "center" })
-    doc.text(`${professionalData?.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, finalY + 15, { align: "center" })
-
-    // ⚖️ RODAPÉ ÉTICO
-    doc.setFontSize(8)
-    doc.setTextColor(150)
-    doc.text("Documento emitido em conformidade com a Resolução CFP nº 010/05. Contém dados sensíveis sob sigilo profissional.", 105, 285, { align: "center" })
-
-    doc.save('Recibo_MentePsi.pdf')
+      doc.save(`Recibo_MentePsi_${receiptNumber}.pdf`)
     } catch (error: any) {
-      console.warn("Aviso ao gerar PDF em lote:", error)
-      alert('Erro ao gerar PDF: ' + error.message)
+      console.warn("Erro ao gerar PDF:", error)
+      toast({ variant: "destructive", title: "Erro", description: 'Erro ao gerar PDF: ' + error.message })
     }
   }
 
@@ -1012,8 +1031,16 @@ export default function FinanceiroPage() {
     <div className="p-6 space-y-6 bg-slate-100 min-h-[100dvh]">
       
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-        <div><div className="flex items-center gap-2"><h1 className="text-3xl font-black text-slate-800 tracking-tight">Financeiro</h1>{refreshing && <Loader2 className="animate-spin text-teal-600 h-5 w-5" />}</div><p className="text-slate-500 font-medium text-sm">Gestão por período e lançamentos inteligentes.</p></div>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Financeiro</h1>
+            {refreshing && <Loader2 className="animate-spin text-teal-600 h-5 w-5" />}
+          </div>
+          <p className="text-slate-500 font-medium text-sm">Gestão por período e lançamentos inteligentes.</p>
+        </div>
+        
         <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
+          {/* Botões que só aparecem quando seleciona um paciente */}
           {selectedItems.size > 0 && (
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <Button variant="outline" className="w-full sm:w-auto font-bold border-green-200 bg-green-50 text-green-700 shadow-sm hover:bg-green-100 rounded-2xl h-10" onClick={handleSendWhatsAppReceipt}>
@@ -1024,8 +1051,19 @@ export default function FinanceiroPage() {
               </Button>
             </div>
           )}
-          <Button variant="outline" className="w-full sm:w-auto font-bold border-slate-200 text-slate-600 shadow-sm rounded-2xl h-10" onClick={handleExportExcel}><Download className="mr-2 h-4 w-4"/> Exportar Excel</Button>
-          <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 font-bold shadow-sm hover:shadow-md text-white rounded-2xl h-10" onClick={() => setNewTransactionOpen(true)}><Plus className="mr-2 h-4 w-4"/> Lançar Recebimento</Button>
+          
+          {/* --- NOVO BOTÃO DE PDF AQUI --- */}
+          <Button variant="outline" className="w-full sm:w-auto font-bold border-red-200 text-red-600 shadow-sm hover:bg-red-50 rounded-2xl h-10" onClick={gerarPDFRelatorio}>
+            <FileText className="mr-2 h-4 w-4"/> Relatório PDF
+          </Button>
+          
+          <Button variant="outline" className="w-full sm:w-auto font-bold border-slate-200 text-slate-600 shadow-sm rounded-2xl h-10" onClick={handleExportExcel}>
+            <Download className="mr-2 h-4 w-4"/> Exportar Excel
+          </Button>
+          
+          <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 font-bold shadow-sm hover:shadow-md text-white rounded-2xl h-10" onClick={() => setNewTransactionOpen(true)}>
+            <Plus className="mr-2 h-4 w-4"/> Lançar Recebimento
+          </Button>
         </div>
       </div>
 
