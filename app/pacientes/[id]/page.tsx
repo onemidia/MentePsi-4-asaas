@@ -73,6 +73,10 @@ export default function FichaClinicaDigital() {
   const [lgpdModalOpen, setLgpdModalOpen] = useState(false);
   const [lgpdContent, setLgpdContent] = useState("");
 
+  // ESTADOS DA RESPOSTA DE EMOÇÕES
+  const [replyingEmotionId, setReplyingEmotionId] = useState<string | null>(null)
+  const [emotionReplyText, setEmotionReplyText] = useState("")
+
   const handleOpenLgpdEditor = async () => {
     try {
       const { data: prof } = await supabase.from('professional_profile')
@@ -991,6 +995,32 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
     }
   };
 
+  // 💬 FUNÇÃO PARA ENVIAR ACOLHIMENTO (RESPOSTA) AO PACIENTE
+  const handleReplyEmotion = async (emotionId: string) => {
+    if (!emotionReplyText.trim()) return
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('emotion_journal')
+        .update({
+          psychologist_reply: emotionReplyText,
+          reply_read: false
+        })
+        .eq('id', emotionId)
+
+      if (error) throw error
+
+      toast({ title: "Acolhimento enviado!", description: "O paciente receberá a notificação no portal." })
+      setReplyingEmotionId(null)
+      setEmotionReplyText("")
+      await loadAllData()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao responder", description: e.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const getMoodIcon = (score: number) => {
     const icons: any = { 1: Frown, 2: ThumbsDown, 3: Meh, 4: ThumbsUp, 5: Smile }
     return icons[score] || Meh
@@ -1608,19 +1638,77 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       {/* EMOÇÕES */}
       {activeTab === 'emocoes' && (
         <div className="w-full block clear-both animate-in fade-in">
-            <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-4 md:p-6 space-y-4">
+            <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white">
+              <CardHeader className="bg-slate-50 border-b border-slate-200 p-6 rounded-t-[24px]">
+                <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">
+                  <Activity size={16} /> Diário de Emoções do Paciente
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 md:p-6 space-y-4">
               {emotions.slice((currentPage - 1) * 10, currentPage * 10).map(e => {
                 const MoodIcon = getMoodIcon(Number(e.mood_score));
                 return (
-                  <div key={e.id} className="flex gap-4 p-4 border border-slate-200 rounded-2xl bg-slate-50 transition-all hover:bg-white">
-                    <MoodIcon className="h-6 w-6 text-slate-400 shrink-0" />
-                    <div><p className="font-bold text-sm">{new Date(e.created_at).toLocaleDateString('pt-BR')}</p><p className="text-xs italic text-slate-600 mt-1">"{e.notes}"</p></div>
+                  <div key={e.id} className="flex flex-col gap-3 p-4 border border-slate-200 rounded-2xl bg-slate-50 transition-all hover:bg-white shadow-sm">
+                    {/* Relato do Paciente */}
+                    <div className="flex gap-4 items-start">
+                      <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100">
+                        <MoodIcon className="h-8 w-8 text-teal-600 shrink-0" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-sm text-slate-800">{new Date(e.created_at).toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short' })}</p>
+                        <p className="text-sm italic text-slate-600 mt-2 bg-white p-3 rounded-xl border border-slate-100">"{e.notes}"</p>
+                      </div>
+                    </div>
+                    
+                    {/* Resposta do Psicólogo */}
+                    {e.psychologist_reply ? (
+                      <div className="mt-2 ml-2 sm:ml-16 bg-teal-50 border border-teal-100 p-4 rounded-2xl flex items-start gap-3 relative">
+                        <div className="absolute -left-3 top-4 w-3 h-px bg-teal-200 hidden sm:block"></div>
+                        <CheckCircle2 className="h-5 w-5 text-teal-600 shrink-0 mt-0.5" />
+                        <div className="w-full">
+                          <div className="flex justify-between items-center mb-1">
+                            <p className="text-[10px] font-black text-teal-700 uppercase tracking-widest">Seu Acolhimento</p>
+                            {!e.reply_read ? (
+                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[9px] shadow-sm"><Activity className="w-3 h-3 mr-1 animate-pulse"/> Não lido</Badge>
+                            ) : (
+                              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none text-[9px] shadow-sm"><CheckCircle2 className="w-3 h-3 mr-1"/> Lido</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-teal-900 leading-relaxed whitespace-pre-wrap">{e.psychologist_reply}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 ml-2 sm:ml-16">
+                        {replyingEmotionId === e.id ? (
+                          <div className="space-y-3 animate-in fade-in slide-in-from-top-2 bg-white p-4 rounded-2xl border border-teal-200 shadow-sm">
+                            <Label className="text-[10px] font-black text-teal-600 uppercase tracking-widest">Escrever Acolhimento</Label>
+                            <Textarea 
+                              placeholder="Escreva uma mensagem de apoio ou orientação para o paciente..." 
+                              className="text-sm min-h-[100px] border-slate-200 focus-visible:ring-teal-500 bg-slate-50"
+                              value={emotionReplyText}
+                              onChange={(e) => setEmotionReplyText(e.target.value)}
+                            />
+                            <div className="flex flex-col sm:flex-row justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => setReplyingEmotionId(null)} className="h-10 text-xs font-bold text-slate-500 rounded-xl">Cancelar</Button>
+                              <Button size="sm" onClick={() => handleReplyEmotion(e.id)} disabled={saving} className="h-10 text-xs bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-sm">
+                                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MessageSquarePlus className="h-4 w-4 mr-2" />} Enviar ao Portal
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={() => { setReplyingEmotionId(e.id); setEmotionReplyText(""); }} className="h-9 text-xs font-bold text-teal-600 border-teal-200 hover:bg-teal-50 rounded-xl shadow-sm">
+                            <MessageSquarePlus className="h-4 w-4 mr-2" /> Responder Paciente
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
               <PaginationControls totalCount={emotions.length} />
               {emotions.length === 0 && <div className="p-10 text-center text-slate-400 italic">Nenhum registro de emoção ainda.</div>}
-            </CardContent></Card>
+            </CardContent>
+            </Card>
         </div>
       )}
 

@@ -14,7 +14,8 @@ import {
   CheckCircle, Eraser, Clock, Filter, MessageSquarePlus, 
   Youtube, Smartphone, RefreshCw, Upload, AlertTriangle,
   Copy, Landmark, MessageCircle, Loader2, CheckCircle2, Video,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight,
+  BellRing, HeartHandshake
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import SignatureCanvas from 'react-signature-canvas'
@@ -63,6 +64,13 @@ export default function PatientPortalPage() {
   const [isSavingAgenda, setIsSavingAgenda] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
 
+  const [emotions, setEmotions] = useState<any[]>([])
+
+  const getMoodIcon = (score: number) => {
+    const icons: any = { 1: Frown, 2: ThumbsDown, 3: Meh, 4: ThumbsUp, 5: Smile }
+    return icons[score] || Meh
+  }
+
   const [permissions, setPermissions] = useState({
     active: true,
     journal: true,
@@ -105,16 +113,18 @@ export default function PatientPortalPage() {
         }
 
         // BUSCA CONDICIONAL: Só carrega se o módulo estiver habilitado e o portal ativo
-        const [aptsRes, matsRes, signedDocRes, pendingDocRes, proofRes] = await Promise.all([
+        const [aptsRes, matsRes, signedDocRes, pendingDocRes, proofRes, emotionsRes] = await Promise.all([
           supabase.from('appointments').select('*').eq('patient_id', id).order('start_time', { ascending: true }),
           currentPermissions.materials ? supabase.from('therapeutic_materials').select('*').eq('patient_id', id).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
           currentPermissions.documents ? supabase.from('patient_documents').select('id').eq('patient_id', id).eq('status', 'Assinado').limit(1).maybeSingle() : Promise.resolve({ data: null }),
           currentPermissions.documents ? supabase.from('patient_documents').select('*').eq('patient_id', id).in('status', ['Pendente', 'Gerado']).order('created_at', { ascending: false }).limit(1).maybeSingle() : Promise.resolve({ data: null }),
-          currentPermissions.financials ? supabase.from('patient_documents').select('id').eq('patient_id', id).ilike('title', '%Comprovante%').eq('status', 'Pendente').limit(1).maybeSingle() : Promise.resolve({ data: null })
+          currentPermissions.financials ? supabase.from('patient_documents').select('id').eq('patient_id', id).ilike('title', '%Comprovante%').eq('status', 'Pendente').limit(1).maybeSingle() : Promise.resolve({ data: null }),
+          currentPermissions.journal ? supabase.from('emotion_journal').select('*').eq('patient_id', id).order('created_at', { ascending: false }) : Promise.resolve({ data: [] })
         ])
         
         if (matsRes.data) setMaterials(matsRes.data)
         if (aptsRes.data) setAppointments(aptsRes.data)
+        if (emotionsRes.data) setEmotions(emotionsRes.data)
         
         if (proofRes.data) setHasPendingProof(true);
         if (!proofRes.data) setHasPendingProof(false);
@@ -202,6 +212,17 @@ export default function PatientPortalPage() {
     if (!error) {
       setSubmitted(true)
       toast({ title: "Registro salvo!", description: "Obrigado por compartilhar seu humor hoje." })
+    }
+  }
+
+  const handleMarkReplyAsRead = async (emotionId: string) => {
+    try {
+      const { error } = await supabase.from('emotion_journal').update({ reply_read: true }).eq('id', emotionId)
+      if (error) throw error
+      setEmotions(prev => prev.map(e => e.id === emotionId ? { ...e, reply_read: true } : e))
+      toast({ title: "Marcado como lido", description: "Mensagem do seu terapeuta arquivada." })
+    } catch (err) {
+      console.error("Erro ao marcar como lido", err)
     }
   }
 
@@ -391,11 +412,23 @@ export default function PatientPortalPage() {
   }
 
   const meetingStatus = getMeetingStatus()
+  const unreadRepliesCount = emotions.filter(e => e.psychologist_reply && !e.reply_read).length
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 p-4 pt-8 max-w-lg mx-auto pb-24 space-y-6">
       
       <header className="text-center relative pt-4 space-y-4">
+        {/* BOTÃO DE SININHO NOVO */}
+        {unreadRepliesCount > 0 && (
+          <Button variant="ghost" size="icon" className="absolute -left-2 -top-2 text-amber-500 hover:text-amber-600 transition-colors" onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}>
+            <div className="relative animate-bounce">
+              <BellRing size={20} />
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black rounded-full h-4 w-4 flex items-center justify-center shadow-sm">{unreadRepliesCount}</span>
+            </div>
+          </Button>
+        )}
+        
+        {/* BOTÃO DE REFRESH EXISTENTE */}
         <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 text-slate-400 hover:text-teal-600 transition-colors" onClick={() => fetchPortalData(true)} disabled={refreshing}>
           <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
         </Button>
@@ -513,6 +546,54 @@ export default function PatientPortalPage() {
               <Card className="bg-emerald-50 border-none rounded-[32px] py-8 text-center animate-in zoom-in duration-300"><CardContent><CheckCircle className="mx-auto text-emerald-600 mb-2" size={32}/><p className="font-black text-emerald-900 text-lg">Registro Enviado!</p></CardContent></Card>
             )
           )}
+
+          {/* NOVO: DIÁRIO DE EMOÇÕES E ACOLHIMENTOS */}
+          {emotions.length > 0 && (
+            <Card className="rounded-[32px] border-none shadow-lg bg-white overflow-hidden mt-6">
+              <CardHeader className="bg-teal-50/50 pb-4">
+                <CardTitle className="text-sm font-black flex items-center gap-2 text-teal-700">
+                  <HeartHandshake size={18} /> Meu Diário e Respostas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4">
+                {emotions.slice(0, 10).map(e => {
+                  const MoodIcon = getMoodIcon(Number(e.mood_score));
+                  const hasUnreadReply = e.psychologist_reply && !e.reply_read;
+                  return (
+                    <div key={e.id} className="p-4 border border-slate-100 rounded-2xl bg-slate-50 flex flex-col gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100 mt-1"><MoodIcon className="h-6 w-6 text-teal-600" /></div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-slate-800">{new Date(e.created_at).toLocaleDateString('pt-BR')} às {new Date(e.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p>
+                          <p className="text-sm italic text-slate-600 mt-1 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">"{e.notes}"</p>
+                        </div>
+                      </div>
+                      
+                      {/* RESPOSTA DO PSICÓLOGO */}
+                      {e.psychologist_reply && (
+                        <div className={`mt-2 p-4 rounded-xl relative overflow-hidden transition-colors shadow-sm ml-2 sm:ml-12 ${hasUnreadReply ? 'bg-amber-50 border border-amber-200' : 'bg-teal-50 border border-teal-100'}`}>
+                          <div className={`absolute top-0 left-0 w-1 h-full ${hasUnreadReply ? 'bg-amber-500' : 'bg-teal-500'}`}></div>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                            <p className={`text-[10px] font-black uppercase tracking-widest flex items-center ${hasUnreadReply ? 'text-amber-700' : 'text-teal-700'}`}>
+                              <MessageSquarePlus className="mr-2 h-4 w-4" />
+                              Resposta do seu Terapeuta
+                            </p>
+                            {hasUnreadReply && (
+                              <Button size="sm" className="bg-amber-500 text-white border-none text-[10px] uppercase font-bold hover:bg-amber-600 shadow-md animate-pulse h-8 px-4 rounded-xl w-full sm:w-auto" onClick={() => handleMarkReplyAsRead(e.id)}>
+                                <CheckCircle2 className="mr-2 h-3 w-3" /> Lida
+                              </Button>
+                            )}
+                          </div>
+                          <p className={`text-sm leading-relaxed whitespace-pre-wrap ${hasUnreadReply ? 'text-amber-900 font-medium' : 'text-teal-900'}`}>{e.psychologist_reply}</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="rounded-[32px] border-none shadow-lg bg-white overflow-hidden">
             <CardHeader className="bg-blue-50/50 pb-4"><CardTitle className="text-sm font-black flex items-center gap-2 text-blue-700"><MessageSquarePlus size={18} /> Pauta da Próxima Sessão</CardTitle></CardHeader>
             <CardContent className="pt-6 space-y-4">
@@ -521,7 +602,7 @@ export default function PatientPortalPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
+      
       {permissions.financials === true && (
         <TabsContent value="agenda" className="space-y-4">
         {totalPending > 0 && (
