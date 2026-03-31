@@ -595,8 +595,9 @@ function AgendaContent() {
         events={events}
         height="calc(100vh - 100px)"
         allDaySlot={false}
-        slotMinTime="07:00:00"
-        slotMaxTime="21:00:00"
+        slotMinTime="01:00:00"
+        slotMaxTime="23:59:00"
+        scrollTime="08:00:00"
         eventClassNames="rounded-lg border-l-4 border-0 shadow-sm mb-1 px-3 py-2 font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
         eventContent={(arg) => (
           <div className="flex items-center w-full">
