@@ -558,7 +558,9 @@ export default function FinanceiroPage() {
     const valor = Number(apt.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const dataSessao = format(new Date(apt.start_time), "dd/MM/yyyy");
     const text = `RECIBO\nRecebemos de ${apt.patients?.full_name} o valor de R$ ${valor} ref. à sessão de psicoterapia realizada em ${dataSessao}.`
-    window.open(`https://wa.me/${apt.patients?.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank')
+    const fone = apt.patients?.phone?.replace(/[^\d+]/g, '') || ''
+    const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
+    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   // ↩️ LÓGICA DE ESTORNO (REVERSÃO)
@@ -933,7 +935,9 @@ export default function FinanceiroPage() {
 
     const message = `Olá ${patient?.full_name?.split(' ')[0]}, segue o seu Recibo Nº ${receiptNum} referente às sessões de ${dates}. (Arquivo em anexo)`
     
-    window.open(`https://wa.me/${patient?.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank')
+    const fone = patient?.phone?.replace(/[^\d+]/g, '') || ''
+    const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
+    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`, '_blank')
   }
 
   const handleGenerateBatchPDF = async () => {

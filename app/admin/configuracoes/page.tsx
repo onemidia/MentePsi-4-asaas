@@ -55,8 +55,8 @@ export default function SaasSettings() {
 
     setSaving(true)
     
-    // 2. LIMPEZA DO WHATSAPP: Remove tudo que não é número (evita erro de salvar)
-    const whatsappLimpo = settings.whatsapp_suporte.replace(/\D/g, '')
+    // 2. LIMPEZA DO WHATSAPP: Preserva o + para números internacionais
+    const whatsappLimpo = settings.whatsapp_suporte.replace(/[^\d+]/g, '')
 
     // Objeto de dados para enviar
     const payload: any = {
@@ -113,8 +113,8 @@ export default function SaasSettings() {
               <Label className="text-xs font-bold text-slate-500 uppercase">WhatsApp (Ex: 5511999999999)</Label>
               <Input 
                 value={settings.whatsapp_suporte}
-                onChange={(e) => setSettings({...settings, whatsapp_suporte: e.target.value.replace(/\D/g, '')})}
-                placeholder="5511999999999"
+                onChange={(e) => setSettings({...settings, whatsapp_suporte: e.target.value.replace(/[^\d+]/g, '')})}
+                placeholder="+55 11 99999-9999"
                 className="h-11 bg-slate-50"
               />
             </div>

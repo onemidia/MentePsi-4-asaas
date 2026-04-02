@@ -86,21 +86,27 @@ export default function PsychologistDashboard() {
     
     const { data: profData } = await supabase.from('professional_profile').select('reminder_template').eq('user_id', profile?.user_id || user.id).single()
     
-    const template = profData?.reminder_template || "Olá, {paciente}! Este é um lembrete da sua sessão agendada para {data} às {horario}."
+    let template = profData?.reminder_template || "Olá, {paciente}! Este é um lembrete da sua sessão agendada para {data} às {horario}."
+    
+    const portalUrl = `https://mentepsi.sbs/portal/${item.patientId}?t=${item.confirmationToken}`
+    if (!template.includes('mentepsi.sbs/portal') && item.confirmationToken) {
+      template += `\n\nPor favor, confirme sua presença clicando no seu portal: ${portalUrl}`
+    }
     
     const mensagem = template
-      .replace('{paciente}', item.name.split(' ')[0])
-      .replace('{data}', item.formattedDate)
-      .replace('{horario}', item.time)
+      .replace(/{paciente}/g, item.name.split(' ')[0])
+      .replace(/{data}/g, item.formattedDate)
+      .replace(/{horario}/g, item.time)
 
-    const fone = item.phone?.replace(/\D/g, '')
+    const fone = item.phone?.replace(/[^\d+]/g, '')
     if (!fone) return toast({ variant: "destructive", title: "Erro", description: "Paciente sem telefone." })
+    const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
 
-    await supabase.from('appointments').update({ reminder_sent: true }).eq('id', item.id)
+    await supabase.from('appointments').update({ reminder_sent: true, reminder_status: 'Enviado' }).eq('id', item.id)
     
-    setAgenda(prev => prev.map(a => a.id === item.id ? { ...a, reminderSent: true } : a))
+    setAgenda(prev => prev.map(a => a.id === item.id ? { ...a, reminderSent: true, reminderStatus: 'Enviado' } : a))
 
-    window.open(`https://api.whatsapp.com/send?phone=55${fone}&text=${encodeURIComponent(mensagem)}`, '_blank')
+    window.open(`https://api.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(mensagem)}`, '_blank')
   }
 
   const handleCurrencyInput = (value: string, setter: (v: string) => void) => {
@@ -326,7 +332,9 @@ export default function PsychologistDashboard() {
           duration: item.duration,
           type: item.modality || 'Sessão',
           status: item.status,
-          reminderSent: item.reminder_sent
+          reminderSent: item.reminder_sent,
+          reminderStatus: item.reminder_status,
+          confirmationToken: item.confirmation_token
         }
       }))
 
@@ -531,6 +539,15 @@ export default function PsychologistDashboard() {
                         {item.type?.toLowerCase() === 'online' && (
                           <Badge variant="outline" className="text-[9px] text-blue-600 border-blue-200 bg-blue-50 px-1.5 py-0 h-4 uppercase tracking-wider">Online</Badge>
                         )}
+                        {item.reminderStatus === 'Confirmado' && (
+                          <Badge variant="outline" className="text-[9px] text-green-700 border-green-200 bg-green-50 px-1.5 py-0 h-4 uppercase tracking-wider">✓ Confirmado</Badge>
+                        )}
+                        {item.reminderStatus === 'Enviado' && (
+                          <Badge variant="outline" className="text-[9px] text-blue-700 border-blue-200 bg-blue-50 px-1.5 py-0 h-4 uppercase tracking-wider">Link Enviado</Badge>
+                        )}
+                        {item.reminderStatus === 'Reagendar' && (
+                          <Badge variant="outline" className="text-[9px] text-pink-700 border-pink-200 bg-pink-50 px-1.5 py-0 h-4 uppercase tracking-wider">Reagendar</Badge>
+                        )}
                       </div>
                       <Badge className={`text-[9px] h-4 px-2 mt-1 rounded-full uppercase font-black shadow-none hover:bg-opacity-100 ${
                         displayStatus === 'Realizada' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 
@@ -622,7 +639,9 @@ export default function PsychologistDashboard() {
                       <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:bg-green-50 hover:text-green-700" onClick={() => {
                           const template = profile?.birthday_message_template || "Olá, {paciente}! Feliz aniversário!"
                           const msg = template.replace(/{nome_paciente}/g, p.full_name.split(' ')[0]).replace(/{paciente}/g, p.full_name.split(' ')[0])
-                          window.open(`https://wa.me/55${p.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
+                          const fone = p.phone?.replace(/[^\d+]/g, '') || ''
+                          const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
+                          window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(msg)}`, '_blank')
                       }}>
                         <MessageCircle className="h-4 w-4" />
                       </Button>
@@ -708,7 +727,11 @@ function EmotionItem({ item }: any) {
         <Button variant="outline" size="sm" asChild><Link href={`/pacientes/${item.patientId}?tab=emocoes`}>Ver</Link></Button>
         {item.whatsapp && (
           <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" asChild>
-            <a href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /></a>
+            {(() => {
+              const fone = item.whatsapp.replace(/[^\d+]/g, '')
+              const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
+              return <a href={`https://wa.me/${finalPhone}`} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /></a>
+            })()}
           </Button>
         )}
       </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { canUseFeature } from '@/lib/planLimits'
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,10 @@ export default function PatientPortalPage() {
   const params = useParams()
   const id = params?.id as string
   const { toast } = useToast()
+  
+  const searchParams = useSearchParams()
+  const [appointmentToken, setAppointmentToken] = useState<string | null>(null)
+  const [tokenHandled, setTokenHandled] = useState(false)
   
   const [patientData, setPatientData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -151,14 +155,52 @@ export default function PatientPortalPage() {
   }, [id, toast])
 
   useEffect(() => {
+    const t = searchParams?.get('t')
+    if (t) setAppointmentToken(t)
     fetchPortalData()
     setIsMounted(true)
-  }, [fetchPortalData])
+  }, [fetchPortalData, searchParams])
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  // --- LÓGICA DE CONFIRMAÇÃO DE AGENDAMENTO VIA TOKEN ---
+  const handleConfirmAppointment = async (status: 'Confirmado' | 'Reagendar') => {
+    if (!appointmentToken) return
+
+    try {
+      const updateData: any = { reminder_status: status }
+      if (status === 'Confirmado') updateData.confirmed_at = new Date().toISOString()
+
+      const { error } = await supabase
+        .from('appointments')
+        .update(updateData)
+        .eq('confirmation_token', appointmentToken)
+
+      if (error) throw error
+
+      setTokenHandled(true)
+      toast({ 
+        title: status === 'Confirmado' ? 'Presença Confirmada!' : 'Solicitação de Reagendamento', 
+        description: status === 'Confirmado' ? 'Te aguardamos na sessão de hoje.' : 'Redirecionando para o WhatsApp do profissional...' 
+      })
+
+      setAppointments(prev => prev.map(a => a.confirmation_token === appointmentToken ? { ...a, reminder_status: status } : a))
+
+      if (status === 'Reagendar') {
+        const phone = patientData?.professional_profile?.phone?.replace(/[^\d+]/g, '')
+        if (phone) {
+          const finalPhone = phone.startsWith('+') ? phone.replace('+', '') : (phone.startsWith('55') ? phone : `55${phone}`)
+          const msg = encodeURIComponent('Olá, preciso reagendar minha sessão de hoje. Podemos ver um novo horário?')
+          window.open(`https://wa.me/${finalPhone}?text=${msg}`, '_blank')
+        }
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Erro", description: err.message })
+    }
+  }
 
   // --- NOVA LÓGICA DE ASSINATURA BLINDADA ---
   const handleSaveSignature = async () => {
@@ -445,6 +487,36 @@ export default function PatientPortalPage() {
         </div>
         <div className="h-1 w-12 bg-teal-500/20 mx-auto rounded-full"></div>
       </header>
+
+      {/* LÓGICA DE CONFIRMAÇÃO DE PRESENÇA (NOVO) */}
+      {appointmentToken && !tokenHandled && appointments.some(a => a.confirmation_token === appointmentToken && a.reminder_status !== 'Confirmado' && a.reminder_status !== 'Reagendar') && (
+        <Card className="w-full shadow-md border-amber-200 bg-amber-50 animate-in fade-in slide-in-from-top-4">
+          <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
+            <div className="bg-amber-100 p-3 rounded-full text-amber-600">
+              <BellRing size={24} />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-amber-900 text-lg">Confirmamos sua presença para hoje?</h3>
+              <p className="text-sm text-amber-700">Por favor, nos avise para organizarmos a agenda.</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 w-full mt-2">
+              <Button 
+                onClick={() => handleConfirmAppointment('Confirmado')}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 rounded-xl shadow-md transition-all hover:scale-[1.02]"
+              >
+                <CheckCircle2 className="mr-2 h-5 w-5" /> Sim, Confirmar
+              </Button>
+              <Button 
+                onClick={() => handleConfirmAppointment('Reagendar')}
+                variant="outline" 
+                className="w-full bg-white border-amber-300 text-amber-700 hover:bg-amber-100 font-bold h-12 rounded-xl shadow-sm transition-all"
+              >
+                <Clock className="mr-2 h-5 w-5" /> Preciso Reagendar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {patientData?.meeting_link && (
         <Card className="w-full shadow-md border-teal-100 bg-teal-50/50 animate-in fade-in slide-in-from-top-4">

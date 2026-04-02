@@ -39,7 +39,7 @@ function CheckoutContent() {
           email: userData.email || userEmail,
           name: extraData.name || userData.full_name,
           cpf: (extraData.cpf || userData.cpf || '').replace(/\D/g, ''),
-          phone: (extraData.phone || userData.phone || '').replace(/\D/g, ''),
+          phone: (extraData.phone || userData.phone || '').replace(/[^\d+]/g, ''),
           ...params
         }),
         signal: controller.signal
@@ -142,7 +142,7 @@ function CheckoutContent() {
           .single();
 
         const cleanCpf = profile?.cpf ? profile.cpf.replace(/\D/g, '') : '';
-        const cleanPhone = profile?.phone ? profile.phone.replace(/\D/g, '') : '';
+        const cleanPhone = profile?.phone ? profile.phone.replace(/[^\d+]/g, '') : '';
 
         if (!cleanCpf || !cleanPhone) {
           setInfoData({
@@ -212,9 +212,10 @@ function CheckoutContent() {
   const cleanCpf = infoData.cpf.replace(/\D/g, '');
   const isValidCpf = cleanCpf.length === 11 || cleanCpf.length === 14;
   
-  const cleanPhone = infoData.phone.replace(/\D/g, '');
+  const cleanPhoneDigits = infoData.phone.replace(/\D/g, '');
+  const dbPhone = infoData.phone.replace(/[^\d+]/g, '');
   const isInternational = infoData.phone.includes('+');
-  const isValidPhone = isInternational ? cleanPhone.length >= 8 : (cleanPhone.length === 10 || cleanPhone.length === 11);
+  const isValidPhone = isInternational ? cleanPhoneDigits.length >= 8 : (cleanPhoneDigits.length === 10 || cleanPhoneDigits.length === 11);
 
   const isFormValid = infoData.name.trim().length > 0 && isValidCpf && isValidPhone;
 
@@ -227,12 +228,12 @@ function CheckoutContent() {
       await supabase.from('professional_profile').upsert({
         user_id: userId,
         cpf: cleanCpf,
-        phone: cleanPhone,
+        phone: dbPhone,
         full_name: infoData.name,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' });
 
-      await executeCharge({ id: userId, email: userEmail }, { ...infoData, cpf: cleanCpf, phone: cleanPhone });
+      await executeCharge({ id: userId, email: userEmail }, { ...infoData, cpf: cleanCpf, phone: dbPhone });
     } catch (error: any) {
        setStatus('error');
        setErrorMessage(error.message);

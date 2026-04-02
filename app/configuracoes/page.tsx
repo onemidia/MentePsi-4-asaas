@@ -101,8 +101,35 @@ export default function SettingsPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [qrcode, setQrcode] = useState<string | null>(null);
+  const [statusWhatsApp, setStatusWhatsApp] = useState<string>('disconnected');
   const { toast } = useToast();
   const supabase = createClient();
+
+  const fetchWhatsAppStatus = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data } = await supabase
+      .from('whatsapp_instances')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
+
+    if (data) {
+      setStatusWhatsApp(data.status === 'open' ? 'connected' : data.status)
+
+      if (data.qr_code) {
+        setQrcode(data.qr_code.startsWith('data:image') ? data.qr_code : `data:image/png;base64,${data.qr_code}`)
+      }
+    }
+  }
+
+  useEffect(() => {
+    fetchWhatsAppStatus()
+    const interval = setInterval(fetchWhatsAppStatus, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     setIsMounted(true);
@@ -249,7 +276,7 @@ export default function SettingsPage() {
       user_id: user.id,
       full_name: profile.full_name?.trim() || '',
       email: user.email || '',
-      phone: profile.phone?.replace(/\D/g, '') || '',
+      phone: profile.phone?.replace(/[^\d+]/g, '') || '',
       cpf: String(profile.cpf || '').replace(/\D/g, ''),
       rg: profile.rg?.trim() || '',
       crp: profile.crp?.trim() || '',
@@ -345,6 +372,58 @@ export default function SettingsPage() {
       toast({ variant: 'destructive', title: "Erro na Exportação", description: error.message });
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleConnectWhatsApp = async () => {
+    console.log('Iniciando conexão...');
+    setStatusWhatsApp('loading');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado.');
+
+      const res = await fetch('/api/whatsapp/connect', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+
+      const data = await res.json();
+      console.log('Resposta da API:', data);
+
+          if (!res.ok) {
+            const errorMsg = typeof data.details?.message === 'string' ? data.details.message : (data.error || data.message || 'Erro na comunicação com a API');
+            const fullError = JSON.stringify(data).toLowerCase();
+            
+            // Tratamento de erro quando a instância já existe
+            if (fullError.includes('exist') || fullError.includes('já existe')) {
+              throw new Error('Sua instância de WhatsApp já foi criada ou está em processamento. Aguarde alguns instantes e tente novamente.');
+            }
+            throw new Error(errorMsg);
+          }
+
+          // Evolution GO mapeia o QR Code em propriedades diferentes (qrcode, base64, ou dentro de data)
+          let qrCodeBase64 = data.qrcode || data.base64 || data.code || data.data?.qrcode || data.data?.base64;
+
+          if (qrCodeBase64) {
+            // Prevenção: Garante que o formato é válido para a tag <img>
+            if (!qrCodeBase64.startsWith('data:image')) {
+              qrCodeBase64 = `data:image/png;base64,${qrCodeBase64}`;
+            }
+            setQrcode(qrCodeBase64);
+        setStatusWhatsApp('qrcode');
+          } else if (data.status === 'open' || data.instance?.state === 'open' || data.status === 'connected' || data.state === 'open') {
+        setStatusWhatsApp('connected');
+        setQrcode(null);
+        toast({ title: 'WhatsApp Conectado com Sucesso!', description: 'Sua instância já está conectada e pronta para uso.' });
+      } else {
+            toast({ variant: 'destructive', title: 'Aviso', description: 'A API não retornou o QR Code. Tente novamente.' });
+        setStatusWhatsApp('disconnected');
+      }
+    } catch (error: any) {
+      console.error("Erro ao conectar WhatsApp:", error);
+      toast({ variant: 'destructive', title: 'Erro na Conexão', description: error.message || 'Erro de comunicação com o servidor.' });
+      setStatusWhatsApp('disconnected');
     }
   };
 
@@ -657,9 +736,10 @@ export default function SettingsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="24">2 horas</SelectItem>
-                        <SelectItem value="48">6 horas</SelectItem>
-                        <SelectItem value="72">12 horas</SelectItem>
+                      <SelectItem value="2">2 horas</SelectItem>
+                      <SelectItem value="6">6 horas</SelectItem>
+                      <SelectItem value="12">12 horas</SelectItem>
+                      <SelectItem value="24">24 horas</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -699,6 +779,49 @@ export default function SettingsPage() {
                         placeholder="Digite a mensagem de parabéns..."
                       />
                     </div>
+                  </div>
+
+                  {/* --- CONEXÃO WHATSAPP (EVOLUTION API) --- */}
+                  <div className="space-y-4 pt-6 border-t border-slate-100 mt-8">
+                    <h3 className="text-base font-bold text-slate-900">Conexão do WhatsApp</h3>
+                    <Card className="border border-slate-200 shadow-sm bg-slate-50">
+                      <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+                        <div className="space-y-2 flex-1">
+                          <h4 className="font-bold text-slate-800">Vincular Dispositivo</h4>
+                          <p className="text-sm text-slate-500">
+                            Conecte seu WhatsApp lendo o QR Code para que o sistema possa enviar lembretes automáticos para seus pacientes usando o seu número.
+                          </p>
+                          {statusWhatsApp === 'connected' && (
+                            <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-2">
+                              Dispositivo Conectado
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-center gap-4">
+                          {statusWhatsApp === 'qrcode' && qrcode ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-200">
+                                <img src={qrcode} alt="WhatsApp QR Code" className="w-40 h-40" />
+                              </div>
+                              <span className="text-xs text-slate-500 font-medium text-center">Escaneie o QR Code no seu celular</span>
+                              <Button variant="outline" size="sm" onClick={() => {setQrcode(null); setStatusWhatsApp('disconnected');}}>Cancelar</Button>
+                            </div>
+                          ) : statusWhatsApp !== 'connected' && (
+                            <Button 
+                              onClick={handleConnectWhatsApp} 
+                              disabled={statusWhatsApp === 'loading'}
+                              className="bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-sm min-w-[150px]"
+                            >
+                              {statusWhatsApp === 'loading' ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando...</>
+                              ) : (
+                                "Gerar QR Code"
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
             </CardContent>
           </Card>

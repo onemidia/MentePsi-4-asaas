@@ -60,6 +60,8 @@ export default function AssistantDashboardPage() {
           start_time, 
           status, 
           patient_id, 
+          confirmation_token,
+          reminder_status,
           patients (full_name, phone)
         `)
         .gte('start_time', `${today}T00:00:00`)
@@ -85,11 +87,21 @@ export default function AssistantDashboardPage() {
     fetchData()
   }, [router, supabase])
 
-  const handleWhatsApp = (phone: string, patientName: string) => {
+  const handleWhatsApp = async (aptId: string, phone: string, patientName: string, token: string) => {
     if (!phone) return
-    const cleanPhone = phone.replace(/\D/g, '')
-    const message = encodeURIComponent(`Olá ${patientName}, confirmamos sua consulta para hoje?`)
-    window.open(`https://wa.me/55${cleanPhone}?text=${message}`, '_blank')
+    
+    // Atualização Otimista
+    setAppointments(prev => prev.map(a => a.id === aptId ? { ...a, reminder_status: 'Enviado' } : a))
+    
+    const portalUrl = `https://mentepsi.sbs/portal/${patientName.split(' ')[0].toLowerCase()}?t=${token}`
+    const message = encodeURIComponent(`Olá, ${patientName}! Passando para confirmar nossa sessão. Por favor, confirme sua presença clicando no seu portal: ${portalUrl}`)
+
+    // Atualiza o banco para 'Enviado'
+    await supabase.from('appointments').update({ reminder_status: 'Enviado' }).eq('id', aptId)
+
+    const cleanPhone = phone.replace(/[^\d+]/g, '')
+    const finalPhone = cleanPhone.startsWith('+') ? cleanPhone.replace('+', '') : (cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`)
+    window.open(`https://wa.me/${finalPhone}?text=${message}`, '_blank')
   }
 
   const handleCheckIn = async (aptId: string) => {
@@ -217,6 +229,17 @@ export default function AssistantDashboardPage() {
                         `}>
                           {apt.status}
                         </Badge>
+                        <Badge variant="outline" className={`
+                          ${apt.reminder_status === 'Confirmado' ? 'bg-green-50 text-green-700 border-green-200' : 
+                            apt.reminder_status === 'Enviado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                            apt.reminder_status === 'Reagendar' ? 'bg-pink-50 text-pink-700 border-pink-200' : 
+                            'bg-slate-50 text-slate-500 border-slate-200'}
+                        `}>
+                          {apt.reminder_status === 'Confirmado' ? '✓ Confirmado' :
+                           apt.reminder_status === 'Enviado' ? 'Link Enviado' :
+                           apt.reminder_status === 'Reagendar' ? 'Solicitou Troca' :
+                           'Pendente'}
+                        </Badge>
                       </div>
                     </div>
                   </div>
@@ -236,7 +259,7 @@ export default function AssistantDashboardPage() {
                       variant="outline"
                       className="rounded-xl border-green-200 text-green-600 hover:bg-green-50 hover:text-green-700"
                       title="Chamar no WhatsApp"
-                      onClick={() => handleWhatsApp(apt.patients?.phone, apt.patients?.full_name)}
+                      onClick={() => handleWhatsApp(apt.id, apt.patients?.phone, apt.patients?.full_name, apt.confirmation_token)}
                     >
                       <MessageCircle className="h-5 w-5" />
                     </Button>
