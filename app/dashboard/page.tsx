@@ -50,6 +50,8 @@ import { useToast } from "@/hooks/use-toast"
 import { startOfMonth, endOfMonth, subMonths, format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
+// MentePsi V4 - Versão Estável - Build: 2026-04-02-01
+
 // ⚡ PERFORMANCE: Carregamento dinâmico do gráfico pesado
 const RevenueChart = dynamic(() => import('./revenue-chart'), { ssr: false, loading: () => <Skeleton className="h-[300px] w-full rounded-xl" /> })
 
