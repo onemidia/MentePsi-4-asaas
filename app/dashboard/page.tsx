@@ -241,12 +241,12 @@ export default function PsychologistDashboard() {
 
     const fetchData = async () => {
       const now = new Date()
-      const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
+      const in36h = new Date(now.getTime() + 36 * 60 * 60 * 1000).toISOString()
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
       const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
       const startOfMonthStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
       const endOfMonthStr = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
-      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+      const yesterday = new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString()
       const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString()
       
       try {
@@ -287,7 +287,7 @@ export default function PsychologistDashboard() {
         supabase.from('financial_transactions').select('amount, patients!inner(id)').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startOfMonthStr).lte('created_at', endOfMonthStr),
         supabase.from('appointments').select('price, amount_paid, status, start_time').eq('psychologist_id', targetUserId).not('payment_status', 'in', '("Pago","paid")'),
         supabase.from('emotion_journal').select(`id, mood_level, notes, created_at, patients (id, full_name, phone)`).eq('psychologist_id', targetUserId).order('created_at', { ascending: false }).limit(5),
-        supabase.from('appointments').select(`*, patients (id, full_name, phone, meeting_link)`).eq('psychologist_id', targetUserId).gte('start_time', fourHoursAgo).lte('start_time', in24h).order('start_time', { ascending: true }),
+        supabase.from('appointments').select(`*, patients (id, full_name, phone, meeting_link)`).eq('psychologist_id', targetUserId).gte('start_time', fourHoursAgo).lte('start_time', in36h).order('start_time', { ascending: true }),
         supabase.from('financial_transactions').select('amount, created_at, patients!inner(id)').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startChart),
         supabase.from('appointments').select('status, start_time, payment_status').eq('psychologist_id', targetUserId).gte('start_time', startChart),
         supabase.from('patients').select('full_name, birth_date, phone, status, credit_balance').eq('psychologist_id', targetUserId),
@@ -517,7 +517,7 @@ export default function PsychologistDashboard() {
           {/* CARD 2: Agenda / Próximas 24h (Movido para baixo do gráfico) */}
           <Card className="bg-white border-none shadow-md">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-slate-800"><Clock className="h-5 w-5 text-teal-600" /> Próximas 24 Horas</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-slate-800"><Clock className="h-5 w-5 text-teal-600" /> Próximas 36 Horas</CardTitle>
               <CardDescription>Clique para enviar lembrete.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
