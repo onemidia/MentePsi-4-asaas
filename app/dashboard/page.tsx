@@ -86,14 +86,21 @@ export default function PsychologistDashboard() {
     
     const { data: profData } = await supabase.from('professional_profile').select('reminder_template').eq('user_id', profile?.user_id || user.id).single()
     
-    let template = profData?.reminder_template || "Olá, {paciente}! Este é um lembrete da sua sessão agendada para {data} às {horario}."
+    const portalUrl = `https://mentepsi.com.br/portal/${item.patientId}?t=${item.confirmationToken}`
     
-    const portalUrl = `https://mentepsi.sbs/portal/${item.patientId}?t=${item.confirmationToken}`
-    if (!template.includes('mentepsi.sbs/portal') && item.confirmationToken) {
-      template += `\n\nPor favor, confirme sua presença clicando no seu portal: ${portalUrl}`
+    let msgTemplate = profData?.reminder_template || "Olá, {{nome}}! Este é um lembrete da sua sessão agendada para {{data}} às {{hora}}."
+    
+    if (!msgTemplate.includes('{{link}}')) {
+      msgTemplate = msgTemplate + "\n\nPor favor, confirme sua presença clicando no seu portal:\n" + portalUrl
+    } else {
+      msgTemplate = msgTemplate.replace(/{{link}}/g, portalUrl)
     }
     
-    const mensagem = template
+    const finalMsg = msgTemplate
+      .replace(/{{nome}}/g, item.name.split(' ')[0])
+      .replace(/{{data}}/g, item.formattedDate)
+      .replace(/{{hora}}/g, item.time)
+      // Fallback para quem não salvou as novas tags
       .replace(/{paciente}/g, item.name.split(' ')[0])
       .replace(/{data}/g, item.formattedDate)
       .replace(/{horario}/g, item.time)
@@ -106,7 +113,7 @@ export default function PsychologistDashboard() {
     
     setAgenda(prev => prev.map(a => a.id === item.id ? { ...a, reminderSent: true, reminderStatus: 'Enviado' } : a))
 
-    window.open(`https://api.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(mensagem)}`, '_blank')
+    window.open(`https://api.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(finalMsg)}`, '_blank')
   }
 
   const handleCurrencyInput = (value: string, setter: (v: string) => void) => {
@@ -539,15 +546,17 @@ export default function PsychologistDashboard() {
                         {item.type?.toLowerCase() === 'online' && (
                           <Badge variant="outline" className="text-[9px] text-blue-600 border-blue-200 bg-blue-50 px-1.5 py-0 h-4 uppercase tracking-wider">Online</Badge>
                         )}
-                        {item.reminderStatus === 'Confirmado' && (
-                          <Badge variant="outline" className="text-[9px] text-green-700 border-green-200 bg-green-50 px-1.5 py-0 h-4 uppercase tracking-wider">✓ Confirmado</Badge>
-                        )}
-                        {item.reminderStatus === 'Enviado' && (
-                          <Badge variant="outline" className="text-[9px] text-blue-700 border-blue-200 bg-blue-50 px-1.5 py-0 h-4 uppercase tracking-wider">Link Enviado</Badge>
-                        )}
-                        {item.reminderStatus === 'Reagendar' && (
-                          <Badge variant="outline" className="text-[9px] text-pink-700 border-pink-200 bg-pink-50 px-1.5 py-0 h-4 uppercase tracking-wider">Reagendar</Badge>
-                        )}
+                        <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 uppercase tracking-wider ${
+                          item.reminderStatus === 'Confirmado' ? 'bg-green-500 text-white border-green-600' : 
+                          item.reminderStatus === 'Enviado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                          item.reminderStatus === 'Reagendar' ? 'bg-pink-50 text-pink-700 border-pink-200' : 
+                          'bg-slate-50 text-slate-500 border-slate-200'
+                        }`}>
+                          {item.reminderStatus === 'Confirmado' ? '✓ Confirmado' :
+                           item.reminderStatus === 'Enviado' ? 'Link Enviado' :
+                           item.reminderStatus === 'Reagendar' ? 'Reagendar' :
+                           'Pendente'}
+                        </Badge>
                       </div>
                       <Badge className={`text-[9px] h-4 px-2 mt-1 rounded-full uppercase font-black shadow-none hover:bg-opacity-100 ${
                         displayStatus === 'Realizada' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 

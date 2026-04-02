@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { canUseFeature } from '@/lib/planLimits'
@@ -30,7 +30,7 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 })
 
-export default function PatientPortalPage() {
+function PatientPortalContent() {
   const params = useParams()
   const id = params?.id as string
   const { toast } = useToast()
@@ -127,7 +127,16 @@ export default function PatientPortalPage() {
         ])
         
         if (matsRes.data) setMaterials(matsRes.data)
-        if (aptsRes.data) setAppointments(aptsRes.data)
+        if (aptsRes.data) {
+          setAppointments(aptsRes.data)
+          const currentToken = searchParams?.get('t')
+          if (currentToken) {
+            const isConfirmed = aptsRes.data.find((a: any) => a.confirmation_token === currentToken && a.reminder_status === 'Confirmado')
+            if (isConfirmed) {
+              setTokenHandled(true)
+            }
+          }
+        }
         if (emotionsRes.data) setEmotions(emotionsRes.data)
         
         if (proofRes.data) setHasPendingProof(true);
@@ -168,39 +177,57 @@ export default function PatientPortalPage() {
 
   // --- LÓGICA DE CONFIRMAÇÃO DE AGENDAMENTO VIA TOKEN ---
   const handleConfirmAppointment = async (status: 'Confirmado' | 'Reagendar') => {
-    if (!appointmentToken) return
+    console.log("=== AUDITORIA MENTEPSI ===");
+    console.log("Token Atual:", appointmentToken);
+
+    if (!appointmentToken) {
+      toast({ variant: "destructive", title: "Erro de Link", description: "Token não identificado na URL." });
+      return;
+    }
 
     try {
-      const updateData: any = { reminder_status: status }
-      if (status === 'Confirmado') updateData.confirmed_at = new Date().toISOString()
-
-      const { error } = await supabase
+      // 1. Tenta a atualização e solicita o retorno do dado alterado (.select)
+      const { data, error } = await supabase
         .from('appointments')
-        .update(updateData)
+        .update({ 
+          reminder_status: status,
+          confirmed_at: status === 'Confirmado' ? new Date().toISOString() : null 
+        })
         .eq('confirmation_token', appointmentToken)
+        .select();
 
-      if (error) throw error
+      if (error) {
+        console.error("Erro Supabase:", error.message);
+        throw error;
+      }
 
-      setTokenHandled(true)
-      toast({ 
-        title: status === 'Confirmado' ? 'Presença Confirmada!' : 'Solicitação de Reagendamento', 
-        description: status === 'Confirmado' ? 'Te aguardamos na sessão de hoje.' : 'Redirecionando para o WhatsApp do profissional...' 
-      })
+      // 2. Verifica se o banco realmente encontrou a linha e alterou
+      if (!data || data.length === 0) {
+        console.error("Nenhuma linha alterada. O token é válido?");
+        toast({ variant: "destructive", title: "Atenção", description: "Não conseguimos localizar seu agendamento no banco." });
+        return;
+      }
 
-      setAppointments(prev => prev.map(a => a.confirmation_token === appointmentToken ? { ...a, reminder_status: status } : a))
+      console.log("Sucesso no Banco:", data);
+
+      // 3. Atualiza os estados para sumir o card definitivamente
+      setTokenHandled(true);
+      setAppointmentToken(null); 
+      
+      toast({ title: "Sucesso!", description: "Sua presença foi confirmada." });
+      
+      // Atualiza a lista local
+      fetchPortalData(true);
 
       if (status === 'Reagendar') {
-        const phone = patientData?.professional_profile?.phone?.replace(/[^\d+]/g, '')
-        if (phone) {
-          const finalPhone = phone.startsWith('+') ? phone.replace('+', '') : (phone.startsWith('55') ? phone : `55${phone}`)
-          const msg = encodeURIComponent('Olá, preciso reagendar minha sessão de hoje. Podemos ver um novo horário?')
-          window.open(`https://wa.me/${finalPhone}?text=${msg}`, '_blank')
-        }
+        const phone = patientData?.professional_profile?.phone?.replace(/\D/g, '');
+        if (phone) window.open(`https://wa.me/55${phone}?text=Olá, preciso reagendar minha sessão de hoje.`, '_blank');
       }
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Erro", description: err.message })
+      console.error("Falha Crítica:", err);
+      toast({ variant: "destructive", title: "Falha na Gravação", description: "O servidor recusou a atualização. Verifique o console." });
     }
-  }
+  };
 
   // --- NOVA LÓGICA DE ASSINATURA BLINDADA ---
   const handleSaveSignature = async () => {
@@ -489,29 +516,23 @@ export default function PatientPortalPage() {
       </header>
 
       {/* LÓGICA DE CONFIRMAÇÃO DE PRESENÇA (NOVO) */}
-      {appointmentToken && !tokenHandled && appointments.some(a => a.confirmation_token === appointmentToken && a.reminder_status !== 'Confirmado' && a.reminder_status !== 'Reagendar') && (
-        <Card className="w-full shadow-md border-amber-200 bg-amber-50 animate-in fade-in slide-in-from-top-4">
-          <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
-            <div className="bg-amber-100 p-3 rounded-full text-amber-600">
-              <BellRing size={24} />
-            </div>
-            <div className="space-y-1">
-              <h3 className="font-bold text-amber-900 text-lg">Confirmamos sua presença para hoje?</h3>
-              <p className="text-sm text-amber-700">Por favor, nos avise para organizarmos a agenda.</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 w-full mt-2">
+      {appointmentToken && !tokenHandled && !appointments.find(a => a.confirmation_token === appointmentToken && a.reminder_status === 'Confirmado') && (
+        <Card className="w-full bg-amber-50 border-amber-200 mb-6 shadow-sm animate-in slide-in-from-top-4">
+          <CardContent className="p-6 text-center">
+            <p className="font-bold text-amber-900 text-lg mb-4">Confirmamos sua presença na sessão de hoje?</p>
+            <div className="flex flex-col sm:flex-row gap-3 w-full">
               <Button 
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold h-12 rounded-xl shadow-md" 
                 onClick={() => handleConfirmAppointment('Confirmado')}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 rounded-xl shadow-md transition-all hover:scale-[1.02]"
               >
-                <CheckCircle2 className="mr-2 h-5 w-5" /> Sim, Confirmar
+                Sim, Confirmar
               </Button>
               <Button 
+                variant="outline"
+                className="flex-1 bg-white text-slate-600 border-slate-200 hover:bg-slate-50 font-bold h-12 rounded-xl" 
                 onClick={() => handleConfirmAppointment('Reagendar')}
-                variant="outline" 
-                className="w-full bg-white border-amber-300 text-amber-700 hover:bg-amber-100 font-bold h-12 rounded-xl shadow-sm transition-all"
               >
-                <Clock className="mr-2 h-5 w-5" /> Preciso Reagendar
+                Reagendar
               </Button>
             </div>
           </CardContent>
@@ -830,5 +851,13 @@ export default function PatientPortalPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function PatientPortalPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[100dvh] flex items-center justify-center bg-slate-50 font-bold text-slate-400"><Loader2 className="animate-spin mr-2 h-6 w-6"/> Carregando Portal...</div>}>
+      <PatientPortalContent />
+    </Suspense>
   )
 }

@@ -60,6 +60,7 @@ export default function AssistantDashboardPage() {
           start_time, 
           status, 
           patient_id, 
+          psychologist_id,
           confirmation_token,
           reminder_status,
           patients (full_name, phone)
@@ -85,23 +86,53 @@ export default function AssistantDashboardPage() {
     }
 
     fetchData()
+
+    const channel = supabase.channel('assistant-dashboard').on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => fetchData()).subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [router, supabase])
 
-  const handleWhatsApp = async (aptId: string, phone: string, patientName: string, token: string) => {
-    if (!phone) return
+  const handleWhatsApp = async (aptId: string) => {
+    const apt = appointments.find(a => a.id === aptId)
+    if (!apt || !apt.patients?.phone) return
+    
+    const phone = apt.patients.phone
+    const patientName = apt.patients.full_name || ''
+    const token = apt.confirmation_token
+    const psychId = apt.psychologist_id
+    const patientId = apt.patient_id
     
     // Atualização Otimista
     setAppointments(prev => prev.map(a => a.id === aptId ? { ...a, reminder_status: 'Enviado' } : a))
     
-    const portalUrl = `https://mentepsi.sbs/portal/${patientName.split(' ')[0].toLowerCase()}?t=${token}`
-    const message = encodeURIComponent(`Olá, ${patientName}! Passando para confirmar nossa sessão. Por favor, confirme sua presença clicando no seu portal: ${portalUrl}`)
-
     // Atualiza o banco para 'Enviado'
     await supabase.from('appointments').update({ reminder_status: 'Enviado' }).eq('id', aptId)
 
+    const { data: profData } = await supabase.from('professional_profile').select('reminder_template').eq('user_id', psychId).maybeSingle()
+
+    const dateObj = new Date(apt.start_time)
+    const formattedDate = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    const formattedTime = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    const portalUrl = `https://mentepsi.com.br/portal/${patientId}?t=${token}`
+    
+    let msgTemplate = profData?.reminder_template || "Olá, {{nome}}! Passando para confirmar nossa sessão agendada para {{data}} às {{hora}}.";
+
+    if (!msgTemplate.includes('{{link}}')) {
+      msgTemplate = msgTemplate + "\n\nPor favor, confirme sua presença clicando no seu portal:\n" + portalUrl
+    } else {
+      msgTemplate = msgTemplate.replace(/{{link}}/g, portalUrl)
+    }
+
+    const finalMsg = msgTemplate
+      .replace(/{{nome}}/g, patientName.split(' ')[0])
+      .replace(/{{data}}/g, formattedDate)
+      .replace(/{{hora}}/g, formattedTime)
+      .replace(/{paciente}/g, patientName.split(' ')[0])
+      .replace(/{data}/g, formattedDate)
+      .replace(/{horario}/g, formattedTime)
+
     const cleanPhone = phone.replace(/[^\d+]/g, '')
     const finalPhone = cleanPhone.startsWith('+') ? cleanPhone.replace('+', '') : (cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`)
-    window.open(`https://wa.me/${finalPhone}?text=${message}`, '_blank')
+    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(finalMsg)}`, '_blank')
   }
 
   const handleCheckIn = async (aptId: string) => {
@@ -230,7 +261,7 @@ export default function AssistantDashboardPage() {
                           {apt.status}
                         </Badge>
                         <Badge variant="outline" className={`
-                          ${apt.reminder_status === 'Confirmado' ? 'bg-green-50 text-green-700 border-green-200' : 
+                          ${apt.reminder_status === 'Confirmado' ? 'bg-green-500 text-white border-green-600' : 
                             apt.reminder_status === 'Enviado' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
                             apt.reminder_status === 'Reagendar' ? 'bg-pink-50 text-pink-700 border-pink-200' : 
                             'bg-slate-50 text-slate-500 border-slate-200'}
@@ -259,7 +290,7 @@ export default function AssistantDashboardPage() {
                       variant="outline"
                       className="rounded-xl border-green-200 text-green-600 hover:bg-green-50 hover:text-green-700"
                       title="Chamar no WhatsApp"
-                      onClick={() => handleWhatsApp(apt.id, apt.patients?.phone, apt.patients?.full_name, apt.confirmation_token)}
+                      onClick={() => handleWhatsApp(apt.id)}
                     >
                       <MessageCircle className="h-5 w-5" />
                     </Button>

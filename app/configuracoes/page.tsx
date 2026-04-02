@@ -80,7 +80,7 @@ const initialProfileState: Partial<ProfileData> = {
   work_hours_end: '18:00',
   whatsapp_reminders_enabled: true,
   reminder_lead_time: 24,
-  reminder_template: 'Olá, {paciente}! Passando para lembrar que nossa próxima sessão está agendada para: 🗓️ Data: {data} | 🕒 Horário: {horario}. Caso precise remarcar, por favor, me avise com antecedência. Até lá! 👋',
+  reminder_template: 'Olá, {{nome}}! Passando para lembrar que nossa próxima sessão está agendada para: 🗓️ Data: {{data}} | 🕒 Horário: {{hora}}. Confirme sua presença pelo seu portal: {{link}}',
   birthday_message_template: 'Olá, {paciente}! Hoje o dia é todo seu. 🎂 Desejo que seu novo ciclo seja repleto de saúde, leveza e muitas conquistas. Que você continue trilhando seu caminho com muita coragem e autoconhecimento. Feliz aniversário! ✨',
   cpf: '',
   rg: '',
@@ -101,34 +101,10 @@ export default function SettingsPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [qrcode, setQrcode] = useState<string | null>(null);
-  const [statusWhatsApp, setStatusWhatsApp] = useState<string>('disconnected');
   const { toast } = useToast();
   const supabase = createClient();
 
-  const fetchWhatsAppStatus = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data } = await supabase
-      .from('whatsapp_instances')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
-
-    if (data) {
-      setStatusWhatsApp(data.status === 'open' ? 'connected' : data.status)
-
-      if (data.qr_code) {
-        setQrcode(data.qr_code.startsWith('data:image') ? data.qr_code : `data:image/png;base64,${data.qr_code}`)
-      }
-    }
-  }
-
   useEffect(() => {
-    fetchWhatsAppStatus()
-    const interval = setInterval(fetchWhatsAppStatus, 5000)
-    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
@@ -372,58 +348,6 @@ export default function SettingsPage() {
       toast({ variant: 'destructive', title: "Erro na Exportação", description: error.message });
     } finally {
       setExporting(false);
-    }
-  };
-
-  const handleConnectWhatsApp = async () => {
-    console.log('Iniciando conexão...');
-    setStatusWhatsApp('loading');
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado.');
-
-      const res = await fetch('/api/whatsapp/connect', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id })
-      });
-
-      const data = await res.json();
-      console.log('Resposta da API:', data);
-
-          if (!res.ok) {
-            const errorMsg = typeof data.details?.message === 'string' ? data.details.message : (data.error || data.message || 'Erro na comunicação com a API');
-            const fullError = JSON.stringify(data).toLowerCase();
-            
-            // Tratamento de erro quando a instância já existe
-            if (fullError.includes('exist') || fullError.includes('já existe')) {
-              throw new Error('Sua instância de WhatsApp já foi criada ou está em processamento. Aguarde alguns instantes e tente novamente.');
-            }
-            throw new Error(errorMsg);
-          }
-
-          // Evolution GO mapeia o QR Code em propriedades diferentes (qrcode, base64, ou dentro de data)
-          let qrCodeBase64 = data.qrcode || data.base64 || data.code || data.data?.qrcode || data.data?.base64;
-
-          if (qrCodeBase64) {
-            // Prevenção: Garante que o formato é válido para a tag <img>
-            if (!qrCodeBase64.startsWith('data:image')) {
-              qrCodeBase64 = `data:image/png;base64,${qrCodeBase64}`;
-            }
-            setQrcode(qrCodeBase64);
-        setStatusWhatsApp('qrcode');
-          } else if (data.status === 'open' || data.instance?.state === 'open' || data.status === 'connected' || data.state === 'open') {
-        setStatusWhatsApp('connected');
-        setQrcode(null);
-        toast({ title: 'WhatsApp Conectado com Sucesso!', description: 'Sua instância já está conectada e pronta para uso.' });
-      } else {
-            toast({ variant: 'destructive', title: 'Aviso', description: 'A API não retornou o QR Code. Tente novamente.' });
-        setStatusWhatsApp('disconnected');
-      }
-    } catch (error: any) {
-      console.error("Erro ao conectar WhatsApp:", error);
-      toast({ variant: 'destructive', title: 'Erro na Conexão', description: error.message || 'Erro de comunicação com o servidor.' });
-      setStatusWhatsApp('disconnected');
     }
   };
 
@@ -708,41 +632,10 @@ export default function SettingsPage() {
         <TabsContent value="lembretes" className="mt-6">
           <Card className="border-slate-200 shadow-md bg-white">
             <CardHeader>
-              <CardTitle>Lembretes Automáticos</CardTitle>
-              <CardDescription>Configure o envio de mensagens via WhatsApp para seus pacientes.</CardDescription>
+              <CardTitle>Configuração de Mensagem (WhatsApp)</CardTitle>
+              <CardDescription>Personalize abaixo a mensagem que será enviada aos seus pacientes. O link do Portal de Confirmação será adicionado automaticamente ao final da mensagem.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                  <div className="flex items-center space-x-2">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        id="whatsapp_reminders_enabled"
-                        className="sr-only peer" 
-                        checked={profile.whatsapp_reminders_enabled} 
-                        onChange={(e) => handleSwitchChange('whatsapp_reminders_enabled', e.target.checked)} 
-                      />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
-                    </label>
-                    <Label htmlFor="whatsapp_reminders_enabled">Ativar lembretes automáticos via WhatsApp</Label>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="reminder_lead_time">Enviar com antecedência de</Label>
-                    <Select 
-                      value={String(profile.reminder_lead_time || 24)} 
-                      onValueChange={(value) => handleSelectChange('reminder_lead_time', Number(value))}
-                    >
-                      <SelectTrigger className="w-[280px] border-slate-300">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                      <SelectItem value="2">2 horas</SelectItem>
-                      <SelectItem value="6">6 horas</SelectItem>
-                      <SelectItem value="12">12 horas</SelectItem>
-                      <SelectItem value="24">24 horas</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="reminder_template">Modelo da Mensagem</Label>
@@ -753,7 +646,7 @@ export default function SettingsPage() {
                       className="min-h-[150px] border-slate-300"
                     />
                     <p className="text-xs text-slate-500">
-                      Use as tags: <code className="bg-slate-100 px-1 rounded">{'{paciente}'}</code>, <code className="bg-slate-100 px-1 rounded">{'{data}'}</code>, <code className="bg-slate-100 px-1 rounded">{'{horario}'}</code>.
+                      Utilize as tags: <code className="bg-slate-100 px-1 rounded">{`{{nome}}`}</code> (Nome do Paciente), <code className="bg-slate-100 px-1 rounded">{`{{data}}`}</code> (Data da Sessão), <code className="bg-slate-100 px-1 rounded">{`{{hora}}`}</code> (Horário) e <code className="bg-slate-100 px-1 rounded">{`{{link}}`}</code> (Link de Confirmação do Portal).
                     </p>
                   </div>
 
@@ -779,49 +672,6 @@ export default function SettingsPage() {
                         placeholder="Digite a mensagem de parabéns..."
                       />
                     </div>
-                  </div>
-
-                  {/* --- CONEXÃO WHATSAPP (EVOLUTION API) --- */}
-                  <div className="space-y-4 pt-6 border-t border-slate-100 mt-8">
-                    <h3 className="text-base font-bold text-slate-900">Conexão do WhatsApp</h3>
-                    <Card className="border border-slate-200 shadow-sm bg-slate-50">
-                      <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
-                        <div className="space-y-2 flex-1">
-                          <h4 className="font-bold text-slate-800">Vincular Dispositivo</h4>
-                          <p className="text-sm text-slate-500">
-                            Conecte seu WhatsApp lendo o QR Code para que o sistema possa enviar lembretes automáticos para seus pacientes usando o seu número.
-                          </p>
-                          {statusWhatsApp === 'connected' && (
-                            <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-2">
-                              Dispositivo Conectado
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-center gap-4">
-                          {statusWhatsApp === 'qrcode' && qrcode ? (
-                            <div className="flex flex-col items-center gap-2">
-                              <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-200">
-                                <img src={qrcode} alt="WhatsApp QR Code" className="w-40 h-40" />
-                              </div>
-                              <span className="text-xs text-slate-500 font-medium text-center">Escaneie o QR Code no seu celular</span>
-                              <Button variant="outline" size="sm" onClick={() => {setQrcode(null); setStatusWhatsApp('disconnected');}}>Cancelar</Button>
-                            </div>
-                          ) : statusWhatsApp !== 'connected' && (
-                            <Button 
-                              onClick={handleConnectWhatsApp} 
-                              disabled={statusWhatsApp === 'loading'}
-                              className="bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-sm min-w-[150px]"
-                            >
-                              {statusWhatsApp === 'loading' ? (
-                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando...</>
-                              ) : (
-                                "Gerar QR Code"
-                              )}
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
                   </div>
             </CardContent>
           </Card>
