@@ -30,6 +30,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { format, isAfter, isBefore, startOfDay, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { getLabels } from '@/lib/labels'
 
 export default function FinanceiroPage() {
   const [loading, setLoading] = useState(true)
@@ -142,7 +143,7 @@ export default function FinanceiroPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (user?.id) {
           const { data } = await supabase.from('professional_profile')
-            .select('full_name, crp, city, clinic_name, address')
+            .select('full_name, crp, city, clinic_name, address, specialty, appointment_label')
             .eq('user_id', user.id)
             .maybeSingle()
           setProfessionalData(data)
@@ -425,9 +426,11 @@ export default function FinanceiroPage() {
              doc.setTextColor(0, 0, 0); doc.setFontSize(10);
              doc.text(profName, 105, 30, { align: "center" }); doc.text(`CRP: ${profCRP}`, 105, 35, { align: "center" })
              doc.setFontSize(12);
+             const labels = getLabels(professionalData?.appointment_label);
+             const servicoDesc = `${labels.singular} de ${professionalData?.specialty || 'Atendimento Clínico'}`;
              doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf || '...'}`, 14, 50)
              doc.text(`a importância de ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
-             doc.text(`referente a serviços de psicologia.`, 14, 64)
+             doc.text(`referente a ${servicoDesc.toLowerCase()}.`, 14, 64)
              doc.text(`${professionalData?.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, 120, { align: "center" })
              doc.setFontSize(8); doc.setTextColor(150);
              doc.text(`Documento emitido automaticamente por ${professionalData?.clinic_name || "Sistema de Gestão"}.`, 105, 140, { align: "center" })
@@ -557,7 +560,9 @@ export default function FinanceiroPage() {
   const handleGenerateReceipt = (apt: any) => {
     const valor = Number(apt.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const dataSessao = format(new Date(apt.start_time), "dd/MM/yyyy");
-    const text = `RECIBO\nRecebemos de ${apt.patients?.full_name} o valor de R$ ${valor} ref. à sessão de psicoterapia realizada em ${dataSessao}.`
+    const labels = getLabels(professionalData?.appointment_label);
+    const servicoDesc = `${labels.singular} de ${professionalData?.specialty || 'Atendimento Clínico'}`;
+    const text = `RECIBO\nRecebemos de ${apt.patients?.full_name} o valor de R$ ${valor} ref. à ${servicoDesc.toLowerCase()} realizada em ${dataSessao}.`
     const fone = apt.patients?.phone?.replace(/[^\d+]/g, '') || ''
     const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
     window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank')
@@ -755,9 +760,11 @@ export default function FinanceiroPage() {
            doc.setTextColor(0, 0, 0); doc.setFontSize(10);
            doc.text(profName, 105, 30, { align: "center" }); doc.text(`CRP: ${profCRP}`, 105, 35, { align: "center" })
            doc.setFontSize(12);
+           const labels = getLabels(professionalData?.appointment_label);
+           const servicoDesc = `${labels.singular} de ${professionalData?.specialty || 'Atendimento Clínico'}`;
            doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf || '...'}`, 14, 50)
            doc.text(`a importância de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
-           doc.text(`referente a serviços de psicologia.`, 14, 64)
+           doc.text(`referente a ${servicoDesc.toLowerCase()}.`, 14, 64)
            doc.text(`${professionalData?.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, 120, { align: "center" })
            doc.setFontSize(8); doc.setTextColor(150);
            doc.text(`Documento emitido automaticamente por ${professionalData?.clinic_name || "Sistema de Gestão"}.`, 105, 140, { align: "center" })
@@ -989,10 +996,13 @@ export default function FinanceiroPage() {
 
       const total = selected.reduce((acc, curr) => acc + Number(curr.price), 0)
       
+      const labels = getLabels(professionalData?.appointment_label);
+      const servicoDesc = `${labels.singular} de ${professionalData?.specialty || 'Atendimento Clínico'}`;
+
       doc.setFontSize(12)
       doc.text(`Recebi de ${patient.full_name}, CPF: ${patientCpf}`, 14, 50)
       doc.text(`a importância de ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
-      doc.text(`referente aos serviços de psicoterapia listados abaixo:`, 14, 64)
+      doc.text(`referente aos serviços de ${servicoDesc.toLowerCase()} listados abaixo:`, 14, 64)
 
       // Desenha a tabela manualmente (Super seguro, nunca trava)
       let y = 75;
@@ -1008,7 +1018,7 @@ export default function FinanceiroPage() {
       doc.setFont("helvetica", "normal");
       selected.forEach(a => {
          doc.text(format(new Date(a.start_time), "dd/MM/yyyy"), 14, y);
-         doc.text("Sessão de Psicoterapia", 60, y);
+         doc.text(servicoDesc, 60, y);
          doc.text(Number(a.price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 150, y);
          y += 8;
       });

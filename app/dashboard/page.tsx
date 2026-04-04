@@ -49,6 +49,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { startOfMonth, endOfMonth, subMonths, format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { getLabels } from '@/lib/labels'
 
 // MentePsi V4 - Versão Estável - Build: 2026-04-02-01
 
@@ -175,7 +176,7 @@ export default function PsychologistDashboard() {
 
       const { data: patient } = await supabase.from('patients').select('*').eq('id', transactionToConfirm.patient_id).maybeSingle()
       const { data: profData } = await supabase.from('professional_profile')
-        .select('full_name, crp, city')
+        .select('full_name, crp, city, specialty, appointment_label')
         .eq('user_id', user.id)
         .maybeSingle()
       
@@ -199,9 +200,11 @@ export default function PsychologistDashboard() {
           doc.text(profData.full_name || "Profissional", 105, 30, { align: "center" }); 
           doc.text(`CRP: ${profData.crp || "..."}`, 105, 35, { align: "center" })
           doc.setFontSize(12);
+          const labels = getLabels(profData.appointment_label);
+          const servicoDesc = `${labels.singular} de ${profData.specialty || 'Atendimento Clínico'}`;
           doc.text(`Recebi de ${patient.full_name}, CPF ${patient.cpf || '...'}`, 14, 50)
           doc.text(`a importância de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
-          doc.text(`referente a serviços de psicologia.`, 14, 64)
+          doc.text(`referente a ${servicoDesc.toLowerCase()}.`, 14, 64)
           doc.text(`${profData.city || "Local"}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, 120, { align: "center" })
           
           const pdfBlob = doc.output('blob')
@@ -267,7 +270,7 @@ export default function PsychologistDashboard() {
       setUser(user)
 
       const { data: profileData } = await supabase.from('professional_profile')
-        .select('full_name, role, birthday_message_template, reminder_template')
+        .select('full_name, role, birthday_message_template, reminder_template, appointment_label')
         .eq('user_id', targetUserId)
         .maybeSingle()
       const { data: subData } = await supabase.from('subscriptions').select('status, plan_id').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).maybeSingle()
@@ -399,6 +402,8 @@ export default function PsychologistDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
+  const labels = React.useMemo(() => getLabels(profile?.appointment_label), [profile?.appointment_label])
+
   // 🚀 SKELETON: Mantemos a estrutura visual idêntica ao loading.tsx para evitar layout shift
   if (loading) {
     return (
@@ -492,7 +497,7 @@ export default function PsychologistDashboard() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <StatCard title="Sessões Hoje" value={stats.sessionsToday} icon={<Calendar className="h-4 w-4 text-teal-600" />} subtitle="Agendadas" />
+        <StatCard title={`${labels.plural} Hoje`} value={stats.sessionsToday} icon={<Calendar className="h-4 w-4 text-teal-600" />} subtitle={`${labels.plural} Agendadas`} />
         <StatCard title="Pacientes Ativos" value={stats.activePatients} icon={<Users className="h-4 w-4 text-blue-600" />} subtitle="Em tratamento" />
         <StatCard title="Alertas de Crise" value={stats.crisisAlerts} icon={<AlertTriangle className="h-4 w-4 text-red-600" />} subtitle="Últimas 24h" isAlert />
         <StatCard title="A Receber (Mês)" value={`R$ ${stats.pendingRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="h-4 w-4 text-amber-500" />} subtitle="Pendente" />

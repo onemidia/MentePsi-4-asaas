@@ -48,6 +48,7 @@ type ProfileData = {
   genero: string;
   estado_civil: string;
   occupation_type: string;
+  appointment_label?: string;
 }
 
 type PaymentHistory = {
@@ -86,7 +87,8 @@ const initialProfileState: Partial<ProfileData> = {
   rg: '',
   genero: '',
   estado_civil: '',
-  occupation_type: 'psicologo'
+  occupation_type: 'psicologo',
+  appointment_label: 'Sessão'
 };
 
 export default function SettingsPage() {
@@ -129,7 +131,8 @@ export default function SettingsPage() {
             agency, bank_account, account_type, default_session_value, default_session_duration, 
             clinic_name, address, cep, city, state, work_hours_start, work_hours_end, 
             whatsapp_reminders_enabled, reminder_lead_time, reminder_template, 
-            birthday_message_template, cpf, rg, genero, estado_civil, occupation_type
+            birthday_message_template, cpf, rg, genero, estado_civil, occupation_type,
+            appointment_label
           `)
           .eq('user_id', userId)
           .maybeSingle();
@@ -173,6 +176,7 @@ export default function SettingsPage() {
             reminder_template: profData.reminder_template || initialProfileState.reminder_template,
             birthday_message_template: profData.birthday_message_template || initialProfileState.birthday_message_template,
             occupation_type: profData.occupation_type || 'psicologo',
+            appointment_label: profData.appointment_label || 'Sessão',
           }));
         }
       } catch (error) {
@@ -279,6 +283,7 @@ export default function SettingsPage() {
       logo_url: profile.logo_url || '',
       pix_key: profile.pix_key?.trim() || '',
       occupation_type: profile.occupation_type || 'psicologo',
+      appointment_label: profile.appointment_label || 'Sessão',
       updated_at: new Date().toISOString()
     };
 
@@ -491,10 +496,24 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="specialty">Especialidade</Label>
-                <Input id="specialty" placeholder="Ex: Psicologia Clínica, Terapia Cognitivo-Comportamental" value={profile.specialty || ''} onChange={handleInputChange} className="border-slate-300" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="specialty">Especialidade</Label>
+                  <Input id="specialty" placeholder="Ex: Psicologia Clínica, Terapia Cognitivo-Comportamental" value={profile.specialty || ''} onChange={handleInputChange} className="border-slate-300" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="appointment_label">Como você prefere chamar seus atendimentos?</Label>
+                  <Select value={profile.appointment_label || 'Sessão'} onValueChange={(value) => handleSelectChange('appointment_label', value)}>
+                    <SelectTrigger className="border-slate-300"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Sessão">Sessão</SelectItem>
+                      <SelectItem value="Consulta">Consulta</SelectItem>
+                      <SelectItem value="Atendimento">Atendimento</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="phone">Telefone/WhatsApp</Label>

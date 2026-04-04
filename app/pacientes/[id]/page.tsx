@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 // Garante que o import está correto
 import PatientCreditLog from '@/components/PatientCreditLog'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { getLabels } from '@/lib/labels'
 
 export default function FichaClinicaDigital() {
   const { id } = useParams()
@@ -54,6 +55,8 @@ export default function FichaClinicaDigital() {
   const [newGoal, setNewGoal] = useState({ title: '', description: '', deadline: '' })
   const [transactions, setTransactions] = useState<any[]>([])
   const [professional, setProfessional] = useState<any>(null)
+
+  const labels = getLabels(professional?.appointment_label)
 
   const [evolutions, setEvolutions] = useState<any[]>([])
   const [newEvolution, setNewEvolution] = useState("")
@@ -332,7 +335,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.`;
       setSessionAgenda(patientRes.data.next_session_agenda || "Nenhuma pauta enviada para a próxima sessão.")
 
       const { data: prof } = await supabase.from('professional_profile')
-        .select('full_name, clinic_name, logo_url, city, crp')
+        .select('full_name, clinic_name, logo_url, city, crp, appointment_label, specialty')
         .eq('user_id', patientRes.data.psychologist_id)
         .maybeSingle()
       setProfessional(prof)
@@ -939,9 +942,10 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
           doc.text(professional.full_name || "Profissional", 105, 30, { align: "center" }); 
           doc.text(`CRP: ${professional.crp || "..."}`, 105, 35, { align: "center" })
           doc.setFontSize(12);
+          const servicoDesc = `${labels.singular} de ${professional.specialty || 'Atendimento Clínico'}`;
           doc.text(`Recebi de ${paciente.full_name}, CPF ${paciente.cpf || '...'}`, 14, 50)
           doc.text(`a importância de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, 57)
-          doc.text(`referente a serviços de psicologia.`, 14, 64)
+          doc.text(`referente a ${servicoDesc.toLowerCase()}.`, 14, 64)
           const dateStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
           doc.text(`${professional.city || "Local"}, ${dateStr}`, 105, 120, { align: "center" })
           
@@ -1106,8 +1110,8 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <CardStat title="Saldo Devedor" value={stats.debt} icon={<DollarSign />} color="red" />
         <CardStat title="Total Pago" value={stats.paid} icon={<CheckCircle />} color="emerald" />
-        {/* 💉 Card de Haver Corrigido: Agora mostra os R$ 50,00 ou qualquer saldo credor */}
-        <CardStat title="Sessões em Haver" value={stats.credit} icon={<Clock />} color="blue" />
+        {/* 💉 Card de Haver Corrigido */}
+        <CardStat title={`${labels.plural} em Haver`} value={stats.credit} icon={<Clock />} color="blue" />
         <Card className="flex flex-col justify-center p-4 space-y-3 bg-white shadow-md border border-slate-200 rounded-[32px]">
            <div className="flex justify-between items-center"><span className="text-sm flex items-center gap-2 font-medium"><CheckCircle size={14} className="text-green-600"/> Realizadas</span><Badge className="bg-green-100 text-green-700 border-none">{stats.done}</Badge></div>
            <div className="flex justify-between items-center"><span className="text-sm flex items-center gap-2 font-medium"><CalendarIcon size={14} className="text-emerald-600"/> Agendadas</span><Badge variant="outline" className="border-blue-200 text-blue-600">{stats.scheduled}</Badge></div>
@@ -1119,7 +1123,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       <div className="w-full flex flex-wrap gap-2 h-auto relative mb-8 pb-4">
           {[
             { val: "pessoal", icon: <User className="w-3 h-3 mr-1"/>, label: "Pessoal" },
-            { val: "sessoes", icon: <CalendarIcon className="w-3 h-3 mr-1"/>, label: "Sessões" },
+            { val: "sessoes", icon: <CalendarIcon className="w-3 h-3 mr-1"/>, label: labels.plural },
             { val: "financeiro", icon: <CreditCard className="w-3 h-3 mr-1"/>, label: "Financeiro" },
             { val: "evolucoes", icon: <FileText className="w-3 h-3 mr-1"/>, label: "Evoluções", color: "text-teal-700 bg-teal-50 border-teal-100" },
             { val: "portal", icon: <Smartphone className="w-3 h-3 mr-1"/>, label: "Portal", color: "text-blue-700 bg-blue-50 border-blue-100" },
@@ -1215,7 +1219,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
         <div className="w-full block clear-both animate-in fade-in">
           <Card className="border border-slate-200 shadow-md overflow-hidden rounded-[24px] bg-white">
             <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 border-b border-slate-200 p-6 gap-4">
-              <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">Histórico de Atendimentos</CardTitle>
+              <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">HISTÓRICO DE {labels.plural.toUpperCase()}</CardTitle>
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 gap-2 shadow-sm">
                   <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
