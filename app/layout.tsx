@@ -31,6 +31,10 @@ export default function RootLayout({
 
   return (
     <html lang="pt-BR">
+      <head>
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/site.webmanifest" />
+      </head>
       <body className={`${inter.className} antialiased bg-white`}>
         {isFullWidthPage ? (
           // Se for página pública, renderiza limpo (sem Sidebar)
