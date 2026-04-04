@@ -30,16 +30,14 @@ export function TeamManagement() {
       setLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (user?.id) {
-        const { data, error } = await supabase
-          .from('clinic_team')
-          .select('id, member_email, role, active, created_at')
-          .eq('owner_id', user.id)
-  
-        if (error) {
-          console.warn("Aviso ao buscar equipe:", error.message)
-        } else if (data) {
-          setMembers(data as TeamMember[])
-        }
+        // Funcionalidade de equipe temporariamente desativada
+        // const { data, error } = await supabase
+        //   .from('clinic_team')
+        //   .select('id, member_email, role, active, created_at')
+        //   .eq('owner_id', user.id)
+        // if (error) { console.warn(error) }
+        
+        setMembers([])
       }
     } catch (e) {
       console.warn("Aviso interno na gestão de equipe:", e)

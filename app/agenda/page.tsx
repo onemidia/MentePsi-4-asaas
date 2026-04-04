@@ -431,7 +431,7 @@ function AgendaContent() {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto bg-white !opacity-100 border border-slate-200 shadow-2xl z-[100]">
+        <DialogContent aria-describedby={undefined} className="max-w-md max-h-[90vh] overflow-y-auto bg-white !opacity-100 border border-slate-200 shadow-2xl z-[100]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black text-slate-800">Agendar Consulta</DialogTitle>
             <DialogDescription className="sr-only">Formulário para agendamento de novas sessões clínicas.</DialogDescription>
@@ -613,7 +613,7 @@ function AgendaContent() {
       />
 
       <Dialog open={openDetail} onOpenChange={setOpenDetail}>
-        <DialogContent className="max-w-sm bg-slate-50 rounded-[32px]">
+        <DialogContent aria-describedby={undefined} className="max-w-sm bg-slate-50 rounded-[32px]">
           <DialogHeader>
             <DialogTitle>Gerenciar Agendamento</DialogTitle>
             <DialogDescription className="sr-only">Opções para editar ou excluir uma sessão existente.</DialogDescription>

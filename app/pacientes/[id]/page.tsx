@@ -1784,7 +1784,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                           <Plus size={16} /> NOVA META
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="rounded-2xl">
+                    <DialogContent aria-describedby={undefined} className="rounded-2xl">
                       <DialogHeader>
                         <DialogTitle>Nova Meta Terapêutica</DialogTitle>
                         <DialogDescription className="sr-only">Defina uma nova meta.</DialogDescription>
@@ -1959,7 +1959,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       <Button variant="ghost" onClick={handleDeletePatient} disabled={saving} className="mt-8 text-red-500 hover:text-red-700 hover:bg-red-50 font-bold text-xs h-10 rounded-xl transition-all items-center flex"><Trash2 className="mr-2 h-3 w-3"/> Excluir Registro Permanente</Button>
 
       <Dialog open={!!viewDoc} onOpenChange={() => setViewDoc(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl border-none p-0 bg-slate-50">
+        <DialogContent aria-describedby={undefined} className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl border-none p-0 bg-slate-50">
           <DialogDescription className="sr-only">Visualização do documento.</DialogDescription>
           <div id="print-area" className="document-container p-8 bg-white m-4 rounded-2xl shadow-md border border-slate-200 min-h-[80vh]">
             {/* HEADER DINÂMICO (PAPEL TIMBRADO) */}
@@ -1997,7 +1997,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       </Dialog>
 
       <Dialog open={lgpdModalOpen} onOpenChange={setLgpdModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-[32px]">
+        <DialogContent aria-describedby={undefined} className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-[32px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black text-teal-600">Revisar e Editar Contrato</DialogTitle>
             <DialogDescription className="sr-only">Edite o termo de consentimento.</DialogDescription>

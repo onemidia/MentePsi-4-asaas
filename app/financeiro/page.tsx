@@ -1289,7 +1289,7 @@ export default function FinanceiroPage() {
       </Card>
 
       <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
-        <DialogContent className="max-w-xs">
+        <DialogContent aria-describedby={undefined} className="max-w-xs">
           <DialogHeader>
             <DialogTitle>Baixar Sessão</DialogTitle>
             <DialogDescription className="sr-only">Confirme a baixa do pagamento.</DialogDescription>
@@ -1326,7 +1326,7 @@ export default function FinanceiroPage() {
       </Dialog>
 
       <Dialog open={confirmPendingModalOpen} onOpenChange={setConfirmPendingModalOpen}>
-        <DialogContent className="max-w-[95vw] md:max-w-4xl rounded-[24px]">
+        <DialogContent aria-describedby={undefined} className="max-w-[95vw] md:max-w-4xl rounded-[24px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black text-teal-700">Conferência de Recebimento</DialogTitle>
             <DialogDescription>
@@ -1371,7 +1371,7 @@ export default function FinanceiroPage() {
       </Dialog>
 
       <Dialog open={newTransactionOpen} onOpenChange={setNewTransactionOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
+        <DialogContent aria-describedby={undefined} className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl">Lançamento Inteligente</DialogTitle>
             <DialogDescription className="sr-only">Registre uma nova transação.</DialogDescription>

@@ -1,6 +1,7 @@
 {
   "name": "MentePsi",
   "short_name": "MentePsi",
+  "start_url": "/",
   "icons": [
     {
       "src": "/icon-192x192.png",

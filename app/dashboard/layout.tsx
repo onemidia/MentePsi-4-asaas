@@ -41,16 +41,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   // 🟢 BLINDAGEM: Imunidade para Equipe/Assistentes (Acesso liberado sem checar assinatura)
-  const { data: teamMember } = await supabase
-    .from('clinic_team')
-    .select('status')
-    .eq('email', user.email)
-    .eq('status', 'active')
-    .maybeSingle()
-
-  if (teamMember) {
-    return <>{children}</>
-  }
+  // const { data: teamMember } = await supabase
+  //   .from('clinic_team')
+  //   .select('status')
+  //   .eq('email', user.email)
+  //   .eq('status', 'active')
+  //   .maybeSingle()
+  //
+  // if (teamMember) { return <>{children}</> }
 
   // LÓGICA DO PLANO ÚNICO (Via Subscriptions)
   const { data: subscription } = await supabase

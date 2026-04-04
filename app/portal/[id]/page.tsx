@@ -780,7 +780,7 @@ function PatientPortalContent() {
       </Tabs>
 
       <Dialog open={openSignature} onOpenChange={setOpenSignature}>
-        <DialogContent className="max-w-[95vw] sm:max-w-2xl rounded-[32px] p-6 border-none shadow-2xl">
+        <DialogContent aria-describedby={undefined} className="max-w-[95vw] sm:max-w-2xl rounded-[32px] p-6 border-none shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-black">Contrato e Termo de Consentimento</DialogTitle>
             <DialogDescription className="sr-only">Assine o documento abaixo.</DialogDescription>
@@ -805,7 +805,7 @@ function PatientPortalContent() {
       </Dialog>
 
       <Dialog open={paymentModalOpen} onOpenChange={(open) => { setPaymentModalOpen(open); if(!open) setSelectedFile(null); }}>
-        <DialogContent className="max-w-[95vw] sm:max-w-sm rounded-[32px] p-6 max-h-[90vh] overflow-y-auto">
+        <DialogContent aria-describedby={undefined} className="max-w-[95vw] sm:max-w-sm rounded-[32px] p-6 max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Realizar Pagamento</DialogTitle>
               <DialogDescription className="sr-only">Opções de pagamento.</DialogDescription>

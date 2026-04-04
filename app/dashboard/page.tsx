@@ -682,7 +682,7 @@ export default function PsychologistDashboard() {
       </div>
 
       <Dialog open={confirmModalOpen} onOpenChange={setConfirmModalOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Conferência de Pagamento</DialogTitle>
             <DialogDescription>Confirme o valor efetivamente recebido. Se for menor, o restante ficará como pendência.</DialogDescription>

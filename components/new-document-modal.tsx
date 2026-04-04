@@ -487,7 +487,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
       <DialogTrigger asChild>
         {trigger || <Button className="bg-teal-600 hover:bg-teal-700 text-white font-bold"><Plus className="mr-2 h-4 w-4" /> Novo Documento</Button>}
       </DialogTrigger>
-      <DialogContent className="w-[95vw] sm:max-w-[800px] h-auto max-h-[95vh] bg-white dark:bg-slate-900 flex flex-col">
+      <DialogContent aria-describedby={undefined} className="w-[95vw] sm:max-w-[800px] h-auto max-h-[95vh] bg-white dark:bg-slate-900 flex flex-col">
         <DialogHeader>
           <DialogTitle>Emissão de Documento Oficial</DialogTitle>
           <DialogDescription>Os dados do profissional e do paciente serão preenchidos automaticamente.</DialogDescription>

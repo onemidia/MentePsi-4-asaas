@@ -133,20 +133,20 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         } 
         // 2. Prioridade: Verifica se é Assistente (Se não estiver impersonando)
         else if (!impersonateId) {
-          const { data: assistant } = await supabase
-            .from('clinic_team')
-            .select('name')
-            .eq('email', user.email)
-            .eq('status', 'active')
-            .maybeSingle()
-
-          if (assistant) {
-            setRole('assistant')
-            setPlan('Equipe')
-            setUserName(assistant.name || "Assistente")
-            // Retorna aqui para não cair na lógica de profissional
-            return 
-          }
+          // Funcionalidade de equipe desativada temporariamente para evitar erro 400
+          // const { data: assistant } = await supabase
+          //   .from('clinic_team')
+          //   .select('name')
+          //   .eq('email', user.email)
+          //   .eq('status', 'active')
+          //   .maybeSingle()
+          //
+          // if (assistant) {
+          //   setRole('assistant')
+          //   setPlan('Equipe')
+          //   setUserName(assistant.name || "Assistente")
+          //   return 
+          // }
         }
 
         // 3. Prioridade: Profissional (Padrão)
@@ -238,7 +238,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       </div>
       
       {/* Container Unificado para Scroll Responsivo */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto md:overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       
       {/* SELETOR DE AMBIENTE (EXCLUSIVO ADMIN) */}
       {['alvino@onemidia.tv.br', 'mentepsiclinic@gmail.com', 'onemidiamarketing@gmail.com'].includes(userEmail) && (
@@ -273,7 +273,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         </div>
       )}
 
-      <nav className="space-y-2 p-6 md:p-4 md:space-y-1 md:flex-1 md:overflow-y-auto">
+      <nav className="space-y-2 p-6 pb-12 md:pb-4 md:p-4 md:space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-160px)] md:max-h-none no-scrollbar">
         {items.map((item) => {
           const isActive = (item.href === '/admin' || item.href === '/dashboard/assistente') ? pathname === item.href : pathname?.startsWith(item.href)
           return (

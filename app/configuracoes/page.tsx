@@ -756,7 +756,7 @@ export default function SettingsPage() {
                         Deseja cancelar sua assinatura?
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[500px] bg-white dark:bg-slate-900">
+                    <DialogContent aria-describedby={undefined} className="sm:max-w-[500px] bg-white dark:bg-slate-900">
                       <DialogHeader>
                         <DialogTitle className="text-xl font-bold text-slate-900">Tem certeza que deseja nos deixar?</DialogTitle>
                         <DialogDescription>
