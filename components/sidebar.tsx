@@ -207,8 +207,19 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
     if (numberToUse) {
       const cleanNumber = numberToUse.replace(/\D/g, '');
-      const message = encodeURIComponent(`Olá Suporte MentePsi! Preciso de ajuda com minha conta (${userName}).`);
-      window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
+      const finalPhone = cleanNumber.startsWith('55') ? cleanNumber : `55${cleanNumber}`;
+      const message = `Olá Suporte MentePsi! Preciso de ajuda com minha conta (${userName}).`;
+      
+      const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const url = isMobile 
+        ? `whatsapp://send?phone=${finalPhone}&text=${encodeURIComponent(message)}`
+        : `https://web.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(message)}`;
+
+      if (isMobile) {
+        window.location.assign(url);
+      } else {
+        window.open(url, '_blank');
+      }
     } else {
       alert("Número de suporte não encontrado. Por favor, tente novamente em instantes.");
     }

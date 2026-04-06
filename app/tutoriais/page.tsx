@@ -463,6 +463,23 @@ const helpModules = [
   }
 ];
 
+const handleWhatsAppClick = (phone: string, message: string = '') => {
+  if (!phone) return;
+  const cleanPhone = phone.replace(/\D/g, '');
+  const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+  
+  const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const url = isMobile 
+    ? `whatsapp://send?phone=${finalPhone}${message ? `&text=${encodeURIComponent(message)}` : ''}`
+    : `https://web.whatsapp.com/send?phone=${finalPhone}${message ? `&text=${encodeURIComponent(message)}` : ''}`;
+
+  if (isMobile) {
+    window.location.assign(url);
+  } else {
+    window.open(url, '_blank');
+  }
+};
+
 export default function TutoriaisPage() {
   const [activeModule, setActiveModule] = useState(helpModules[0].id)
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -609,10 +626,10 @@ export default function TutoriaisPage() {
       )}
 
       {/* WHATSAPP */}
-      <a href="https://wa.me/5516997925854" target="_blank" className="fixed bottom-6 right-6 bg-[#25D366] text-white p-4 rounded-full shadow-2xl flex items-center gap-3 font-bold hover:scale-105 transition-all">
+      <button onClick={() => handleWhatsAppClick('5516997925854')} className="fixed bottom-6 right-6 bg-[#25D366] text-white p-4 rounded-full shadow-2xl flex items-center gap-3 font-bold hover:scale-105 transition-all border-none outline-none">
         <MessageCircle size={24} />
         <span className="hidden md:block">Suporte MentePsi</span>
-      </a>
+      </button>
     </div>
   )
 }

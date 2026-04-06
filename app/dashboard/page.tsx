@@ -56,6 +56,23 @@ import { getLabels } from '@/lib/labels'
 // ⚡ PERFORMANCE: Carregamento dinâmico do gráfico pesado
 const RevenueChart = dynamic(() => import('./revenue-chart'), { ssr: false, loading: () => <Skeleton className="h-[300px] w-full rounded-xl" /> })
 
+const handleWhatsAppClick = (phone: string, message: string = '') => {
+  if (!phone) return;
+  const cleanPhone = phone.replace(/\D/g, '');
+  const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+  
+  const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const url = isMobile 
+    ? `whatsapp://send?phone=${finalPhone}${message ? `&text=${encodeURIComponent(message)}` : ''}`
+    : `https://web.whatsapp.com/send?phone=${finalPhone}${message ? `&text=${encodeURIComponent(message)}` : ''}`;
+
+  if (isMobile) {
+    window.location.assign(url);
+  } else {
+    window.open(url, '_blank');
+  }
+};
+
 export default function PsychologistDashboard() {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
@@ -112,19 +129,13 @@ export default function PsychologistDashboard() {
       .replace(/{data}/g, item.formattedDate)
       .replace(/{horario}/g, item.time)
 
-    const fone = item.phone?.replace(/[^\d+]/g, '')
-    if (!fone) return toast({ variant: "destructive", title: "Erro", description: "Paciente sem telefone." })
-    const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
+    if (!item.phone) return toast({ variant: "destructive", title: "Erro", description: "Paciente sem telefone." })
 
     await supabase.from('appointments').update({ reminder_sent: true, reminder_status: 'Enviado' }).eq('id', item.id)
     
     setAgenda(prev => prev.map(a => a.id === item.id ? { ...a, reminderSent: true, reminderStatus: 'Enviado' } : a))
 
-    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const waLink = isMobile 
-      ? `whatsapp://send?phone=${finalPhone}&text=${encodeURIComponent(finalMsg)}`
-      : `https://wa.me/${finalPhone}?text=${encodeURIComponent(finalMsg)}`;
-    window.open(waLink, '_blank')
+    handleWhatsAppClick(item.phone, finalMsg);
   }
 
   const handleCurrencyInput = (value: string, setter: (v: string) => void) => {
@@ -489,7 +500,7 @@ export default function PsychologistDashboard() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {supportPhone && (
-            <Button variant="outline" className="gap-2 bg-white border-slate-200 text-slate-600 hover:text-teal-600 hover:border-teal-200" onClick={() => window.open(`https://wa.me/${supportPhone.replace(/\D/g, '')}`, '_blank')}>
+            <Button variant="outline" className="gap-2 bg-white border-slate-200 text-slate-600 hover:text-teal-600 hover:border-teal-200" onClick={() => handleWhatsAppClick(supportPhone)}>
               <LifeBuoy className="h-4 w-4" /> Suporte
             </Button>
           )}
@@ -622,14 +633,9 @@ export default function PsychologistDashboard() {
                           variant="outline" 
                           className="h-8 text-[10px] font-bold border-green-200 text-green-700 bg-green-50 hover:bg-green-100 px-2"
                           onClick={() => {
-                            const fone = item.phone?.replace(/\D/g, '')
-                            if (!fone) return toast({ variant: "destructive", title: "Erro", description: "Paciente sem telefone." })
+                            if (!item.phone) return toast({ variant: "destructive", title: "Erro", description: "Paciente sem telefone." })
                             const msg = `Olá, aqui está o link para nossa sessão de hoje: ${item.meetingLink}`
-                          const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                          const waLink = isMobile 
-                            ? `whatsapp://send?phone=55${fone}&text=${encodeURIComponent(msg)}`
-                            : `https://wa.me/55${fone}?text=${encodeURIComponent(msg)}`;
-                          window.open(waLink, '_blank')
+                            handleWhatsAppClick(item.phone, msg)
                           }}
                         >
                           <Send className="h-3 w-3 mr-1" />
@@ -689,13 +695,7 @@ export default function PsychologistDashboard() {
                       <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:bg-green-50 hover:text-green-700" onClick={() => {
                           const template = profile?.birthday_message_template || "Olá, {paciente}! Feliz aniversário!"
                           const msg = template.replace(/{nome_paciente}/g, p.full_name.split(' ')[0]).replace(/{paciente}/g, p.full_name.split(' ')[0])
-                          const fone = p.phone?.replace(/[^\d+]/g, '') || ''
-                          const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
-                          const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                          const waLink = isMobile 
-                            ? `whatsapp://send?phone=${finalPhone}&text=${encodeURIComponent(msg)}`
-                            : `https://wa.me/${finalPhone}?text=${encodeURIComponent(msg)}`;
-                          window.open(waLink, '_blank')
+                          handleWhatsAppClick(p.phone || '', msg)
                       }}>
                         <MessageCircle className="h-4 w-4" />
                       </Button>
@@ -780,14 +780,8 @@ function EmotionItem({ item }: any) {
       <div className="flex gap-2 mt-4 sm:mt-0">
         <Button variant="outline" size="sm" asChild><Link href={`/pacientes/${item.patientId}?tab=emocoes`}>Ver</Link></Button>
         {item.whatsapp && (
-          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" asChild>
-            {(() => {
-              const fone = item.whatsapp.replace(/[^\d+]/g, '')
-              const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
-              const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-              const waLink = isMobile ? `whatsapp://send?phone=${finalPhone}` : `https://wa.me/${finalPhone}`;
-              return <a href={waLink} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /></a>
-            })()}
+          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleWhatsAppClick(item.whatsapp)}>
+            <MessageCircle className="h-4 w-4" />
           </Button>
         )}
       </div>
