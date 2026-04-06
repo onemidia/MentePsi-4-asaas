@@ -120,7 +120,11 @@ export default function PsychologistDashboard() {
     
     setAgenda(prev => prev.map(a => a.id === item.id ? { ...a, reminderSent: true, reminderStatus: 'Enviado' } : a))
 
-    window.open(`https://api.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(finalMsg)}`, '_blank')
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const waLink = isMobile 
+      ? `whatsapp://send?phone=${finalPhone}&text=${encodeURIComponent(finalMsg)}`
+      : `https://wa.me/${finalPhone}?text=${encodeURIComponent(finalMsg)}`;
+    window.open(waLink, '_blank')
   }
 
   const handleCurrencyInput = (value: string, setter: (v: string) => void) => {
@@ -621,7 +625,11 @@ export default function PsychologistDashboard() {
                             const fone = item.phone?.replace(/\D/g, '')
                             if (!fone) return toast({ variant: "destructive", title: "Erro", description: "Paciente sem telefone." })
                             const msg = `Olá, aqui está o link para nossa sessão de hoje: ${item.meetingLink}`
-                            window.open(`https://api.whatsapp.com/send?phone=55${fone}&text=${encodeURIComponent(msg)}`, '_blank')
+                          const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                          const waLink = isMobile 
+                            ? `whatsapp://send?phone=55${fone}&text=${encodeURIComponent(msg)}`
+                            : `https://wa.me/55${fone}?text=${encodeURIComponent(msg)}`;
+                          window.open(waLink, '_blank')
                           }}
                         >
                           <Send className="h-3 w-3 mr-1" />
@@ -683,7 +691,11 @@ export default function PsychologistDashboard() {
                           const msg = template.replace(/{nome_paciente}/g, p.full_name.split(' ')[0]).replace(/{paciente}/g, p.full_name.split(' ')[0])
                           const fone = p.phone?.replace(/[^\d+]/g, '') || ''
                           const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
-                          window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+                          const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                          const waLink = isMobile 
+                            ? `whatsapp://send?phone=${finalPhone}&text=${encodeURIComponent(msg)}`
+                            : `https://wa.me/${finalPhone}?text=${encodeURIComponent(msg)}`;
+                          window.open(waLink, '_blank')
                       }}>
                         <MessageCircle className="h-4 w-4" />
                       </Button>
@@ -772,7 +784,9 @@ function EmotionItem({ item }: any) {
             {(() => {
               const fone = item.whatsapp.replace(/[^\d+]/g, '')
               const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
-              return <a href={`https://wa.me/${finalPhone}`} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /></a>
+              const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+              const waLink = isMobile ? `whatsapp://send?phone=${finalPhone}` : `https://wa.me/${finalPhone}`;
+              return <a href={waLink} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /></a>
             })()}
           </Button>
         )}

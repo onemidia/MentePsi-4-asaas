@@ -660,7 +660,11 @@ export default function FinanceiroPage() {
     const text = `RECIBO\nRecebemos de ${apt.patients?.full_name} o valor de R$ ${valor} ref. à ${servicoDesc.toLowerCase()} realizada em ${dataSessao}.`
     const fone = apt.patients?.phone?.replace(/[^\d+]/g, '') || ''
     const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
-    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank')
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const waLink = isMobile 
+      ? `whatsapp://send?phone=${finalPhone}&text=${encodeURIComponent(text)}`
+      : `https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`;
+    window.open(waLink, '_blank')
   }
 
   // ↩️ LÓGICA DE ESTORNO (REVERSÃO)
@@ -1094,7 +1098,11 @@ export default function FinanceiroPage() {
     
     const fone = patient?.phone?.replace(/[^\d+]/g, '') || ''
     const finalPhone = fone.startsWith('+') ? fone.replace('+', '') : (fone.startsWith('55') ? fone : `55${fone}`)
-    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`, '_blank')
+    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const waLink = isMobile 
+      ? `whatsapp://send?phone=${finalPhone}&text=${encodeURIComponent(message)}`
+      : `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
+    window.open(waLink, '_blank')
   }
 
   const handleGenerateBatchPDF = async () => {
