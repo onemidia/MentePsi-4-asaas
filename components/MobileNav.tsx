@@ -23,7 +23,7 @@ export function MobileNav() {
             <Menu size={24} />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="p-0 w-[280px] border-none">
+        <SheetContent side="right" className="p-0 w-[85vw] max-w-[400px] border-none" aria-describedby={undefined}>
           <VisuallyHidden>
             <SheetTitle>Menu de Navegação</SheetTitle>
           </VisuallyHidden>

@@ -273,7 +273,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         </div>
       )}
 
-      <nav className="space-y-2 p-6 pb-12 md:pb-4 md:p-4 md:space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-160px)] md:max-h-none no-scrollbar">
+      <nav className="flex flex-col gap-2 p-4 flex-1 overflow-y-auto no-scrollbar">
         {items.map((item) => {
           const isActive = (item.href === '/admin' || item.href === '/dashboard/assistente') ? pathname === item.href : pathname?.startsWith(item.href)
           return (
@@ -282,8 +282,8 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-4 rounded-xl px-4 py-4 text-base font-medium transition-all duration-200",
-                "md:gap-3 md:rounded-2xl md:px-3 md:py-2.5 md:text-sm",
+                "flex items-center gap-4 rounded-xl px-4 py-4 text-base font-medium transition-all duration-200 active:scale-[0.98]",
+                "md:gap-3 md:rounded-2xl md:px-3 md:py-3 md:text-sm",
                 isActive ? "bg-teal-50 text-teal-700 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
@@ -294,7 +294,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         })}
       </nav>
 
-      <div className="p-6 space-y-6 shrink-0 md:p-4 md:space-y-4 md:border-t md:bg-slate-50/30">
+      <div className="p-6 space-y-6 shrink-0 border-t bg-slate-50/30 md:p-4 md:space-y-4">
         
         {/* BOTÃO DE SUPORTE - Visível apenas para Profissionais */}
         {!pathname?.startsWith('/admin') && !pathname?.startsWith('/dashboard/assistente') && (

@@ -7,7 +7,7 @@ import { createClient } from '@/lib/client'
 import { 
   DollarSign, Clock, CheckCircle2, Search, Plus, ReceiptText, 
   Loader2, TrendingUp, AlertCircle, Download, 
-  AlertTriangle, RotateCcw, MessageCircle, Check, FileText, Trash2, Paperclip
+  AlertTriangle, RotateCcw, MessageCircle, Check, FileText, Trash2, Paperclip, Landmark
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -1073,6 +1073,15 @@ export default function FinanceiroPage() {
           
           <Button variant="outline" className="w-full sm:w-auto font-bold border-slate-200 text-slate-600 shadow-sm rounded-2xl h-10" onClick={handleExportExcel}>
             <Download className="mr-2 h-4 w-4"/> Exportar Excel
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            className="w-full sm:w-auto font-bold border-blue-200 text-blue-700 shadow-sm hover:bg-blue-50 rounded-2xl h-10" 
+            onClick={() => window.open('https://cav.receita.fazenda.gov.br/autenticacao/login', '_blank')}
+            title="Link externo para emissão oficial e declaração de rendimentos na Receita Federal."
+          >
+            <Landmark className="mr-2 h-4 w-4"/> Carnê-Leão (e-CAC)
           </Button>
           
           <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 font-bold shadow-sm hover:shadow-md text-white rounded-2xl h-10" onClick={() => setNewTransactionOpen(true)}>

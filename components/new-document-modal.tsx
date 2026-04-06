@@ -20,26 +20,39 @@ import { createClient } from '@/lib/client'
 import { useToast } from "@/hooks/use-toast"
 import { useSubscription } from '@/hooks/use-subscription'
 
+const getRegistryLabel = (occupation?: string) => {
+  return ['psiquiatra', 'ortopedista', 'medico'].includes(occupation || '') ? 'CRM' :
+    ['fisioterapeuta', 'terapeuta_ocupacional'].includes(occupation || '') ? 'CREFITO' :
+    occupation === 'odontologista' ? 'CRO' :
+    occupation === 'nutricionista' ? 'CRN' :
+    occupation === 'fonoaudiologo' ? 'CRFa' :
+    occupation === 'terapeuta_holistico' ? 'CRT' :
+    occupation === 'psicanalista' ? 'RNTP/RP' :
+    occupation === 'psicopedagogo' ? 'ABPp/CBO' :
+    occupation === 'quiropraxista' ? 'Registro' :
+    occupation === 'outro' ? 'Registro' : 'CRP';
+}
+
 const TEMPLATES: Record<string, string> = {
-  "Atestado": "ATESTADO PSICOLÓGICO\n\nAtesto para os devidos fins que o(a) paciente [NOME], inscrito(a) no CPF [CPF], encontra-se em acompanhamento psicológico sob meus cuidados, necessitando de [DIAS] dias de afastamento de suas atividades para tratamento de saúde.\n\nCID-10: [CID]\n\n[CIDADE], [DATA].",
-  "Declaração": "DECLARAÇÃO DE COMPARECIMENTO\n\nDeclaro que o(a) paciente [NOME], inscrito(a) no CPF [CPF], compareceu a atendimento psicológico neste consultório no dia [DATA] das [HORA_INICIO] às [HORA_FIM].\n\n[CIDADE], [DATA].",
-  "Contrato": "CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE PSICOLOGIA\n\nCONTRATANTE: [NOME], CPF [CPF].\nCONTRATADO: [NOME_PROFISSIONAL], CRP [CRP_PROFISSIONAL].\n\nCLÁUSULA 1 - DO OBJETO\nO presente contrato tem por objeto a prestação de serviços de psicologia clínica...\n\n[DATA].",
-  "Recibo de Pagamento": "RECIBO\n\nRecebi de [NOME], CPF [CPF], a importância de R$ [VALOR] referente a sessões de psicoterapia realizadas em [DATA].\n\n[CIDADE], [DATA].",
-  "Recibo Anual IRPF": "RECIBO PARA FINS DE IMPOSTO DE RENDA\n\nRecebi de [NOME], CPF [CPF], o valor total de R$ [VALOR_TOTAL] referente a atendimentos psicológicos realizados durante o ano de 2025.\n\n[DATA].",
-  "Testes Psicológicos": "PROTOCOLO DE AVALIAÇÃO PSICOLÓGICA\n\nPACIENTE: [NOME]\nDATA: [DATA]\n\nINSTRUMENTOS UTILIZADOS:\n1. ...\n\nRESULTADOS OBTIDOS:\n...",
+  "Atestado": "ATESTADO DE SAÚDE\n\nAtesto para os devidos fins que o(a) paciente [NOME], inscrito(a) no CPF [CPF], encontra-se em acompanhamento clínico sob meus cuidados, necessitando de [DIAS] dias de afastamento de suas atividades para tratamento de saúde.\n\nCID-10: [CID]\n\n[CIDADE], [DATA].",
+  "Declaração": "DECLARAÇÃO DE COMPARECIMENTO\n\nDeclaro que o(a) paciente [NOME], inscrito(a) no CPF [CPF], compareceu a atendimento clínico neste consultório no dia [DATA] das [HORA_INICIO] às [HORA_FIM].\n\n[CIDADE], [DATA].",
+  "Contrato": "CONTRATO DE PRESTAÇÃO DE SERVIÇOS CLÍNICOS\n\nCONTRATANTE: [NOME], CPF [CPF].\nCONTRATADO: [NOME_PROFISSIONAL], [NOME_REGISTRO] [REGISTRO_PROFISSIONAL].\n\nCLÁUSULA 1 - DO OBJETO\nO presente contrato tem por objeto a prestação de serviços clínicos...\n\n[DATA].",
+  "Recibo de Pagamento": "RECIBO\n\nRecebi de [NOME], CPF [CPF], a importância de R$ [VALOR] referente a atendimentos clínicos realizados em [DATA].\n\n[CIDADE], [DATA].",
+  "Recibo Anual IRPF": "RECIBO PARA FINS DE IMPOSTO DE RENDA\n\nRecebi de [NOME], CPF [CPF], o valor total de R$ [VALOR_TOTAL] referente a atendimentos clínicos realizados durante o ano de 2025.\n\n[DATA].",
+  "Avaliação Clínica": "PROTOCOLO DE AVALIAÇÃO CLÍNICA\n\nPACIENTE: [NOME]\nDATA: [DATA]\n\nINSTRUMENTOS UTILIZADOS:\n1. ...\n\nRESULTADOS OBTIDOS:\n...",
   "Anamnese": "FICHA DE ANAMNESE\n\nPACIENTE: [NOME]\nDATA: [DATA]\n\nQUEIXA PRINCIPAL:\n...\n\nHISTÓRICO:\n...",
   "Prontuários Gerais": "REGISTRO DE PRONTUÁRIO\n\nPACIENTE: [NOME]\nDATA: [DATA]\n\nDESCRIÇÃO DO ATENDIMENTO:\n...",
-  "Laudo": "LAUDO PSICOLÓGICO\n\n1. IDENTIFICAÇÃO\nNome: [NOME]\nCPF: [CPF]\n\n2. DEMANDA\n...\n\n3. PROCEDIMENTO\n...\n\n4. ANÁLISE\n...\n\n5. CONCLUSÃO\n...\n\nTaquaritinga, [DATA].",
-  "Relatórios Psicológicos": "RELATÓRIO PSICOLÓGICO\n\n1. IDENTIFICAÇÃO\nNome: [NOME]\n\n2. DESCRIÇÃO DA DEMANDA\n...\n\n3. PROCEDIMENTO\n...\n\n4. ANÁLISE\n...\n\n5. CONCLUSÃO\n...\n\n[DATA].",
+  "Laudo": "LAUDO TÉCNICO\n\n1. IDENTIFICAÇÃO\nNome: [NOME]\nCPF: [CPF]\n\n2. DEMANDA\n...\n\n3. PROCEDIMENTO\n...\n\n4. ANÁLISE\n...\n\n5. CONCLUSÃO\n...\n\n[CIDADE], [DATA].",
+  "Relatórios Clínicos": "RELATÓRIO CLÍNICO\n\n1. IDENTIFICAÇÃO\nNome: [NOME]\n\n2. DESCRIÇÃO DA DEMANDA\n...\n\n3. PROCEDIMENTO\n...\n\n4. ANÁLISE\n...\n\n5. CONCLUSÃO\n...\n\n[DATA].",
   "Parecer": "PARECER TÉCNICO\n\nSOLICITANTE: ...\nASSUNTO: ...\n\n1. EXPOSIÇÃO DE MOTIVOS\n...\n\n2. ANÁLISE TÉCNICA\n...\n\n3. CONCLUSÃO\n...\n\n[DATA].",
-  "Comprovante de Sessões": "COMPROVANTE DE SESSÕES\n\nCertifico que [NOME] realizou as seguintes sessões de psicoterapia:\n\n- Data: [DATA]\n\n[CIDADE], [DATA].",
+  "Comprovante de Sessões": "COMPROVANTE DE SESSÕES\n\nCertifico que [NOME] realizou os seguintes atendimentos clínicos:\n\n- Data: [DATA]\n\n[CIDADE], [DATA].",
   "Termo LGPD": `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO PARA TRATAMENTO DE DADOS (LGPD)
 
-Eu, [NOME DO PACIENTE], inscrito(a) no CPF sob o nº [CPF DO PACIENTE], autorizo o(a) Psicólogo(a) [NOME DO PROFISSIONAL], inscrito(a) no CRP [CRP], a realizar o tratamento dos meus dados pessoais sensíveis, especificamente os dados de saúde mental, coletados durante os atendimentos psicológicos, para fins exclusivos de prestação de serviços de psicologia, evolução de prontuário e cumprimento de obrigações legais e regulatórias, em conformidade com a Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais - LGPD).
+Eu, [NOME DO PACIENTE], inscrito(a) no CPF sob o nº [CPF DO PACIENTE], autorizo o(a) profissional [NOME DO PROFISSIONAL], inscrito(a) no [NOME_REGISTRO] [REGISTRO_PROFISSIONAL], a realizar o tratamento dos meus dados pessoais sensíveis, coletados durante os atendimentos clínicos, para fins exclusivos de prestação de serviços de saúde, evolução de prontuário e cumprimento de obrigações legais e regulatórias, em conformidade com a Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais - LGPD).
 
 Estou ciente de que:
 1. Os dados serão armazenados em ambiente seguro e com acesso restrito.
-2. O sigilo profissional será mantido conforme o Código de Ética Profissional do Psicólogo.
+2. O sigilo profissional será mantido conforme o Código de Ética Profissional.
 3. Poderei revogar este consentimento a qualquer momento, mediante manifestação expressa.
 
 [CIDADE], [DATA].`
@@ -109,6 +122,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
     const template = TEMPLATES[type] || ""
     const patient = patients.find(p => p.id === patientId)
     const today = new Date().toLocaleDateString('pt-BR')
+    const registryLabel = getRegistryLabel(professional?.occupation_type)
     
     const safeReplace = (val: string | undefined | null) => val ? val.trim() : "_______"
 
@@ -118,7 +132,11 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
       .replace(/\[NOME DO PACIENTE\]/g, safeReplace(patient?.full_name))
       .replace(/\[CPF DO PACIENTE\]/g, safeReplace(patient?.cpf))
       .replace(/\[NOME DO PROFISSIONAL\]/g, safeReplace(professional?.full_name))
+      .replace(/\[NOME_PROFISSIONAL\]/g, safeReplace(professional?.full_name))
       .replace(/\[CRP\]/g, safeReplace(professional?.crp))
+      .replace(/\[REGISTRO_PROFISSIONAL\]/g, safeReplace(professional?.crp))
+      .replace(/\[NOME_REGISTRO\]/g, registryLabel)
+      .replace(/\[CRP_PROFISSIONAL\]/g, safeReplace(professional?.crp))
       .replace(/\[CIDADE\]/g, safeReplace(professional?.city))
       .replace(/\[DATA\]/g, today)
   }
@@ -292,18 +310,37 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
         return;
       }
 
+      const isMedico = ['ortopedista', 'medico'].includes(professional?.occupation_type);
+      const isPsicologo = professional?.occupation_type === 'psicologo';
+      
+      let tipoDoc = "Relatório de Evolução";
+      let instrucaoBase = "Com base nestas evoluções clínicas do último mês, gere um Relatório de Evolução estruturado e timbrado para este paciente.";
+
+      if (isMedico) {
+        tipoDoc = "Evolução Clínica";
+        instrucaoBase = "Com base nestas evoluções clínicas do último mês, gere uma Evolução Clínica estruturada e timbrada para este paciente, focando em termos médicos adequados.";
+      } else if (isPsicologo) {
+        tipoDoc = "Laudo de Evolução Psicológica";
+        instrucaoBase = "Com base nestas evoluções clínicas do último mês, gere um Laudo de Evolução Psicológica estruturado e timbrado para este paciente.";
+      } else {
+        const occ = professional?.occupation_type || 'Clínico';
+        const profName = occ.split('_').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        tipoDoc = `Relatório de Evolução (${profName})`;
+        instrucaoBase = `Com base nestas evoluções clínicas do último mês, gere um ${tipoDoc} estruturado e timbrado para este paciente.`;
+      }
+
       // 3. ENVIA PARA A MISTRAL COM O PROMPT ESPECÍFICO
       const res = await fetch('/api/ai/generate-document', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tipo: "Laudo de Evolução Psicológica",
+          tipo: tipoDoc,
           dadosPaciente: `Nome: ${selectedPatient?.full_name}, CPF: ${selectedPatient?.cpf}`,
           evolucoes: evolutionsData.map(e => ({
             content: e.content,
             date: new Date(e.created_at).toLocaleDateString('pt-BR')
           })),
-          instrucaoEspecial: `Com base nestas evoluções clínicas do último mês, gere um Laudo de Evolução Psicológica estruturado e timbrado para este paciente.` + (aiInstruction ? ` Observação do psicólogo: ${aiInstruction}` : "")
+          instrucaoEspecial: instrucaoBase + (aiInstruction ? ` Observação: ${aiInstruction}` : "")
         })
       });
 
@@ -312,8 +349,8 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
       if (data.content) {
         setFormData(prev => ({ 
           ...prev, 
-          type: "Relatórios Psicológicos", // Altera automaticamente o tipo para encaixar na natureza do documento
-          title: formData.title || `Laudo de Evolução - ${selectedPatient?.full_name}`,
+          type: "Relatórios Clínicos", // Altera automaticamente o tipo para encaixar na natureza do documento
+          title: formData.title || `${tipoDoc} - ${selectedPatient?.full_name}`,
           content: data.content 
         }));
         setAiInstruction(""); 
@@ -443,12 +480,16 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
       // 1. Pega os dados reais para substituição
       const nomeReal = professional?.full_name || "";
       const crpReal = professional?.crp || "";
+      const registryLabel = getRegistryLabel(professional?.occupation_type);
   
       // 2. LIMPEZA SEGURA: Substitui apenas os termos entre colchetes
       let conteudoFinal = formData.content
         .replace(/\[Nome do Psicólogo\]/gi, nomeReal)
+        .replace(/\[Nome do Profissional\]/gi, nomeReal)
         .replace(/\[Número do CRP\]/gi, crpReal)
         .replace(/\[CRP\]/gi, crpReal)
+        .replace(/\[REGISTRO_PROFISSIONAL\]/gi, crpReal)
+        .replace(/\[NOME_REGISTRO\]/gi, registryLabel)
         .replace(/\[DATA\]/g, new Date().toLocaleDateString('pt-BR'))
         .replace(/Nome: {nomeReal}/g, '')
         .replace(/CRP: {crpReal}/g, '')
@@ -621,7 +662,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
                  />
                  <div className="flex items-center justify-center gap-2 text-xs text-slate-500 font-medium mt-1">
                     <span>{professional?.city}</span>
-                    {professional?.crp && <span>• CRP: {professional.crp}</span>}
+                    {professional?.crp && <span>• {getRegistryLabel(professional?.occupation_type)}: {professional.crp}</span>}
                  </div>
                </div>
             </div>

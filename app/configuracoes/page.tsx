@@ -358,7 +358,16 @@ export default function SettingsPage() {
 
   if (!isMounted) return null;
 
-  const registryLabel = profile.occupation_type === 'psiquiatra' ? 'CRM' : profile.occupation_type === 'nutricionista' ? 'CRN' : profile.occupation_type === 'fonoaudiologo' ? 'CRFa' : profile.occupation_type === 'fisioterapeuta' ? 'CREFITO' : profile.occupation_type === 'terapeuta_holistico' ? 'CRT' : profile.occupation_type === 'psicanalista' ? 'Registro Profissional (RNTP / RP)' : profile.occupation_type === 'psicopedagogo' ? 'Registro Profissional (ABPp / CBO)' : profile.occupation_type === 'outro' ? 'Registro Profissional' : 'CRP';
+  const registryLabel = ['psiquiatra', 'ortopedista', 'medico'].includes(profile.occupation_type || '') ? 'CRM' :
+    ['fisioterapeuta', 'terapeuta_ocupacional'].includes(profile.occupation_type || '') ? 'CREFITO' :
+    profile.occupation_type === 'odontologista' ? 'CRO' :
+    profile.occupation_type === 'nutricionista' ? 'CRN' :
+    profile.occupation_type === 'fonoaudiologo' ? 'CRFa' :
+    profile.occupation_type === 'terapeuta_holistico' ? 'CRT' :
+    profile.occupation_type === 'psicanalista' ? 'Registro Profissional (RNTP / RP)' :
+    profile.occupation_type === 'psicopedagogo' ? 'Registro Profissional (ABPp / CBO)' :
+    profile.occupation_type === 'quiropraxista' ? 'Registro Profissional' :
+    profile.occupation_type === 'outro' ? 'Registro Profissional' : 'CRP';
 
   return (
     <div className="container mx-auto p-6 space-y-8 bg-slate-100 min-h-[100dvh]">
@@ -424,12 +433,18 @@ export default function SettingsPage() {
                     <SelectTrigger className="border-slate-300"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="psicologo">Psicólogo(a)</SelectItem>
+                      <SelectItem value="neuropsicologo">Neuropsicólogo(a)</SelectItem>
                       <SelectItem value="psiquiatra">Psiquiatra</SelectItem>
+                      <SelectItem value="medico">Médico(a)</SelectItem>
+                      <SelectItem value="ortopedista">Ortopedista</SelectItem>
                       <SelectItem value="psicanalista">Psicanalista</SelectItem>
                       <SelectItem value="psicopedagogo">Psicopedagogo(a)</SelectItem>
                       <SelectItem value="nutricionista">Nutricionista</SelectItem>
                       <SelectItem value="fonoaudiologo">Fonoaudiólogo(a)</SelectItem>
                       <SelectItem value="fisioterapeuta">Fisioterapeuta</SelectItem>
+                      <SelectItem value="terapeuta_ocupacional">Terapeuta Ocupacional</SelectItem>
+                      <SelectItem value="odontologista">Odontologista</SelectItem>
+                      <SelectItem value="quiropraxista">Quiropraxista/Osteopata</SelectItem>
                       <SelectItem value="terapeuta_holistico">Terapeuta Holístico(a)</SelectItem>
                       <SelectItem value="outro">Outro</SelectItem>
                     </SelectContent>
@@ -499,7 +514,7 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="specialty">Especialidade</Label>
-                  <Input id="specialty" placeholder="Ex: Psicologia Clínica, Terapia Cognitivo-Comportamental" value={profile.specialty || ''} onChange={handleInputChange} className="border-slate-300" />
+                  <Input id="specialty" placeholder={profile.occupation_type === 'ortopedista' ? "Ex: Ortopedia Esportiva, Traumatologia" : "Ex: Psicologia Clínica, Terapia Cognitivo-Comportamental"} value={profile.specialty || ''} onChange={handleInputChange} className="border-slate-300" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="appointment_label">Como você prefere chamar seus atendimentos?</Label>
