@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/client'
 import { 
   DollarSign, Clock, CheckCircle2, Search, Plus, ReceiptText, 
-  Loader2, TrendingUp, AlertCircle, Download, 
+  Loader2, TrendingUp, TrendingDown, AlertCircle, Download, 
   AlertTriangle, RotateCcw, MessageCircle, Check, FileText, Trash2, Paperclip, Landmark
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,7 +38,7 @@ export default function FinanceiroPage() {
   const [appointments, setAppointments] = useState<any[]>([])
   const [filteredAppointments, setFilteredAppointments] = useState<any[]>([])
   const [transactions, setTransactions] = useState<any[]>([])
-  const [totals, setTotals] = useState({ recebidoNoPeriodo: 0, pendenteNoPeriodo: 0, previsaoNoPeriodo: 0, creditoTotal: 0, recebidoMesAtual: 0 })
+  const [totals, setTotals] = useState({ recebidoNoPeriodo: 0, pendenteNoPeriodo: 0, previsaoNoPeriodo: 0, creditoTotal: 0, recebidoMesAtual: 0, despesasMesAtual: 0, lucroMesAtual: 0, despesasNoPeriodo: 0, lucroNoPeriodo: 0 })
   
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState(() => {
@@ -55,6 +55,26 @@ export default function FinanceiroPage() {
   const [confirmPendingAmount, setConfirmPendingAmount] = useState('')
   const [pendingPortalDocs, setPendingPortalDocs] = useState<any[]>([])
   
+  // ESTADOS DE DESPESAS
+  const [mainTab, setMainTab] = useState('receitas')
+  const [expenses, setExpenses] = useState<any[]>([])
+  const [newExpenseOpen, setNewExpenseOpen] = useState(false)
+  const [expenseForm, setExpenseForm] = useState({
+    description: '', amount: '', date: format(new Date(), 'yyyy-MM-dd'), category: 'Operacional'
+  })
+  
+  // PAGINAÇÃO E FILTROS DE DESPESAS (Independente)
+  const [expenseStartDate, setExpenseStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
+  const [expenseEndDate, setExpenseEndDate] = useState(() => {
+    const future = new Date()
+    future.setDate(future.getDate() + 30)
+    return format(future, 'yyyy-MM-dd')
+  })
+  const [pageDespesas, setPageDespesas] = useState(0)
+  const [totalDespesasCount, setTotalDespesasCount] = useState(0)
+  const [paginatedExpenses, setPaginatedExpenses] = useState<any[]>([])
+  const [expenseTotalPeriodo, setExpenseTotalPeriodo] = useState(0)
+
   // PAGINAÇÃO (Estados Independentes)
   const [pageLancamentos, setPageLancamentos] = useState(0)
   const [pageHistorico, setPageHistorico] = useState(0)
@@ -106,6 +126,59 @@ export default function FinanceiroPage() {
     }
   }, [supabase])
 
+  const fetchExpenses = useCallback(async (start: string, end: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.id) return
+      
+      const { data: expData } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('date', start)
+        .lte('date', end)
+        .order('date', { ascending: false });
+      if (expData) setExpenses(expData);
+    } catch (e) {
+      console.warn("Aviso ao buscar despesas:", e)
+    }
+  }, [supabase])
+
+  const fetchPaginatedExpenses = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user?.id) return
+      
+      const start = expenseStartDate
+      const end = expenseEndDate
+      const from = pageDespesas * 10
+      const to = from + 9
+      
+      // Busca apenas 10 itens para a tabela (Alta Performance)
+      const { data, count } = await supabase
+        .from('expenses')
+        .select('*', { count: 'exact' })
+        .eq('user_id', user.id)
+        .gte('date', start)
+        .lte('date', end)
+        .order('date', { ascending: false })
+        .range(from, to)
+        
+      if (data) setPaginatedExpenses(data)
+      if (count !== null) setTotalDespesasCount(count)
+      
+      // Busca as somas no banco sem trazer os objetos completos para o Front-end
+      const { data: sumData } = await supabase.from('expenses').select('amount').eq('user_id', user.id).gte('date', start).lte('date', end)
+        
+      if (sumData) {
+        const sum = sumData.reduce((acc, curr) => acc + Math.round(Number(curr.amount) * 100), 0) / 100
+        setExpenseTotalPeriodo(sum)
+      }
+    } catch (e) {
+      console.warn("Aviso ao buscar despesas paginadas:", e)
+    }
+  }, [supabase, expenseStartDate, expenseEndDate, pageDespesas])
+
   const fetchPatients = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -124,18 +197,31 @@ export default function FinanceiroPage() {
 
   const refreshData = async () => {
     setRefreshing(true)
-    await Promise.all([fetchFinanceiro(), fetchPatients()])
+    await Promise.all([fetchFinanceiro(), fetchPatients(), fetchExpenses(startDate, endDate), fetchPaginatedExpenses()])
     setRefreshing(false)
   }
 
   useEffect(() => {
     const loadInitial = async () => {
       setLoading(true)
-      await Promise.all([fetchFinanceiro(), fetchPatients()])
+      await Promise.all([fetchFinanceiro(), fetchPatients(), fetchExpenses(startDate, endDate), fetchPaginatedExpenses()])
       setLoading(false)
     }
     loadInitial()
-  }, [fetchFinanceiro, fetchPatients])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchFinanceiro, fetchPatients, fetchExpenses, fetchPaginatedExpenses])
+
+  useEffect(() => {
+    if (isMounted) {
+      fetchExpenses(startDate, endDate)
+    }
+  }, [startDate, endDate, fetchExpenses, isMounted])
+
+  useEffect(() => {
+    if (isMounted) {
+      fetchPaginatedExpenses()
+    }
+  }, [expenseStartDate, expenseEndDate, pageDespesas, fetchPaginatedExpenses, isMounted])
 
   useEffect(() => {
     const fetchProf = async () => {
@@ -192,6 +278,13 @@ export default function FinanceiroPage() {
     const recebidoCents = transactionsNoPeriodo.reduce((acc, t) => acc + Math.round(Number(t.amount) * 100), 0)
     const recebidoMesAtualCents = transactionsMesAtual.reduce((acc, t) => acc + Math.round(Number(t.amount) * 100), 0)
     
+    // Despesas no Período Filtrado
+    const expensesNoPeriodo = expenses.filter(e => {
+      const eDate = startOfDay(parseISO(e.date))
+      return eDate >= start && eDate <= end
+    })
+    const despesasNoPeriodoCents = expensesNoPeriodo.reduce((acc, e) => acc + Math.round(Number(e.amount) * 100), 0)
+    
     // 2. Lógica de Pendência (Valores a Receber)
     // GLOBAL: Ignora filtro de data da tela para que o totalizador reflita a realidade absoluta do consultório
     const pendenteRealCents = appointments
@@ -217,7 +310,9 @@ export default function FinanceiroPage() {
       recebidoNoPeriodo: recebidoCents / 100, 
       pendenteNoPeriodo: pendenteRealCents / 100, 
       previsaoNoPeriodo: previsaoCents / 100,
-      recebidoMesAtual: recebidoMesAtualCents / 100
+      recebidoMesAtual: recebidoMesAtualCents / 100,
+      despesasNoPeriodo: despesasNoPeriodoCents / 100,
+      lucroNoPeriodo: (recebidoCents - despesasNoPeriodoCents) / 100
     }))
 
     let result = [...appointmentsNoPeriodo]
@@ -234,7 +329,7 @@ export default function FinanceiroPage() {
     })
 
     setFilteredAppointments(result)
-  }, [appointments, transactions, patientsList, currentTab, searchTerm, startDate, endDate])
+  }, [appointments, transactions, patientsList, expenses, currentTab, searchTerm, startDate, endDate])
 
   // 🔔 EFEITO: Aplica filtro vindo da URL (Dashboard)
   useEffect(() => {
@@ -872,6 +967,61 @@ export default function FinanceiroPage() {
     XLSX.writeFile(wb, fileName)
   }
 
+  const handleSaveExpense = async () => {
+    if (!expenseForm.description || !expenseForm.amount || !expenseForm.date) {
+      toast({ variant: "destructive", title: "Erro", description: "Preencha todos os campos obrigatórios." })
+      return
+    }
+
+    setRefreshing(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast({ variant: "destructive", title: "Erro de Autenticação", description: "Usuário não encontrado." })
+        return
+      }
+      
+      const numericAmount = parseFloat(expenseForm.amount.replace(/\./g, '').replace(',', '.'))
+      
+      const { error } = await supabase.from('expenses').insert({
+        user_id: user.id, 
+        description: expenseForm.description, 
+        amount: numericAmount, 
+        date: expenseForm.date, 
+        category: expenseForm.category
+      })
+      
+      if (error) throw error
+      
+      toast({ title: "Despesa lançada com sucesso!" })
+      setNewExpenseOpen(false)
+      setExpenseForm({ description: '', amount: '', date: format(new Date(), 'yyyy-MM-dd'), category: 'Operacional' })
+      await fetchExpenses(startDate, endDate)
+      await fetchPaginatedExpenses()
+    } catch (e: any) {
+      console.error("Erro detalhado ao salvar despesa no Supabase:", e)
+      toast({ variant: "destructive", title: "Erro", description: e.message })
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta despesa?")) return
+    setRefreshing(true)
+    try {
+      const { error } = await supabase.from('expenses').delete().eq('id', id)
+      if (error) throw error
+      toast({ title: "Despesa excluída." })
+      await fetchExpenses(startDate, endDate)
+      await fetchPaginatedExpenses()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message })
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   const toggleSelection = (id: string) => {
     const newSet = new Set(selectedItems)
     if (newSet.has(id)) newSet.delete(id)
@@ -1084,13 +1234,31 @@ export default function FinanceiroPage() {
             <Landmark className="mr-2 h-4 w-4"/> Carnê-Leão (e-CAC)
           </Button>
           
-          <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 font-bold shadow-sm hover:shadow-md text-white rounded-2xl h-10" onClick={() => setNewTransactionOpen(true)}>
-            <Plus className="mr-2 h-4 w-4"/> Lançar Recebimento
-          </Button>
+          {mainTab === 'receitas' ? (
+            <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 font-bold shadow-sm hover:shadow-md text-white rounded-2xl h-10" onClick={() => setNewTransactionOpen(true)}>
+              <Plus className="mr-2 h-4 w-4"/> Lançar Recebimento
+            </Button>
+          ) : (
+            <Button className="w-full sm:w-auto bg-red-600 hover:bg-red-700 font-bold shadow-sm hover:shadow-md text-white rounded-2xl h-10" onClick={() => setNewExpenseOpen(true)}>
+              <Plus className="mr-2 h-4 w-4"/> Nova Despesa
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
+        <TabsList className="mb-6 bg-slate-200/50 rounded-xl p-1 w-full max-w-sm">
+          <TabsTrigger value="receitas" className="flex-1 rounded-lg font-bold">Receitas</TabsTrigger>
+          <TabsTrigger value="despesas" className="flex-1 rounded-lg font-bold">Despesas</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="receitas" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <StatCard title="Lucro Líquido Real (Período)" value={totals.lucroNoPeriodo} icon={<DollarSign/>} color="teal" subtitle="Recebido - Despesas no período" />
+            <StatCard title="Total de Despesas (Período)" value={totals.despesasNoPeriodo} icon={<TrendingDown/>} color="red" subtitle="Soma de todos os custos filtrados" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* 🌟 NOVO CARD DE DESTAQUE */}
         <StatCard title="Recebido no Mês" value={totals.recebidoMesAtual} icon={<DollarSign/>} color="emerald" subtitle={format(new Date(), 'MMMM/yyyy', { locale: ptBR })} />
         
@@ -1296,6 +1464,63 @@ export default function FinanceiroPage() {
           </div>
         </CardContent>
       </Card>
+      </TabsContent>
+
+      <TabsContent value="despesas" className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StatCard title="Total de Despesas (Período)" value={expenseTotalPeriodo} icon={<TrendingDown/>} color="red" subtitle="Soma das despesas no período filtrado" />
+        </div>
+
+        <Card className="border border-slate-200 shadow-md overflow-hidden bg-white rounded-[24px]">
+          <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between border-b gap-4 p-6">
+            <CardTitle className="text-lg font-black text-slate-800">Histórico de Despesas</CardTitle>
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 gap-2 shadow-sm">
+              <Input type="date" value={expenseStartDate} onChange={e => { setExpenseStartDate(e.target.value); setPageDespesas(0); }} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
+              <span className="text-slate-300">|</span>
+              <Input type="date" value={expenseEndDate} onChange={e => { setExpenseEndDate(e.target.value); setPageDespesas(0); }} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black tracking-widest border-y">
+                  <tr>
+                    <th className="p-4 text-left">Data</th>
+                    <th className="p-4 text-left">Descrição</th>
+                    <th className="p-4 text-left">Categoria</th>
+                    <th className="p-4 text-left">Valor</th>
+                    <th className="p-4 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {paginatedExpenses.length === 0 ? (
+                    <tr><td colSpan={5} className="p-10 text-center text-slate-400 italic font-medium">Nenhuma despesa encontrada para este período.</td></tr>
+                  ) : paginatedExpenses.map(exp => (
+                    <tr key={exp.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4 text-slate-600">{format(parseISO(exp.date), "dd/MM/yyyy")}</td>
+                      <td className="p-4 font-bold text-slate-700">{exp.description}</td>
+                      <td className="p-4"><Badge variant="outline">{exp.category}</Badge></td>
+                      <td className="p-4 font-bold text-red-600">- {formatBRL(Number(exp.amount))}</td>
+                      <td className="p-4 text-right">
+                        <Button size="icon" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg" onClick={() => handleDeleteExpense(exp.id)}>
+                          <Trash2 size={16}/>
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between p-4 border-t border-slate-100">
+              <Button variant="outline" size="sm" onClick={() => setPageDespesas(p => Math.max(0, p - 1))} disabled={pageDespesas === 0}>Anterior</Button>
+              <span className="text-xs text-slate-500 font-medium">Página {pageDespesas + 1} de {Math.max(1, Math.ceil(totalDespesasCount / 10))}</span>
+              <Button variant="outline" size="sm" onClick={() => setPageDespesas(p => p + 1)} disabled={(pageDespesas + 1) * 10 >= totalDespesasCount}>Próximo</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
 
       <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
         <DialogContent aria-describedby={undefined} className="max-w-xs">
@@ -1396,6 +1621,45 @@ export default function FinanceiroPage() {
             <div className="space-y-2"><Label className="font-bold text-teal-600">Valor Recebido (R$)</Label><Input value={transactionValue} onChange={e => handleCurrencyInput(e.target.value, setTransactionValue)} className="text-2xl font-black h-14 rounded-xl border-slate-300" /></div>
             <Button disabled={isProcessingPayment || refreshing} className="w-full bg-teal-600 hover:bg-teal-700 font-bold h-14 rounded-2xl" onClick={() => handleProcessTransaction(selectedPatient, parseFloat(transactionValue.replace(/\./g, '').replace(',', '.')))}>
               {(isProcessingPayment || refreshing) ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processando...</> : "Abater Dívidas"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={newExpenseOpen} onOpenChange={setNewExpenseOpen}>
+        <DialogContent aria-describedby={undefined} className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-slate-800">Nova Despesa</DialogTitle>
+            <DialogDescription className="sr-only">Registre uma nova despesa do consultório.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="font-bold">Descrição</Label>
+              <Input value={expenseForm.description} onChange={e => setExpenseForm({...expenseForm, description: e.target.value})} placeholder="Ex: Aluguel, Sistema, Material, Café..." className="h-10 rounded-xl border-slate-300" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-bold">Data</Label>
+                <Input type="date" value={expenseForm.date} onChange={e => setExpenseForm({...expenseForm, date: e.target.value})} className="h-10 rounded-xl border-slate-300" />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold">Categoria</Label>
+                <select value={expenseForm.category} onChange={e => setExpenseForm({...expenseForm, category: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                  <option value="Operacional">Operacional</option>
+                  <option value="Impostos">Impostos / Taxas</option>
+                  <option value="Marketing">Marketing / Ads</option>
+                  <option value="Equipamentos">Equipamentos</option>
+                  <option value="Pessoal">Pessoal / Salários</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-bold text-red-600">Valor (R$)</Label>
+              <Input value={expenseForm.amount} onChange={e => handleCurrencyInput(e.target.value, (val) => setExpenseForm({...expenseForm, amount: val}))} className="text-2xl font-black h-14 rounded-xl border-slate-300 text-red-600" />
+            </div>
+            <Button disabled={refreshing} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-14 rounded-2xl" onClick={handleSaveExpense}>
+              {refreshing ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Salvando...</> : "Registrar Despesa"}
             </Button>
           </div>
         </DialogContent>

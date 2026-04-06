@@ -28,12 +28,13 @@ export default function RevenueChart({ data }: RevenueChartProps) {
           <RechartsTooltip 
             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
             formatter={(value: any, name: string | undefined) => [
-              name === 'faturamento' ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : value,
-              (name || '') === 'faturamento' ? 'Faturamento' : (name || '') === 'consultas' ? 'Consultas Realizadas' : name
+              (name === 'faturamento' || name === 'despesas') ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : value,
+              (name || '') === 'faturamento' ? 'Faturamento' : (name || '') === 'despesas' ? 'Despesas' : (name || '') === 'consultas' ? 'Consultas Realizadas' : name
             ]}
           />
           <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-          <Bar yAxisId="left" dataKey="faturamento" name="Faturamento (R$)" fill="#0d9488" radius={[4, 4, 0, 0]} barSize={30} />
+          <Bar yAxisId="left" dataKey="faturamento" name="Faturamento (R$)" fill="#0d9488" radius={[4, 4, 0, 0]} barSize={20} />
+          <Bar yAxisId="left" dataKey="despesas" name="Despesas (R$)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
           <Line yAxisId="right" type="monotone" dataKey="consultas" name="Consultas Realizadas" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: "#f59e0b", strokeWidth: 2, stroke: "#fff" }} />
         </ComposedChart>
       </ResponsiveContainer>

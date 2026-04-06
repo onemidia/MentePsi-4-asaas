@@ -16,7 +16,7 @@ import {
   Activity,
   Gift,
   TrendingUp,
-  FileText,
+  TrendingDown,
   CheckCircle2,
   Loader2,
   Users,
@@ -60,13 +60,17 @@ export default function PsychologistDashboard() {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
   const router = useRouter()
+  const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
+  const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
   const [stats, setStats] = useState({
     sessionsToday: 0,
     crisisAlerts: 0,
     monthlyRevenue: 0,
     pendingRevenue: 0,
     activePatients: 0,
-    totalCredit: 0
+    totalCredit: 0,
+    totalExpenses: 0,
+    netProfit: 0
   })
   const [attentionList, setAttentionList] = useState<any[]>([])
   const [agenda, setAgenda] = useState<any[]>([])
@@ -270,7 +274,7 @@ export default function PsychologistDashboard() {
       setUser(user)
 
       const { data: profileData } = await supabase.from('professional_profile')
-        .select('full_name, role, birthday_message_template, reminder_template, appointment_label')
+        .select('full_name, role, birthday_message_template, reminder_template, appointment_label, occupation_type, genero')
         .eq('user_id', targetUserId)
         .maybeSingle()
       const { data: subData } = await supabase.from('subscriptions').select('status, plan_id').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).maybeSingle()
@@ -284,32 +288,40 @@ export default function PsychologistDashboard() {
       const sixMonthsAgo = subMonths(new Date(), 5)
       const startChart = startOfMonth(sixMonthsAgo).toISOString()
 
-      const [sessionsRes, crisisRes, paymentsRes, pendingRes, attentionRes, agendaRes, chartTransRes, chartAptsRes, patientsRes, pendingTransRes] = await Promise.all([
+      const [sessionsRes, crisisRes, paymentsRes, pendingRes, attentionRes, agendaRes, chartTransRes, chartAptsRes, patientsRes, pendingTransRes, expensesRes, chartExpensesRes] = await Promise.all([
         supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('psychologist_id', targetUserId).gte('start_time', startOfDay).lte('start_time', endOfDay).neq('status', 'Cancelado'),
         supabase.from('emotion_journal').select('patient_id').eq('psychologist_id', targetUserId).lte('mood_level', 2).gte('created_at', yesterday),
-        supabase.from('financial_transactions').select('amount, patients!inner(id)').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startOfMonthStr).lte('created_at', endOfMonthStr),
-        supabase.from('appointments').select('price, amount_paid, status, start_time').eq('psychologist_id', targetUserId).not('payment_status', 'in', '("Pago","paid")'),
+        supabase.from('financial_transactions').select('amount, patients!inner(id)').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', `${startDate}T00:00:00.000Z`).lte('created_at', `${endDate}T23:59:59.999Z`),
+        supabase.from('appointments').select('price, amount_paid, status, start_time').eq('psychologist_id', targetUserId).not('payment_status', 'in', '("Pago","paid")').gte('start_time', `${startDate}T00:00:00.000Z`).lte('start_time', `${endDate}T23:59:59.999Z`),
         supabase.from('emotion_journal').select(`id, mood_level, notes, created_at, patients (id, full_name, phone)`).eq('psychologist_id', targetUserId).order('created_at', { ascending: false }).limit(5),
         supabase.from('appointments').select(`*, patients (id, full_name, phone, meeting_link)`).eq('psychologist_id', targetUserId).gte('start_time', fourHoursAgo).lte('start_time', in36h).order('start_time', { ascending: true }),
         supabase.from('financial_transactions').select('amount, created_at, patients!inner(id)').eq('psychologist_id', targetUserId).eq('type', 'income').in('status', ['CONCLUIDO', 'paid']).gte('created_at', startChart),
         supabase.from('appointments').select('status, start_time, payment_status').eq('psychologist_id', targetUserId).gte('start_time', startChart),
         supabase.from('patients').select('full_name, birth_date, phone, status, credit_balance').eq('psychologist_id', targetUserId),
-        supabase.from('financial_transactions').select('*, patients(full_name)').eq('psychologist_id', user?.id || targetUserId).eq('status', 'pending_review')
+        supabase.from('financial_transactions').select('*, patients(full_name)').eq('psychologist_id', user?.id || targetUserId).eq('status', 'pending_review'),
+        supabase.from('expenses').select('amount').eq('user_id', targetUserId).gte('date', startDate).lte('date', endDate),
+        supabase.from('expenses').select('amount, date').eq('user_id', targetUserId).gte('date', startChart)
       ])
+
+      const monthlyRevenue = paymentsRes.data?.reduce((acc: number, curr: any) => acc + (Number(curr.amount) || 0), 0) || 0;
+      const totalExpenses = expensesRes.data?.reduce((acc: number, curr: any) => acc + (Number(curr.amount) || 0), 0) || 0;
+      const netProfit = monthlyRevenue - totalExpenses;
 
       setStats({
         sessionsToday: sessionsRes.count || 0,
         activePatients: patientsRes.data?.filter((p: any) => p.status === 'Ativo').length || 0,
         totalCredit: patientsRes.data?.reduce((acc: number, curr: any) => acc + (Number(curr.credit_balance) || 0), 0) || 0,
         crisisAlerts: new Set(crisisRes.data?.map((d: any) => d.patient_id)).size,
-        monthlyRevenue: paymentsRes.data?.reduce((acc: number, curr: any) => acc + (Number(curr.amount) || 0), 0) || 0,
+        monthlyRevenue: monthlyRevenue,
         pendingRevenue: pendingRes.data?.reduce((acc: number, curr: any) => {
           const effectiveStatus = curr.status?.toLowerCase() || ''
           if (['agendado', 'confirmado', 'pendente', 'realizada'].includes(effectiveStatus)) {
             return acc + ((Number(curr.price) || 0) - (Number(curr.amount_paid) || 0))
           }
           return acc
-        }, 0) || 0
+        }, 0) || 0,
+        totalExpenses: totalExpenses,
+        netProfit: netProfit
       })
 
       if (pendingTransRes?.data) {
@@ -358,8 +370,10 @@ export default function PsychologistDashboard() {
         
         const monthTrans = chartTransRes.data?.filter((t: any) => t.created_at.startsWith(monthKey)) || []
         const monthApts = chartAptsRes.data?.filter((a: any) => a.start_time.startsWith(monthKey)) || []
+        const monthExpenses = chartExpensesRes.data?.filter((e: any) => e.date.startsWith(monthKey)) || []
         
         const revenue = monthTrans.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0)
+        const despesas = monthExpenses.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0)
         const realizadas = monthApts.filter((a: any) => {
             const status = a.status?.toLowerCase() || ''
             return ['agendado', 'confirmado', 'pendente', 'realizada'].includes(status)
@@ -370,6 +384,7 @@ export default function PsychologistDashboard() {
         monthsData.push({
           name: monthLabel,
           faturamento: revenue,
+          despesas: despesas,
           consultas: realizadas,
           agendadas: agendadas,
           absenteismo: absenteismo
@@ -400,7 +415,7 @@ export default function PsychologistDashboard() {
     fetchData()
     const channel = supabase.channel('dashboard-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => fetchData()).subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, [startDate, endDate])
 
   const labels = React.useMemo(() => getLabels(profile?.appointment_label), [profile?.appointment_label])
 
@@ -419,6 +434,15 @@ export default function PsychologistDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><Skeleton className="h-96 lg:col-span-2 rounded-xl" /><Skeleton className="h-96 rounded-xl" /></div>
       </div>
     )
+  }
+
+  const getGreeting = () => {
+    const name = profile?.full_name?.split(' ')[0] || 'Profissional'
+    if (['ortopedista', 'medico', 'psiquiatra'].includes(profile?.occupation_type)) {
+      const title = profile?.genero === 'Feminino' ? 'Dra.' : 'Dr.'
+      return `Olá, ${title} ${name}`
+    }
+    return `Olá, ${name}`
   }
 
   return (
@@ -496,13 +520,15 @@ export default function PsychologistDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
         <StatCard title={`${labels.plural} Hoje`} value={stats.sessionsToday} icon={<Calendar className="h-4 w-4 text-teal-600" />} subtitle={`${labels.plural} Agendadas`} />
         <StatCard title="Pacientes Ativos" value={stats.activePatients} icon={<Users className="h-4 w-4 text-blue-600" />} subtitle="Em tratamento" />
         <StatCard title="Alertas de Crise" value={stats.crisisAlerts} icon={<AlertTriangle className="h-4 w-4 text-red-600" />} subtitle="Últimas 24h" isAlert />
-        <StatCard title="A Receber (Mês)" value={`R$ ${stats.pendingRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="h-4 w-4 text-amber-500" />} subtitle="Pendente" />
+        <StatCard title="A Receber" value={`R$ ${stats.pendingRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="h-4 w-4 text-amber-500" />} subtitle="Período" />
+        <StatCard title="Faturamento" value={`R$ ${stats.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<DollarSign className="h-4 w-4 text-teal-600" />} subtitle="Ref. ao mês atual" />
+        <StatCard title="Despesas" value={`R$ ${stats.totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<TrendingDown className="h-4 w-4 text-red-600" />} subtitle="Ref. ao mês atual" />
+        <StatCard title="Lucro Líquido" value={`R$ ${stats.netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={stats.netProfit >= 0 ? <TrendingUp className="h-4 w-4 text-emerald-600" /> : <TrendingDown className="h-4 w-4 text-red-600" />} subtitle="Ref. ao mês atual" valueColor={stats.netProfit >= 0 ? "text-emerald-600" : "text-red-600"} />
         <StatCard title="Saldo em Haver" value={`R$ ${stats.totalCredit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Wallet className="h-4 w-4 text-indigo-500" />} subtitle="Crédito total" />
-        <StatCard title="Faturamento Mensal" value={`R$ ${stats.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<DollarSign className="h-4 w-4 text-teal-600" />} subtitle="Recebido" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
