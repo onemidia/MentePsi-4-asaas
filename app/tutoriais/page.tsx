@@ -522,7 +522,7 @@ export default function TutoriaisPage() {
       <aside className="w-full md:w-72 bg-white border-r border-slate-200 h-auto md:h-screen flex-shrink-0 flex flex-col sticky top-0 z-20">
         <div className="p-6 border-b border-slate-100 hidden md:block">
           <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-            <Sparkles className="text-teal-600 h-6 w-6" /> MentePsi
+            <Sparkles className="text-brand-primary h-6 w-6" /> MentePsi
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-medium">Central de Ajuda e Sucesso</p>
         </div>
@@ -537,13 +537,13 @@ export default function TutoriaisPage() {
                 onClick={() => handleModuleChange(module.id)}
                 className={`flex flex-col md:flex-row items-center md:items-start gap-2 md:gap-3 p-3 rounded-xl transition-all min-w-[100px] md:min-w-0 flex-shrink-0 text-left
                   ${isActive 
-                    ? 'bg-teal-50 border-teal-200 text-teal-700 font-bold border' 
+                    ? 'bg-brand-secondary border-brand-primary/30 text-brand-primary font-bold border' 
                     : 'bg-transparent text-slate-500 hover:bg-slate-50 font-medium border border-transparent hover:border-slate-100'
                   }
                 `}
               >
-                <div className={`p-2 rounded-lg ${isActive ? 'bg-teal-100/50' : 'bg-slate-100'}`}>
-                  <Icon size={18} className={isActive ? 'text-teal-600' : 'text-slate-400'} />
+                <div className={`p-2 rounded-lg ${isActive ? 'bg-brand-secondary/50' : 'bg-slate-100'}`}>
+                  <Icon size={18} className={isActive ? 'text-brand-primary' : 'text-slate-400'} />
                 </div>
                 <span className="text-xs md:text-sm md:mt-2 line-clamp-1">{module.title}</span>
               </button>
@@ -592,10 +592,10 @@ export default function TutoriaisPage() {
 
           {/* LEGENDA */}
           <div className={`mt-8 bg-white p-8 rounded-3xl shadow-sm border border-slate-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : 'opacity-100'}`}>
-            <Badge className="bg-teal-50 text-teal-700 mb-4 px-3 py-1 border-teal-200">
+            <Badge className="bg-brand-secondary text-brand-primary mb-4 px-3 py-1 border-brand-primary/30">
               DICA: {slideData.instruction}
             </Badge>
-            <h3 className="text-2xl font-black text-teal-700 mb-3">{slideData.title}</h3>
+            <h3 className="text-2xl font-black text-brand-primary mb-3">{slideData.title}</h3>
             <p className="text-slate-600 text-lg leading-relaxed">{slideData.description}</p>
           </div>
         </div>

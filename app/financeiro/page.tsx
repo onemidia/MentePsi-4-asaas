@@ -1223,7 +1223,7 @@ export default function FinanceiroPage() {
               <Button variant="outline" className="w-full sm:w-auto font-bold border-green-200 bg-green-50 text-green-700 shadow-sm hover:bg-green-100 rounded-2xl h-10" onClick={handleSendWhatsAppReceipt}>
                 <MessageCircle className="mr-2 h-4 w-4"/> Enviar WhatsApp
               </Button>
-              <Button variant="outline" className="w-full sm:w-auto font-bold border-teal-200 bg-teal-50 text-teal-700 shadow-sm hover:bg-teal-100 rounded-2xl h-10" onClick={handleGenerateBatchPDF}>
+              <Button variant="outline" className="w-full sm:w-auto font-bold border-brand-primary/30 bg-brand-secondary text-brand-primary shadow-sm hover:bg-brand-secondary/80 rounded-2xl h-10" onClick={handleGenerateBatchPDF}>
                 <ReceiptText className="mr-2 h-4 w-4"/> Gerar Recibo ({selectedItems.size})
               </Button>
             </div>
@@ -1248,7 +1248,7 @@ export default function FinanceiroPage() {
           </Button>
           
           {mainTab === 'receitas' ? (
-            <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 font-bold shadow-sm hover:shadow-md text-white rounded-2xl h-10" onClick={() => setNewTransactionOpen(true)}>
+            <Button className="w-full sm:w-auto bg-brand-primary hover:opacity-90 font-bold shadow-sm hover:shadow-md text-white rounded-2xl h-10" onClick={() => setNewTransactionOpen(true)}>
               <Plus className="mr-2 h-4 w-4"/> Lançar Recebimento
             </Button>
           ) : (
@@ -1333,11 +1333,11 @@ export default function FinanceiroPage() {
                         <td className="p-4"><span className="font-bold text-slate-700">{apt.patients?.full_name}</span></td>
                         <td className={`p-4 font-bold ${isOverdue && currentTab === 'pendentes' ? 'text-red-600' : ''}`}>{formatBRL(Number(apt.price))}</td>
                         <td className="p-4 hidden md:table-cell"><span className={pendente > 0.01 ? "text-red-600 font-black" : "text-slate-400"}>{formatBRL(pendente)}</span></td>
-                        <td className="p-4 hidden md:table-cell"><Badge variant="outline" className={isPaid ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-amber-50 text-amber-700 border-amber-200'}>{isPaid ? 'Pago' : 'Pendente'}</Badge></td>
+                        <td className="p-4 hidden md:table-cell"><Badge variant="outline" className={isPaid ? 'bg-brand-secondary text-brand-primary border-brand-primary/30' : 'bg-amber-50 text-amber-700 border-amber-200'}>{isPaid ? 'Pago' : 'Pendente'}</Badge></td>
                         <td className="p-4 text-right flex justify-end gap-2">
-                          <Button size="icon" variant="ghost" className="text-slate-400 hover:text-teal-600" onClick={() => handleGenerateReceipt(apt)}><ReceiptText size={16}/></Button>
+                          <Button size="icon" variant="ghost" className="text-slate-400 hover:text-brand-primary" onClick={() => handleGenerateReceipt(apt)}><ReceiptText size={16}/></Button>
                           {!isPaid && (
-                            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-teal-600 text-teal-600 hover:bg-teal-600 hover:text-white rounded-lg" onClick={() => {
+                            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white rounded-lg" onClick={() => {
                               setSelectedApt(apt);
                               setPaymentAmount((Number(apt.price) - Number(apt.amount_paid || 0)).toFixed(2).replace('.', ','));
                               setPaymentModalOpen(true);
@@ -1416,7 +1416,7 @@ export default function FinanceiroPage() {
             <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black tracking-widest border-y">
                 <tr>
-                  <th className="p-4 w-[50px]"><input type="checkbox" onChange={toggleAllTransactions} checked={filteredTransactions.slice(pageHistorico * 10, (pageHistorico + 1) * 10).length > 0 && filteredTransactions.slice(pageHistorico * 10, (pageHistorico + 1) * 10).every(t => selectedTransactionIds.has(t.id))} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" /></th>
+                  <th className="p-4 w-[50px]"><input type="checkbox" onChange={toggleAllTransactions} checked={filteredTransactions.slice(pageHistorico * 10, (pageHistorico + 1) * 10).length > 0 && filteredTransactions.slice(pageHistorico * 10, (pageHistorico + 1) * 10).every(t => selectedTransactionIds.has(t.id))} className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary" /></th>
                   <th className="p-4 text-left">Data</th>
                   <th className="p-4 text-left">Descrição</th>
                   <th className="p-4 text-left">Categoria</th>
@@ -1428,7 +1428,7 @@ export default function FinanceiroPage() {
               <tbody className="divide-y divide-slate-200">
                 {filteredTransactions?.slice(pageHistorico * 10, (pageHistorico + 1) * 10).map(t => (
                   <tr key={t.id} className={`hover:bg-slate-50/50 ${t.status === 'pending_review' ? 'bg-amber-50' : ''}`}>
-                    <td className="p-4"><input type="checkbox" checked={selectedTransactionIds.has(t.id)} onChange={() => toggleTransactionSelection(t.id)} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" /></td>
+                    <td className="p-4"><input type="checkbox" checked={selectedTransactionIds.has(t.id)} onChange={() => toggleTransactionSelection(t.id)} className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary" /></td>
                     <td className="p-4 text-slate-600">{format(new Date(t.created_at), "dd/MM/yyyy HH:mm")}</td>
                     <td className="p-4 font-medium text-slate-700">{t.description}</td>
                     <td className="p-4"><Badge variant="outline">{t.category}</Badge></td>
@@ -1543,7 +1543,7 @@ export default function FinanceiroPage() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <Label className="text-xs font-bold text-slate-400 uppercase text-center block">Valor a Baixar (R$)</Label>
-            <Input value={paymentAmount} onChange={e => handleCurrencyInput(e.target.value, setPaymentAmount)} className="text-2xl font-black text-teal-600 text-center rounded-xl border-slate-300" />
+            <Input value={paymentAmount} onChange={e => handleCurrencyInput(e.target.value, setPaymentAmount)} className="text-2xl font-black text-brand-primary text-center rounded-xl border-slate-300" />
             
             {/* DECISÃO DE FONTE DE PAGAMENTO */}
             {(Number(selectedApt?.patients?.credit_balance) || 0) > 0 ? (
@@ -1552,7 +1552,7 @@ export default function FinanceiroPage() {
                   {(isProcessingPayment || refreshing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   [USAR CRÉDITO] - Saldo: {formatBRL(Number(selectedApt?.patients?.credit_balance || 0))}
                 </Button>
-                <Button disabled={isProcessingPayment || refreshing} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-10 text-xs rounded-xl" onClick={() => {
+                <Button disabled={isProcessingPayment || refreshing} className="w-full bg-brand-primary hover:opacity-90 text-white font-bold h-10 text-xs rounded-xl" onClick={() => {
                    const amount = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
                    handleProcessTransaction(selectedApt.patient_id, amount, selectedApt.id)
                 }}>
@@ -1561,7 +1561,7 @@ export default function FinanceiroPage() {
                 </Button>
               </div>
             ) : (
-              <Button disabled={isProcessingPayment || refreshing} className="w-full bg-teal-600 font-bold h-12 rounded-2xl" onClick={() => {
+              <Button disabled={isProcessingPayment || refreshing} className="w-full bg-brand-primary hover:opacity-90 text-white font-bold h-12 rounded-2xl" onClick={() => {
                  const amount = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
                  handleProcessTransaction(selectedApt.patient_id, amount, selectedApt.id)
               }}>
@@ -1575,7 +1575,7 @@ export default function FinanceiroPage() {
       <Dialog open={confirmPendingModalOpen} onOpenChange={setConfirmPendingModalOpen}>
         <DialogContent aria-describedby={undefined} className="max-w-[95vw] md:max-w-4xl rounded-[24px]">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black text-teal-700">Conferência de Recebimento</DialogTitle>
+            <DialogTitle className="text-xl font-black text-brand-primary">Conferência de Recebimento</DialogTitle>
             <DialogDescription>
               {pendingTxToConfirm?.patients?.full_name ? (
                 <>Comprovante enviado por <strong>{pendingTxToConfirm.patients.full_name}</strong>. Verifique e confirme o valor exato a ser baixado.</>
@@ -1603,7 +1603,7 @@ export default function FinanceiroPage() {
             <div className="flex flex-col justify-center space-y-6 px-2 md:px-4">
               <div className="space-y-2 text-center">
                 <Label className="text-xs font-bold text-slate-400 uppercase tracking-widest block">Valor Efetivo (R$)</Label>
-                <Input value={confirmPendingAmount} onChange={e => handleCurrencyInput(e.target.value, setConfirmPendingAmount)} className="text-4xl font-black text-teal-600 text-center rounded-xl border-slate-300 h-16 bg-teal-50/30" />
+                <Input value={confirmPendingAmount} onChange={e => handleCurrencyInput(e.target.value, setConfirmPendingAmount)} className="text-4xl font-black text-brand-primary text-center rounded-xl border-slate-300 h-16 bg-brand-secondary/30" />
                 <p className="text-[10px] text-slate-500 font-medium mt-2">O sistema amortizará as sessões pendentes mais antigas usando o valor confirmado.</p>
               </div>
               <Button onClick={() => {
@@ -1626,13 +1626,13 @@ export default function FinanceiroPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label className="font-bold">Paciente</Label>
-              <select value={selectedPatient} onChange={(e) => setSelectedPatient(e.target.value)} className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+              <select value={selectedPatient} onChange={(e) => setSelectedPatient(e.target.value)} className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer">
                 <option value="" disabled>Selecione</option>
                 {patientsList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
               </select>
             </div>
-            <div className="space-y-2"><Label className="font-bold text-teal-600">Valor Recebido (R$)</Label><Input value={transactionValue} onChange={e => handleCurrencyInput(e.target.value, setTransactionValue)} className="text-2xl font-black h-14 rounded-xl border-slate-300" /></div>
-            <Button disabled={isProcessingPayment || refreshing} className="w-full bg-teal-600 hover:bg-teal-700 font-bold h-14 rounded-2xl" onClick={() => handleProcessTransaction(selectedPatient, parseFloat(transactionValue.replace(/\./g, '').replace(',', '.')))}>
+            <div className="space-y-2"><Label className="font-bold text-brand-primary">Valor Recebido (R$)</Label><Input value={transactionValue} onChange={e => handleCurrencyInput(e.target.value, setTransactionValue)} className="text-2xl font-black h-14 rounded-xl border-slate-300" /></div>
+            <Button disabled={isProcessingPayment || refreshing} className="w-full bg-brand-primary hover:opacity-90 text-white font-bold h-14 rounded-2xl" onClick={() => handleProcessTransaction(selectedPatient, parseFloat(transactionValue.replace(/\./g, '').replace(',', '.')))}>
               {(isProcessingPayment || refreshing) ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processando...</> : "Abater Dívidas"}
             </Button>
           </div>
@@ -1657,7 +1657,7 @@ export default function FinanceiroPage() {
               </div>
               <div className="space-y-2">
                 <Label className="font-bold">Categoria</Label>
-                <select value={expenseForm.category} onChange={e => setExpenseForm({...expenseForm, category: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                <select value={expenseForm.category} onChange={e => setExpenseForm({...expenseForm, category: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer">
                   <option value="Operacional">Operacional</option>
                   <option value="Impostos">Impostos / Taxas</option>
                   <option value="Marketing">Marketing / Ads</option>
@@ -1683,7 +1683,7 @@ export default function FinanceiroPage() {
 
 function StatCard({ title, value, icon, color, subtitle }: any) {
   const colorMap: any = { 
-    teal: 'text-teal-600 bg-teal-50 border-teal-200', 
+    teal: 'text-brand-primary bg-brand-secondary border-brand-primary/30', 
     amber: 'text-amber-600 bg-amber-50 border-amber-200', 
     blue: 'text-blue-600 bg-blue-50 border-blue-200', 
     red: 'text-red-600 bg-red-50 border-red-200',

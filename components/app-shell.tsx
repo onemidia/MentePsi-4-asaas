@@ -125,7 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (loading && !hideSidebar) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="animate-spin text-teal-600 h-8 w-8" />
+        <Loader2 className="animate-spin text-brand-primary h-8 w-8" />
       </div>
     )
   }

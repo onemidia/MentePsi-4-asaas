@@ -58,8 +58,8 @@ export default function TrialBanner() {
       : <>Você tem <strong>{remainingDays} dias</strong> restantes no seu período de teste gratuito.</>
 
   return (
-    <div className={`w-full p-4 rounded-xl border ${isExpired ? 'bg-red-50 border-red-200 text-red-900' : 'bg-teal-50 border-teal-200 text-teal-900'} flex flex-col sm:flex-row items-center gap-4 mb-8`}>
-      <div className="shrink-0">{isExpired ? <AlertTriangle className="h-5 w-5 text-red-600" /> : <Info className="h-5 w-5 text-teal-600" />}</div>
+    <div className={`w-full p-4 rounded-xl border ${isExpired ? 'bg-red-50 border-red-200 text-red-900' : 'bg-brand-secondary border-brand-primary/30 text-brand-primary'} flex flex-col sm:flex-row items-center gap-4 mb-8`}>
+      <div className="shrink-0">{isExpired ? <AlertTriangle className="h-5 w-5 text-red-600" /> : <Info className="h-5 w-5 text-brand-primary" />}</div>
       <div className="flex-grow text-sm font-medium text-center sm:text-left">{message}</div>
       <Button asChild variant="outline" className="bg-white shadow-sm hover:bg-slate-50 whitespace-nowrap w-full sm:w-auto">
         <Link href="/planos">{isExpired ? 'Ativar Assinatura' : 'Ver Planos'}</Link>

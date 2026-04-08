@@ -154,7 +154,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white shadow-sm">
+        <Button className="w-full sm:w-auto bg-brand-primary hover:opacity-90 text-white shadow-sm">
           <Plus className="mr-2 h-4 w-4" /> Novo Paciente
         </Button>
       </DialogTrigger>
@@ -176,7 +176,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
                 required
                 value={formData.full_name}
                 onChange={e => setFormData({...formData, full_name: e.target.value})}
-                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
+                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-brand-primary/20"
                 placeholder="Ex: João Silva"
               />
             </div>
@@ -187,7 +187,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
                 placeholder="000.000.000-00"
                 value={formData.cpf}
                 onChange={handleCPFChange}
-                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
+                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
 
@@ -197,7 +197,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
                 placeholder="(00) 00000-0000 ou +1..."
                 value={formData.phone}
                 onChange={handlePhoneChange}
-                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
+                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
 
@@ -207,7 +207,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
                 type="email"
                 value={formData.email}
                 onChange={e => setFormData({...formData, email: e.target.value})}
-                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
+                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
 
@@ -216,7 +216,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
               <Input
                 value={formData.profession}
                 onChange={e => setFormData({...formData, profession: e.target.value})}
-                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
+                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
 
@@ -226,7 +226,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
                 placeholder="Nome e Telefone"
                 value={formData.emergency_contact}
                 onChange={e => setFormData({...formData, emergency_contact: e.target.value})}
-                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
+                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
 
@@ -237,7 +237,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
                 placeholder="150,00"
                 value={formData.session_value}
                 onChange={e => setFormData({...formData, session_value: e.target.value})}
-                className="bg-white border-slate-300 focus:bg-white font-semibold text-teal-700 focus:ring-2 focus:ring-teal-500/20"
+                className="bg-white border-slate-300 focus:bg-white font-semibold text-brand-primary focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
 
@@ -263,7 +263,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
               <Textarea
                 value={formData.observations}
                 onChange={e => setFormData({...formData, observations: e.target.value})}
-                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
+                className="bg-white border-slate-300 focus:bg-white focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
 
@@ -274,7 +274,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
               Cancelar
             </Button>
 
-            <Button type="submit" disabled={loading} className="bg-teal-600 hover:bg-teal-700 text-white font-black px-8 h-12 rounded-xl shadow-lg shadow-teal-100">
+            <Button type="submit" disabled={loading} className="bg-brand-primary hover:opacity-90 text-white font-black px-8 h-12 rounded-xl shadow-lg shadow-brand-primary/20">
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salvar Cadastro
             </Button>

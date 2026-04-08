@@ -92,7 +92,7 @@ function PatientCreditLog({ patientId, currentBalance }: CreditLogProps) {
         </div>
         <div className="flex flex-col items-end">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Atual</span>
-          <span className={`text-xl font-black ${currentBalance > 0 ? 'text-teal-600' : 'text-slate-400'}`}>
+          <span className={`text-xl font-black ${currentBalance > 0 ? 'text-brand-primary' : 'text-slate-400'}`}>
             {formatBRL(currentBalance)}
           </span>
         </div>
@@ -100,7 +100,7 @@ function PatientCreditLog({ patientId, currentBalance }: CreditLogProps) {
       
       <CardContent>
         {loading ? (
-          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-teal-600" /></div>
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-brand-primary" /></div>
         ) : logs.length === 0 ? (
           <div className="text-center py-10 text-slate-400 text-sm italic">
             Nenhuma movimentação de crédito encontrada.
@@ -116,7 +116,7 @@ function PatientCreditLog({ patientId, currentBalance }: CreditLogProps) {
                     {isUsage ? (
                       <ArrowDownCircle className="h-8 w-8 text-amber-500" />
                     ) : (
-                      <ArrowUpCircle className="h-8 w-8 text-teal-500" />
+                      <ArrowUpCircle className="h-8 w-8 text-brand-primary" />
                     )}
                     <div>
                       <p className="text-sm font-bold text-slate-700">{log.description}</p>
@@ -126,7 +126,7 @@ function PatientCreditLog({ patientId, currentBalance }: CreditLogProps) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`font-black ${isUsage ? 'text-amber-600' : 'text-teal-600'}`}>
+                    <p className={`font-black ${isUsage ? 'text-amber-600' : 'text-brand-primary'}`}>
                       {isUsage ? '-' : '+'}{formatBRL(Number(log.amount))}
                     </p>
                     <Badge variant="outline" className="text-[9px] uppercase font-bold">

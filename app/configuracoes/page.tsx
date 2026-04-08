@@ -13,10 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Loader2, Save, Image as ImageIcon, AlertTriangle, Download } from 'lucide-react'
+import { Loader2, Save, Image as ImageIcon, AlertTriangle, Download, CheckCircle2 } from 'lucide-react'
 
 // ⚡ PERFORMANCE: Carrega o componente de equipe apenas se necessário (Code Splitting)
-const TeamManagement = dynamic(() => import('@/components/TeamManagement').then(mod => mod.TeamManagement), { loading: () => <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-teal-600" /></div> })
+const TeamManagement = dynamic(() => import('@/components/TeamManagement').then(mod => mod.TeamManagement), { loading: () => <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-brand-primary" /></div> })
 
 // Define the type for the profile data
 type ProfileData = {
@@ -49,6 +49,7 @@ type ProfileData = {
   estado_civil: string;
   occupation_type: string;
   appointment_label?: string;
+  theme_name?: string;
 }
 
 type PaymentHistory = {
@@ -88,8 +89,17 @@ const initialProfileState: Partial<ProfileData> = {
   genero: '',
   estado_civil: '',
   occupation_type: 'psicologo',
-  appointment_label: 'Sessão'
+  appointment_label: 'Sessão',
+  theme_name: 'padrao'
 };
+
+const THEMES = [
+  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
+  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
+  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
+  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
+  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
+];
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState(initialProfileState);
@@ -107,7 +117,12 @@ export default function SettingsPage() {
   const supabase = createClient();
 
   useEffect(() => {
-  }, [])
+    if (typeof document !== 'undefined') {
+      const activeTheme = THEMES.find(t => t.id === profile.theme_name) || THEMES[0];
+      document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+      document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+    }
+  }, [profile.theme_name])
 
   useEffect(() => {
     setIsMounted(true);
@@ -132,7 +147,7 @@ export default function SettingsPage() {
             clinic_name, address, cep, city, state, work_hours_start, work_hours_end, 
             whatsapp_reminders_enabled, reminder_lead_time, reminder_template, 
             birthday_message_template, cpf, rg, genero, estado_civil, occupation_type,
-            appointment_label
+            appointment_label, theme_name
           `)
           .eq('user_id', userId)
           .maybeSingle();
@@ -165,6 +180,8 @@ export default function SettingsPage() {
 
         // Aplica os dados apenas se a requisição for bem sucedida e retornar algo
         if (profData) {
+          const fetchedTheme = profData.theme_name || 'padrao';
+
           setProfile(prev => ({ 
             ...prev, 
             ...profData,
@@ -177,7 +194,15 @@ export default function SettingsPage() {
             birthday_message_template: profData.birthday_message_template || initialProfileState.birthday_message_template,
             occupation_type: profData.occupation_type || 'psicologo',
             appointment_label: profData.appointment_label || 'Sessão',
+            theme_name: fetchedTheme,
           }));
+
+          // Força a atualização das variáveis CSS com os valores do banco (ou fallback Padrão)
+          if (typeof document !== 'undefined') {
+            const activeTheme = THEMES.find(t => t.id === fetchedTheme) || THEMES[0];
+            document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+            document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+          }
         }
       } catch (error) {
         console.warn("Aviso interno ao carregar configurações:", error);
@@ -284,6 +309,7 @@ export default function SettingsPage() {
       pix_key: profile.pix_key?.trim() || '',
       occupation_type: profile.occupation_type || 'psicologo',
       appointment_label: profile.appointment_label || 'Sessão',
+      theme_name: profile.theme_name || 'padrao',
       updated_at: new Date().toISOString()
     };
 
@@ -373,10 +399,10 @@ export default function SettingsPage() {
     <div className="container mx-auto p-6 space-y-8 bg-slate-100 min-h-[100dvh]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Configurações</h1>
+          <h1 className="text-3xl font-bold text-brand-primary">Configurações</h1>
           <p className="text-slate-500">Gerencie seu perfil profissional, consultório e automações.</p>
         </div>
-        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white">
+        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto bg-brand-primary hover:opacity-90 text-white">
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Salvar Alterações
         </Button>
@@ -396,38 +422,91 @@ export default function SettingsPage() {
           <Card className="border-slate-200 shadow-md bg-white">
             <CardHeader>
               <CardTitle>Perfil Profissional</CardTitle>
-              <CardDescription>Informações que aparecerão em seus documentos e relatórios.</CardDescription>
+              <CardDescription>Gerencie sua marca e suas informações pessoais.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex flex-col items-center sm:flex-row gap-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="relative h-24 w-24 shrink-0 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white flex items-center justify-center">
-                  {profile.logo_url ? (
-                    <Image 
-                      src={profile.logo_url} 
-                      alt="Logo da Clínica" 
-                      fill 
-                      className="object-contain" 
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      unoptimized={true} // Necessário para URLs externos do Supabase Storage
-                    />
-                  ) : (
-                    <ImageIcon className="h-8 w-8 text-slate-300" />
-                  )}
-                  {uploadingLogo && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><Loader2 className="animate-spin text-white h-6 w-6"/></div>}
+            <CardContent className="space-y-8">
+              
+              {/* BLOCO: IDENTIDADE VISUAL */}
+              <div>
+                <div className="mb-4 space-y-1">
+                  <h3 className="text-lg font-bold text-slate-900">Identidade Visual</h3>
+                  <p className="text-sm text-slate-500">Personalize o logotipo e as cores do seu consultório.</p>
                 </div>
-                <div className="space-y-2 flex-1">
-                  <Label htmlFor="logo-upload" className="font-bold text-slate-700">Logotipo da Clínica</Label>
-                  <p className="text-xs text-slate-500">Recomendado: 150x150px (PNG ou JPG). Será exibido no cabeçalho dos recibos e documentos.</p>
-                  <div className="flex items-center gap-2"><Input id="logo-upload" type="file" accept="image/*" onChange={handleLogoUpload} className="text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100" disabled={uploadingLogo} /></div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* UPLOAD DE LOGO */}
+                  <div className="flex flex-col sm:flex-row items-center gap-6 p-4 sm:p-6 bg-slate-50 rounded-xl border border-slate-200 h-full">
+                    <div className="relative h-20 w-20 shrink-0 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white flex items-center justify-center">
+                      {profile.logo_url ? (
+                        <Image 
+                          src={profile.logo_url} 
+                          alt="Logo da Clínica" 
+                          fill 
+                          className="object-contain" 
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          unoptimized={true} 
+                        />
+                      ) : (
+                        <ImageIcon className="h-8 w-8 text-slate-300" />
+                      )}
+                      {uploadingLogo && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><Loader2 className="animate-spin text-white h-6 w-6"/></div>}
+                    </div>
+                    <div className="space-y-2 flex-1 text-center sm:text-left w-full">
+                      <Label htmlFor="logo-upload" className="font-bold text-slate-700 text-sm">Logotipo da Clínica</Label>
+                      <p className="text-[11px] text-slate-500 leading-tight">Recomendado: 150x150px (PNG ou JPG). Será exibido no cabeçalho de recibos e documentos.</p>
+                      <div className="pt-1">
+                        <Input id="logo-upload" type="file" accept="image/*" onChange={handleLogoUpload} className="text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand-secondary file:text-brand-primary hover:file:bg-brand-primary hover:file:text-white cursor-pointer h-auto py-0 w-full transition-colors" disabled={uploadingLogo} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SELETOR DE CORES */}
+                  <div className="p-4 sm:p-6 bg-slate-50 rounded-xl border border-slate-200 flex flex-col justify-between h-full">
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <Label className="font-bold text-slate-700 text-sm">Personalização de Cores</Label>
+                        <p className="text-[11px] text-slate-500 leading-tight">Escolha o tema principal. Ele será aplicado em todo o seu sistema e no portal do paciente.</p>
+                      </div>
+                      
+                      <Select 
+                        value={profile.theme_name || 'padrao'} 
+                        onValueChange={(value) => handleSelectChange('theme_name', value)}
+                      >
+                        <SelectTrigger className="border-slate-300 bg-white w-full h-11">
+                          <SelectValue placeholder="Selecione um tema" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-slate-200 shadow-lg">
+                          {THEMES.map((theme) => (
+                            <SelectItem key={theme.id} value={theme.id}>
+                              <div className="flex items-center gap-3">
+                                <div 
+                                  className="w-4 h-4 rounded-full shadow-sm border border-slate-100" 
+                                  style={{ backgroundColor: theme.primary }} 
+                                />
+                                <span className="font-medium text-slate-700">{theme.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="full_name">Nome Profissional</Label>
-                  <Input id="full_name" value={profile.full_name || ''} onChange={handleInputChange} className="border-slate-300" />
+              {/* DIVISÓRIA E INFORMAÇÕES PROFISSIONAIS */}
+              <div className="border-t border-slate-100 pt-8">
+                <div className="mb-6 space-y-1">
+                  <h3 className="text-lg font-bold text-slate-900">Informações Profissionais</h3>
+                  <p className="text-sm text-slate-500">Dados que aparecerão em seus documentos, recibos e relatórios.</p>
                 </div>
-                <div className="space-y-2">
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="full_name">Nome Profissional</Label>
+                    <Input id="full_name" value={profile.full_name || ''} onChange={handleInputChange} className="border-slate-300" />
+                  </div>
+                  <div className="space-y-2">
                   <Label htmlFor="occupation_type">Profissão</Label>
                   <Select value={profile.occupation_type || 'psicologo'} onValueChange={(value) => handleSelectChange('occupation_type', value)}>
                     <SelectTrigger className="border-slate-300"><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -558,6 +637,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -745,14 +825,14 @@ export default function SettingsPage() {
 
               {/* BOTÃO SÓ APARECE SE NÃO ESTIVER ATIVO */}
               {subscription?.status?.toLowerCase() !== 'active' && (
-                <div className="p-6 rounded-xl border-2 border-dashed border-teal-200 bg-teal-50 flex flex-col items-center text-center space-y-4">
+                <div className="p-6 rounded-xl border-2 border-dashed border-brand-primary/30 bg-brand-secondary flex flex-col items-center text-center space-y-4">
                   <div className="space-y-1">
-                    <h4 className="font-bold text-teal-900">Ative sua conta profissional</h4>
-                    <p className="text-sm text-teal-700">Identificamos que seu plano ainda não consta como ativo em nosso sistema.</p>
+                    <h4 className="font-bold text-brand-primary">Ative sua conta profissional</h4>
+                    <p className="text-sm text-brand-primary">Identificamos que seu plano ainda não consta como ativo em nosso sistema.</p>
                   </div>
                   <Button 
                     onClick={() => window.location.href = '/planos'} 
-                    className="bg-teal-600 hover:bg-teal-700 text-white"
+                    className="bg-brand-primary hover:opacity-90 text-white"
                   >
                     Ir para Pagamento
                   </Button>
@@ -812,7 +892,7 @@ export default function SettingsPage() {
                                 value={reason}
                                 checked={cancelReason === reason}
                                 onChange={(e) => setCancelReason(e.target.value)}
-                                className="h-4 w-4 border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                                className="h-4 w-4 border-slate-300 text-brand-primary focus:ring-brand-primary cursor-pointer"
                               />
                               <label htmlFor={reason} className="text-sm text-slate-600 cursor-pointer select-none">
                                 {reason}
@@ -842,7 +922,7 @@ export default function SettingsPage() {
 
                       <DialogFooter className="flex-col sm:flex-col gap-2 sm:space-x-0">
                         <Button 
-                          className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 shadow-md"
+                          className="w-full bg-brand-primary hover:opacity-90 text-white font-bold h-12 shadow-md"
                           onClick={() => setIsCancelModalOpen(false)}
                         >
                           Mudei de ideia, manter minha assinatura

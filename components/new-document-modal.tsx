@@ -542,7 +542,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
               <select 
                 value={formData.patient_id} 
                 onChange={(e) => handlePatientChange(e.target.value)}
-                className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus:outline-none focus:ring-2 focus:ring-brand-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="" disabled>Selecione o paciente</option>
                 {patients.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
@@ -553,7 +553,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
               <select 
                 value={formData.type} 
                 onChange={(e) => handleTypeChange(e.target.value)}
-                className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus:outline-none focus:ring-2 focus:ring-brand-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="" disabled>Escolha o tipo...</option>
                 {Object.keys(TEMPLATES).map(t => <option key={t} value={t}>{t}</option>)}
@@ -574,8 +574,8 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
             </Label>
           </div>
 
-          <div className="space-y-2 mb-4 bg-teal-50/50 p-3 rounded-lg border border-teal-100">
-            <Label className="text-teal-800 font-bold flex items-center gap-2">
+          <div className="space-y-2 mb-4 bg-brand-secondary/50 p-3 rounded-lg border border-brand-primary/30">
+            <Label className="text-brand-primary font-bold flex items-center gap-2">
               <Sparkles size={16} /> Instruções Especiais para a IA
             </Label>
             <div className="flex gap-2">
@@ -583,7 +583,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
                 placeholder="Ex: Foque na queixa de insônia e use tom mais formal..." 
                 value={aiInstruction}
                 onChange={(e) => setAiInstruction(e.target.value)}
-                className="bg-white border-teal-200 focus:ring-teal-500"
+                className="bg-white border-brand-primary/30 focus:ring-brand-primary"
               />
             </div>
             <p className="text-[10px] text-slate-500 italic">
@@ -621,7 +621,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
                   size="sm" 
                   onClick={handleGenerateAI} 
                   disabled={generating || !formData.type}
-                  className="w-full sm:w-auto bg-white hover:bg-teal-50 text-teal-600 border-teal-200 font-bold transition-all"
+                  className="w-full sm:w-auto bg-white hover:bg-brand-secondary text-brand-primary border-brand-primary/30 font-bold transition-all"
                 >
                   {generating ? <Loader2 className="animate-spin mr-2 h-3 w-3" /> : <Sparkles className="mr-2 h-3 w-3" />}
                   Gerar do Zero
@@ -667,7 +667,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
                </div>
             </div>
 
-            <Textarea className="min-h-[300px] max-w-full font-serif leading-relaxed text-base rounded-t-none border-slate-200 focus-visible:ring-0 focus-visible:border-teal-500" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} />
+            <Textarea className="min-h-[300px] max-w-full font-serif leading-relaxed text-base rounded-t-none border-slate-200 focus-visible:ring-0 focus-visible:border-brand-primary" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} />
           </div>
         </div>
         </div>
@@ -676,7 +676,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
           <Button 
             onClick={handleSubmit} 
             disabled={loading} 
-            className="w-full bg-teal-600 hover:bg-teal-700 text-white font-black h-12 shadow-lg shadow-teal-100 !opacity-100"
+            className="w-full bg-brand-primary hover:opacity-90 text-white font-black h-12 shadow-lg shadow-brand-primary/20 !opacity-100"
           >
             {loading ? (
               <Loader2 className="animate-spin mr-2 h-4 w-4" />

@@ -236,14 +236,14 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   return (
     <div className={cn("flex h-full w-full flex-col border-r bg-white", className)}>
       <div className="p-6 border-b shrink-0">
-        <h1 className="text-2xl font-semibold text-teal-600 flex items-center gap-2 tracking-tight">
+        <h1 className="text-2xl font-semibold text-brand-primary flex items-center gap-2 tracking-tight">
           MentePsi 
           {role === 'admin' ? (
             <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-100 font-bold uppercase">Master</span>
           ) : role === 'assistant' ? (
             <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100 font-bold uppercase">Equipe</span>
           ) : (
-            <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full border border-teal-100 font-bold uppercase">App</span>
+            <span className="text-[10px] bg-brand-secondary text-brand-primary px-2 py-0.5 rounded-full border border-brand-primary/30 font-bold uppercase">App</span>
           )}
         </h1>
       </div>
@@ -258,7 +258,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           <div className="flex justify-between gap-2 mb-3">
             <button 
               onClick={() => handleSwitchMode('admin', '/admin')}
-              className={cn("p-2 rounded-lg transition-colors flex-1 flex justify-center", currentView === 'admin' ? 'bg-teal-100 text-teal-600 shadow-sm' : 'bg-white border border-slate-200 text-slate-400 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200')}
+              className={cn("p-2 rounded-lg transition-colors flex-1 flex justify-center", currentView === 'admin' ? 'bg-brand-secondary text-brand-primary shadow-sm' : 'bg-white border border-slate-200 text-slate-400 hover:bg-brand-secondary hover:text-brand-primary hover:border-brand-primary/30')}
               title="Painel Gestor"
             >
               <ShieldCheck size={18} />
@@ -295,10 +295,10 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
               className={cn(
                 "flex items-center gap-4 rounded-xl px-4 py-4 text-base font-medium transition-all duration-200 active:scale-[0.98]",
                 "md:gap-3 md:rounded-2xl md:px-3 md:py-3 md:text-sm",
-                isActive ? "bg-teal-50 text-teal-700 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                isActive ? "bg-brand-secondary text-brand-primary shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
-              <item.icon className={cn("h-6 w-6 md:h-5 md:w-5", isActive ? "text-teal-600" : "text-slate-400")} />
+              <item.icon className={cn("h-6 w-6 md:h-5 md:w-5", isActive ? "text-brand-primary" : "text-slate-400")} />
               {item.label}
             </Link>
           )
@@ -313,7 +313,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
             <Button 
               variant="ghost" 
               asChild
-              className="w-full justify-start gap-4 md:gap-3 text-slate-600 hover:text-teal-600 hover:bg-teal-50 h-12 md:h-10 text-base md:text-sm font-medium transition-all"
+              className="w-full justify-start gap-4 md:gap-3 text-slate-600 hover:text-brand-primary hover:bg-brand-secondary h-12 md:h-10 text-base md:text-sm font-medium transition-all"
             >
               <Link href="/tutoriais">
                 <Video className="h-5 w-5 md:h-4 md:w-4" />
@@ -323,9 +323,9 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
             <Button 
               variant="outline" 
               onClick={handleSupportClick}
-              className="w-full justify-start gap-4 md:gap-3 text-teal-700 border-teal-200 bg-white hover:bg-teal-50 h-12 md:h-10 text-base md:text-sm shadow-sm font-bold transition-all"
+              className="w-full justify-start gap-4 md:gap-3 text-brand-primary border-brand-primary/30 bg-white hover:bg-brand-secondary h-12 md:h-10 text-base md:text-sm shadow-sm font-bold transition-all"
             >
-              <HeadphonesIcon className="h-5 w-5 md:h-4 md:w-4 text-teal-500" />
+              <HeadphonesIcon className="h-5 w-5 md:h-4 md:w-4 text-brand-primary" />
               Falar com Suporte
             </Button>
           </div>
@@ -334,11 +334,11 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         <div className="flex items-center gap-4 md:gap-3 px-2">
           <Avatar className="h-10 w-10 md:h-9 md:w-9 border-2 border-white shadow-sm">
             <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${userName}`} />
-            <AvatarFallback className="bg-teal-100 text-teal-700">{userName.charAt(0)}</AvatarFallback>
+            <AvatarFallback className="bg-brand-secondary text-brand-primary">{userName.charAt(0)}</AvatarFallback>
           </Avatar>
           <div className="overflow-hidden">
             <p className="text-sm font-bold text-slate-900 truncate leading-tight">{userName}</p>
-            <p className="text-[10px] text-teal-600 font-bold uppercase tracking-tighter">Plano {plan}</p>
+            <p className="text-[10px] text-brand-primary font-bold uppercase tracking-tighter">Plano {plan}</p>
           </div>
         </div>
         

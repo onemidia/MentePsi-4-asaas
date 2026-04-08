@@ -14,7 +14,7 @@ export function MobileNav() {
     <div className="lg:hidden flex items-center p-4 border-b bg-white w-full justify-between shadow-sm sticky top-0 z-40">
       <div className="flex items-center gap-2">
         {/* Aqui você pode colocar sua Logo reduzida */}
-        <span className="font-black text-teal-600 text-xl">MentePsi</span>
+        <span className="font-black text-brand-primary text-xl">MentePsi</span>
       </div>
 
       <Sheet open={open} onOpenChange={setOpen}>

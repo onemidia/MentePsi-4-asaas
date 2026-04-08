@@ -155,7 +155,7 @@ export default function PatientsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <Button variant="outline" asChild className="w-full sm:w-auto border-teal-600 text-teal-600 hover:bg-teal-50 font-semibold">
+          <Button variant="outline" asChild className="w-full sm:w-auto border-brand-primary text-brand-primary hover:bg-brand-secondary font-semibold">
             <Link href="/agenda?new=true">
               <Calendar className="mr-2 h-4 w-4" />
               AGENDAR CONSULTA
@@ -224,7 +224,7 @@ export default function PatientsPage() {
                     </TableCell>
 
                     <TableCell>
-                      <Button variant="default" size="sm" className="bg-teal-600 hover:bg-teal-700 text-white font-bold h-8 shadow-sm" asChild>
+                      <Button variant="default" size="sm" className="bg-brand-primary hover:opacity-90 text-white font-bold h-8 shadow-sm" asChild>
                         <Link href={`/pacientes/${patient.id}`}>
                           <FileText className="h-4 w-4 mr-2" /> Ficha
                         </Link>

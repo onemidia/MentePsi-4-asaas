@@ -11,7 +11,7 @@ export default function TermosDeUso() {
         {/* Botão Voltar */}
         <Link 
           href="/" 
-          className="inline-flex items-center text-teal-600 hover:text-teal-700 mb-8 transition-colors font-medium"
+          className="inline-flex items-center text-brand-primary hover:opacity-80 mb-8 transition-colors font-medium"
         >
           <ArrowLeft size={20} className="mr-2" />
           Voltar para o início
@@ -19,7 +19,7 @@ export default function TermosDeUso() {
         
         <div className="bg-white p-8 sm:p-12 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-3 mb-6">
-            <ShieldCheck className="text-teal-600 h-8 w-8" />
+            <ShieldCheck className="text-brand-primary h-8 w-8" />
             <h1 className="text-3xl font-bold text-slate-900">Termos de Uso</h1>
           </div>
           

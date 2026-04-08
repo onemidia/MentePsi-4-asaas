@@ -33,7 +33,7 @@ export default function RevenueChart({ data }: RevenueChartProps) {
             ]}
           />
           <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-          <Bar yAxisId="left" dataKey="faturamento" name="Faturamento (R$)" fill="#0d9488" radius={[4, 4, 0, 0]} barSize={20} />
+          <Bar yAxisId="left" dataKey="faturamento" name="Faturamento (R$)" fill="var(--primary-color, #0d9488)" radius={[4, 4, 0, 0]} barSize={20} />
           <Bar yAxisId="left" dataKey="despesas" name="Despesas (R$)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
           <Line yAxisId="right" type="monotone" dataKey="consultas" name="Consultas Realizadas" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: "#f59e0b", strokeWidth: 2, stroke: "#fff" }} />
         </ComposedChart>

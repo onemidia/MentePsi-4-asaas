@@ -96,8 +96,8 @@ function AgendaContent() {
         title: Array.isArray(apt.patients) ? apt.patients[0]?.full_name : (apt.patients as any)?.full_name || 'Paciente',
         start: apt.start_time,
         end: apt.end_time,
-        backgroundColor: apt.status === 'Cancelado' ? '#ef4444' : '#14b8a6',
-        borderColor: apt.status === 'Cancelado' ? '#ef4444' : '#14b8a6',
+        backgroundColor: apt.status === 'Cancelado' ? '#ef4444' : 'var(--primary-color, #0d9488)',
+        borderColor: apt.status === 'Cancelado' ? '#ef4444' : 'var(--primary-color, #0d9488)',
         extendedProps: { 
           status: apt.status,
           patient_id: apt.patient_id,
@@ -402,7 +402,7 @@ function AgendaContent() {
         .fc-button { border-radius: 9999px !important; text-transform: capitalize !important; font-weight: 700 !important; font-size: 0.75rem !important; padding: 0.3rem 1rem !important; border: none !important; box-shadow: none !important; }
         .fc-button-primary { background-color: #f1f5f9 !important; color: #64748b !important; }
         .fc-button-primary:hover { background-color: #e2e8f0 !important; color: #1e293b !important; }
-        .fc-button-active { background-color: #0d9488 !important; color: white !important; }
+        .fc-button-active { background-color: var(--primary-color, #0d9488) !important; color: white !important; }
 
         .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 900 !important; color: #1e293b; text-align: center; }
         .fc-prev-button, .fc-next-button { width: 36px !important; height: 36px !important; padding: 0 !important; display: flex; align-items: center; justify-content: center; background-color: transparent !important; color: #64748b !important; }
@@ -418,15 +418,15 @@ function AgendaContent() {
 
       <div className="hidden md:flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl shadow-md border border-slate-200 gap-4">
         <div className="flex items-center gap-3">
-          <div className="bg-teal-100 p-2 rounded-lg text-teal-600"><CalendarIcon className="h-6 w-6" /></div>
+          <div className="bg-brand-secondary p-2 rounded-lg text-brand-primary"><CalendarIcon className="h-6 w-6" /></div>
           <div><h1 className="text-xl font-black text-slate-800">Agenda Clínica</h1></div>
         </div>
-        <Button className="bg-teal-600 rounded-2xl h-12 shadow-lg shadow-teal-100 text-white font-bold px-6" onClick={() => setOpen(true)}>
+        <Button className="bg-brand-primary rounded-2xl h-12 shadow-lg shadow-brand-primary/20 text-white font-bold px-6" onClick={() => setOpen(true)}>
            <Plus className="mr-2 h-4 w-4" /> Novo Agendamento
         </Button>
       </div>
 
-      <Button className="md:hidden fixed bottom-6 right-6 z-50 rounded-full w-14 h-14 shadow-2xl bg-teal-600 hover:bg-teal-700 p-0 flex items-center justify-center" onClick={() => setOpen(true)}>
+      <Button className="md:hidden fixed bottom-6 right-6 z-50 rounded-full w-14 h-14 shadow-2xl bg-brand-primary hover:opacity-90 p-0 flex items-center justify-center" onClick={() => setOpen(true)}>
          <Plus className="h-8 w-8 text-white" />
       </Button>
 
@@ -443,7 +443,7 @@ function AgendaContent() {
               <select 
                 value={formData.patient_id} 
                 onChange={(e) => setFormData({...formData, patient_id: e.target.value})}
-                className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer shadow-sm"
               >
                 <option value="" disabled>Selecione o paciente</option>
                 {patients.map(p => (
@@ -459,7 +459,7 @@ function AgendaContent() {
                   type="date" 
                   value={formData.date} 
                   onChange={e => setFormData({...formData, date: e.target.value})} 
-                  className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm appearance-none" 
+                  className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 h-11 shadow-sm appearance-none" 
                 />
               </div>
               <div className="space-y-2">
@@ -468,7 +468,7 @@ function AgendaContent() {
                   type="time" 
                   value={formData.time} 
                   onChange={e => setFormData({...formData, time: e.target.value})} 
-                  className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm" 
+                  className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 h-11 shadow-sm" 
                 />
               </div>
             </div>
@@ -479,7 +479,7 @@ function AgendaContent() {
                 <select 
                   value={formData.recurrence} 
                   onChange={(e) => setFormData({...formData, recurrence: e.target.value})}
-                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer shadow-sm"
                 >
                   <option value="Nenhuma">Não repetir (Sessão única)</option>
                   <option value="Semanal">Semanal</option>
@@ -490,7 +490,7 @@ function AgendaContent() {
 
               {formData.recurrence !== 'Nenhuma' && (
                 <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                  <Label className="text-[10px] font-black uppercase text-teal-600 tracking-widest">Repetir por quantas vezes?</Label>
+                  <Label className="text-[10px] font-black uppercase text-brand-primary tracking-widest">Repetir por quantas vezes?</Label>
                   <div className="flex items-center gap-3">
                     <Input 
                       type="number" 
@@ -498,7 +498,7 @@ function AgendaContent() {
                       max="52" 
                       value={formData.repeat_count} 
                       onChange={(e) => setFormData({...formData, repeat_count: parseInt(e.target.value) || 1})}
-                      className="w-24 font-bold border-teal-300 text-teal-700 bg-white shadow-sm"
+                      className="w-24 font-bold border-brand-primary/50 text-brand-primary bg-white shadow-sm"
                     />
                   </div>
                 </div>
@@ -510,7 +510,7 @@ function AgendaContent() {
                 <select 
                   value={formData.type} 
                   onChange={(e) => setFormData({...formData, type: e.target.value})}
-                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-sm"
+                    className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer shadow-sm"
                 >
                   <option value="Individual">Individual</option>
                   <option value="Casal">Casal</option>
@@ -522,22 +522,22 @@ function AgendaContent() {
                   min="1"
                   value={formData.duration} 
                   onChange={(e) => setFormData({...formData, duration: e.target.value})}
-                  className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm"
+                  className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 h-11 shadow-sm"
                 />
               </div>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Button type="button" variant="outline" onClick={() => setFormData({...formData, modality: 'Presencial'})} className={`gap-2 ${formData.modality === 'Presencial' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'bg-white'}`}><MapPin size={16}/> Presencial</Button>
-              <Button type="button" variant="outline" onClick={() => setFormData({...formData, modality: 'Online'})} className={`gap-2 ${formData.modality === 'Online' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'bg-white'}`}><Video size={16}/> Online</Button>
+              <Button type="button" variant="outline" onClick={() => setFormData({...formData, modality: 'Presencial'})} className={`gap-2 ${formData.modality === 'Presencial' ? 'border-brand-primary bg-brand-secondary text-brand-primary' : 'bg-white'}`}><MapPin size={16}/> Presencial</Button>
+              <Button type="button" variant="outline" onClick={() => setFormData({...formData, modality: 'Online'})} className={`gap-2 ${formData.modality === 'Online' ? 'border-brand-primary bg-brand-secondary text-brand-primary' : 'bg-white'}`}><Video size={16}/> Online</Button>
             </div>
 
             <div className="space-y-2">
               <Label>Valor da Sessão (R$)</Label>
-              <Input value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 h-11 shadow-sm" />
+              <Input value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 h-11 shadow-sm" />
             </div>
 
-            <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white font-black h-12 shadow-lg shadow-teal-100" onClick={handleSchedule} disabled={loading}>
+            <Button className="w-full bg-brand-primary hover:opacity-90 text-white font-black h-12 shadow-lg shadow-brand-primary/20" onClick={handleSchedule} disabled={loading}>
               {loading ? <Loader2 className="animate-spin" /> : "Confirmar Agendamento"}
             </Button>
           </div>
@@ -568,7 +568,7 @@ function AgendaContent() {
               key={view.id}
               variant="ghost"
               onClick={() => handleViewChange(view.id)}
-              className={`rounded-full text-[10px] h-7 px-4 font-bold transition-all whitespace-nowrap ${currentView === view.id ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+              className={`rounded-full text-[10px] h-7 px-4 font-bold transition-all whitespace-nowrap ${currentView === view.id ? 'bg-brand-secondary text-brand-primary' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
             >
               {view.label}
             </Button>
@@ -637,7 +637,7 @@ function AgendaContent() {
                       <select 
                         value={editFormData.modality} 
                         onChange={(e) => setEditFormData({...editFormData, modality: e.target.value})}
-                        className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm"
+                        className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary shadow-sm"
                       >
                         <option value="Presencial">Presencial</option>
                         <option value="Online">Online</option>
@@ -650,20 +650,20 @@ function AgendaContent() {
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button variant="outline" onClick={() => setIsEditing(false)} className="flex-1">Cancelar</Button>
-                  <Button onClick={handleUpdateAppointment} disabled={loading} className="flex-1 bg-teal-600 hover:bg-teal-700 text-white">
+                  <Button onClick={handleUpdateAppointment} disabled={loading} className="flex-1 bg-brand-primary hover:opacity-90 text-white">
                     {loading ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />} Salvar
                   </Button>
                 </div>
               </div>
             ) : (
               <>
-                <div className="p-4 bg-teal-50 rounded-xl border border-teal-100">
-                  <p className="text-sm font-bold text-teal-900">{selectedEvent?.title}</p>
-                  <p className="text-xs text-teal-700 mt-1">
+                <div className="p-4 bg-brand-secondary rounded-xl border border-brand-primary/30">
+                  <p className="text-sm font-bold text-brand-primary">{selectedEvent?.title}</p>
+                  <p className="text-xs text-brand-primary opacity-80 mt-1">
                     {selectedEvent?.start && new Date(selectedEvent.start).toLocaleString('pt-BR')}
                   </p>
                   {selectedEvent?.extendedProps?.modality && (
-                     <p className="text-xs text-teal-600 mt-1 font-medium">{selectedEvent.extendedProps.modality} • R$ {Number(selectedEvent.extendedProps.price || 0).toFixed(2).replace('.', ',')}</p>
+                     <p className="text-xs text-brand-primary opacity-90 mt-1 font-medium">{selectedEvent.extendedProps.modality} • R$ {Number(selectedEvent.extendedProps.price || 0).toFixed(2).replace('.', ',')}</p>
                   )}
                 </div>
 

@@ -29,12 +29,12 @@ export function SubscriptionRequiredOverlay() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 animate-in fade-in zoom-in duration-500">
-      <Card className="w-full max-w-md shadow-2xl border-teal-100 bg-white overflow-hidden">
+      <Card className="w-full max-w-md shadow-2xl border-brand-primary/30 bg-white overflow-hidden">
         {/* Barra de destaque no topo */}
-        <div className="h-2 bg-teal-600 w-full" />
+        <div className="h-2 bg-brand-primary w-full" />
         
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto bg-teal-50 p-4 rounded-full w-fit mb-4 text-teal-600">
+          <div className="mx-auto bg-brand-secondary p-4 rounded-full w-fit mb-4 text-brand-primary">
             <Lock className="h-10 w-10" />
           </div>
           <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">
@@ -52,16 +52,16 @@ export function SubscriptionRequiredOverlay() {
            
            <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-               <CheckCircle2 className="h-4 w-4 text-teal-500" /> Seus dados continuam salvos e seguros
+               <CheckCircle2 className="h-4 w-4 text-brand-primary" /> Seus dados continuam salvos e seguros
              </div>
              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-               <Zap className="h-4 w-4 text-teal-500" /> Liberação imediata após o pagamento
+               <Zap className="h-4 w-4 text-brand-primary" /> Liberação imediata após o pagamento
              </div>
            </div>
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3 pb-8 px-8">
-          <Button className="w-full h-14 text-lg font-black bg-teal-600 hover:bg-teal-700 text-white shadow-lg shadow-teal-100 transition-all hover:scale-[1.02]" asChild>
+          <Button className="w-full h-14 text-lg font-black bg-brand-primary hover:opacity-90 text-white shadow-lg shadow-brand-primary/20 transition-all hover:scale-[1.02]" asChild>
             <a href={checkoutUrl}>
               <CreditCard className="mr-2 h-5 w-5" /> ATIVAR PLANO PROFISSIONAL
             </a>
@@ -74,7 +74,7 @@ export function SubscriptionRequiredOverlay() {
       </Card>
       
       {/* Botão sutil para logout caso ele queira trocar de conta */}
-      <button onClick={handleLogout} className="mt-8 text-sm font-medium text-slate-400 hover:text-teal-600 transition-colors">
+      <button onClick={handleLogout} className="mt-8 text-sm font-medium text-slate-400 hover:text-brand-primary transition-colors">
         Sair ou trocar de conta
       </button>
     </div>

@@ -57,13 +57,21 @@ import { getLabels } from '@/lib/labels'
 
 // MentePsi V4 - Versão Estável - Build: 2026-04-02-01
 
+const THEMES = [
+  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
+  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
+  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
+  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
+  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
+];
+
 // ⚡ PERFORMANCE: Carregamento dinâmico do gráfico pesado
 const RevenueChart = dynamic(() => import('./revenue-chart'), { ssr: false, loading: () => <Skeleton className="h-[300px] w-full rounded-xl" /> })
 
 const handleWhatsAppClick = (phone: string, message: string = '') => {
   if (!phone) return;
   const cleanPhone = phone.replace(/\D/g, '');
-  const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+  const finalPhone = cleanPhone.startsWith('') ? cleanPhone : `${cleanPhone}`;
   
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const url = isMobile 
@@ -573,12 +581,12 @@ export default function PsychologistDashboard() {
     
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">Olá, {profile?.full_name?.split(' ')[0] || 'Profissional'}</h1>
+          <h1 className="text-3xl font-semibold text-brand-primary tracking-tight">Olá, {profile?.full_name?.split(' ')[0] || 'Profissional'}</h1>
           <p className="text-slate-500">Resumo clínico do seu consultório.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {supportPhone && (
-            <Button variant="outline" className="gap-2 bg-white border-slate-200 text-slate-600 hover:text-teal-600 hover:border-teal-200" onClick={() => handleWhatsAppClick(supportPhone)}>
+            <Button variant="outline" className="gap-2 bg-white border-slate-200 text-slate-600 hover:text-brand-primary hover:border-brand-primary/30" onClick={() => handleWhatsAppClick(supportPhone)}>
               <LifeBuoy className="h-4 w-4" /> Suporte
             </Button>
           )}
@@ -614,11 +622,11 @@ export default function PsychologistDashboard() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
-        <StatCard title={`${labels.plural} Hoje`} value={stats.sessionsToday} icon={<Calendar className="h-4 w-4 text-teal-600" />} subtitle={`${labels.plural} Agendadas`} />
+        <StatCard title={`${labels.plural} Hoje`} value={stats.sessionsToday} icon={<Calendar className="h-4 w-4 text-brand-primary" />} subtitle={`${labels.plural} Agendadas`} />
         <StatCard title="Pacientes Ativos" value={stats.activePatients} icon={<Users className="h-4 w-4 text-blue-600" />} subtitle="Em tratamento" />
         <StatCard title="Alertas de Crise" value={stats.crisisAlerts} icon={<AlertTriangle className="h-4 w-4 text-red-600" />} subtitle="Últimas 24h" isAlert />
         <StatCard title="A Receber" value={`R$ ${stats.pendingRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="h-4 w-4 text-amber-500" />} subtitle="Período" />
-        <StatCard title="Faturamento" value={`R$ ${stats.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<DollarSign className="h-4 w-4 text-teal-600" />} subtitle="Ref. ao mês atual" />
+        <StatCard title="Faturamento" value={`R$ ${stats.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<DollarSign className="h-4 w-4 text-brand-primary" />} subtitle="Ref. ao mês atual" />
         <StatCard title="Despesas" value={`R$ ${stats.totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<TrendingDown className="h-4 w-4 text-red-600" />} subtitle="Ref. ao mês atual" />
         <StatCard title="Lucro Líquido" value={`R$ ${stats.netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={stats.netProfit >= 0 ? <TrendingUp className="h-4 w-4 text-emerald-600" /> : <TrendingDown className="h-4 w-4 text-red-600" />} subtitle="Ref. ao mês atual" valueColor={stats.netProfit >= 0 ? "text-emerald-600" : "text-red-600"} />
         <StatCard title="Saldo em Haver" value={`R$ ${stats.totalCredit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Wallet className="h-4 w-4 text-indigo-500" />} subtitle="Crédito total" />
@@ -630,7 +638,7 @@ export default function PsychologistDashboard() {
           {/* CARD 1: Gráfico */}
           <Card className="bg-white border-none shadow-md">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-slate-800"><TrendingUp className="h-5 w-5 text-teal-600" /> Desempenho e Eficiência</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-slate-800"><TrendingUp className="h-5 w-5 text-brand-primary" /> Desempenho e Eficiência</CardTitle>
               <CardDescription>Comparativo dos últimos 6 meses (Faturamento vs. Consultas Realizadas).</CardDescription>
             </CardHeader>
             <CardContent>
@@ -641,7 +649,7 @@ export default function PsychologistDashboard() {
           {/* CARD 2: Agenda / Próximas 24h (Movido para baixo do gráfico) */}
           <Card className="bg-white border-none shadow-md">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-slate-800"><Clock className="h-5 w-5 text-teal-600" /> Próximas 36 Horas</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-slate-800"><Clock className="h-5 w-5 text-brand-primary" /> Próximas 36 Horas</CardTitle>
               <CardDescription>Clique para enviar lembrete.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -663,7 +671,7 @@ export default function PsychologistDashboard() {
                 <div key={item.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 gap-3">
                   <div className="flex items-center gap-3">
                     <div className="flex flex-col items-center bg-white px-2 py-1 rounded border min-w-[50px]">
-                      <span className="text-[10px] font-bold text-teal-600 leading-none mb-0.5">{item.formattedDate}</span>
+                      <span className="text-[10px] font-bold text-brand-primary leading-none mb-0.5">{item.formattedDate}</span>
                       <span className="text-xs font-bold text-slate-700 leading-none">{item.time}</span>
                     </div>
                     <div>
@@ -734,7 +742,7 @@ export default function PsychologistDashboard() {
                       <MessageCircle className="h-3 w-3 mr-1" fill={item.reminderSent ? "currentColor" : "none"} />
                       {item.reminderSent ? 'Avisado' : 'Lembrete'}
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-teal-600" asChild>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-brand-primary hover:bg-brand-secondary" asChild>
                       <Link href={`/pacientes/${item.patientId}`}><Play className="h-4 w-4" /></Link>
                     </Button>
                   </div>
@@ -743,7 +751,7 @@ export default function PsychologistDashboard() {
             })}
             </CardContent>
             <CardFooter className="border-t border-slate-100 pt-4">
-              <Button variant="ghost" className="w-full text-slate-600 hover:text-teal-600" asChild>
+              <Button variant="ghost" className="w-full text-slate-600 hover:text-brand-primary hover:bg-brand-secondary" asChild>
                 <Link href="/agenda">Ver Agenda Completa <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
             </CardFooter>
@@ -827,7 +835,7 @@ export default function PsychologistDashboard() {
           {/* CARD 4: Alertas de Bem-estar (Movido para a direita) */}
           <Card className="bg-white border-none shadow-md">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-slate-800"><Activity className="h-5 w-5 text-teal-600" /> Alertas de Bem-estar</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-slate-800"><Activity className="h-5 w-5 text-brand-primary" /> Alertas de Bem-estar</CardTitle>
               <CardDescription>Diário de emoções dos seus pacientes.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -849,7 +857,7 @@ export default function PsychologistDashboard() {
               <div className="text-sm font-bold text-slate-500">{transactionToConfirm ? Number(transactionToConfirm.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}</div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="amount" className="text-teal-600 font-bold">Valor Recebido (R$)</Label>
+              <Label htmlFor="amount" className="text-brand-primary font-bold">Valor Recebido (R$)</Label>
               <Input id="amount" value={confirmAmount} onChange={(e) => handleCurrencyInput(e.target.value, setConfirmAmount)} className="text-2xl font-black h-14 text-center" />
             </div>
           </div>
@@ -878,7 +886,7 @@ export default function PsychologistDashboard() {
                 id="w-period"
                 value={newWaitingPatient.period} 
                 onChange={(e) => setNewWaitingPatient({...newWaitingPatient, period: e.target.value})}
-                className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+                className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer"
               >
                 <option value="Qualquer horário">Qualquer horário</option>
                 <option value="Manhã">Manhã</option>
@@ -892,14 +900,14 @@ export default function PsychologistDashboard() {
                 id="w-notify" 
                 checked={newWaitingPatient.notifyDesistance}
                 onChange={(e) => setNewWaitingPatient({...newWaitingPatient, notifyDesistance: e.target.checked})}
-                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                className="h-4 w-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary cursor-pointer"
               />
               <Label htmlFor="w-notify" className="cursor-pointer text-sm">Aceita encaixes (Notificar desistências)</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setWaitingModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleAddWaitingPatient} disabled={addingWaiting} className="bg-teal-600 hover:bg-teal-700 text-white">
+            <Button onClick={handleAddWaitingPatient} disabled={addingWaiting} className="bg-brand-primary hover:opacity-90 text-white">
               {addingWaiting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
               Salvar na Fila
             </Button>
