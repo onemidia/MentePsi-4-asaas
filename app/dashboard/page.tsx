@@ -27,7 +27,11 @@ import {
   Info,
   X,
   Video,
-  Send
+  Send,
+  UserPlus,
+  ClipboardList,
+  Trash,
+  Trash2
 } from "lucide-react"
 import dynamic from 'next/dynamic'
 
@@ -104,6 +108,10 @@ export default function PsychologistDashboard() {
   const [isAdminView, setIsAdminView] = useState(false)
   const [supportPhone, setSupportPhone] = useState('')
   const [showDemoBanner, setShowDemoBanner] = useState(true)
+  const [waitingList, setWaitingList] = useState<any[]>([])
+  const [waitingModalOpen, setWaitingModalOpen] = useState(false)
+  const [newWaitingPatient, setNewWaitingPatient] = useState({ name: '', phone: '', period: 'Qualquer horário', notifyDesistance: false })
+  const [addingWaiting, setAddingWaiting] = useState(false)
 
   const handleSendReminder = async (item: any) => {
     const supabase = createClient()
@@ -247,6 +255,73 @@ export default function PsychologistDashboard() {
       toast({ variant: "destructive", title: "Erro", description: error.message })
     } finally {
       setProcessingPayment(false)
+    }
+  }
+
+  const handleWaitingPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '')
+    value = value.replace(/^(\d{2})(\d)/g, '($1) $2')
+    value = value.replace(/(\d)(\d{4})$/, '$1-$2')
+    setNewWaitingPatient(prev => ({ ...prev, phone: value.slice(0, 15) }))
+  }
+
+  const handleAddWaitingPatient = async () => {
+    if (!newWaitingPatient.name) return toast({ variant: "destructive", title: "Erro", description: "Nome é obrigatório." })
+    if (!user?.id) return toast({ variant: "destructive", title: "Erro", description: "Usuário não autenticado ou sessão expirada." })
+
+    setAddingWaiting(true)
+    const supabase = createClient()
+    try {
+      const { data: insertedData, error } = await supabase.from('waiting_list').insert({
+        psychologist_id: user.id,
+        patient_name: newWaitingPatient.name,
+        phone: newWaitingPatient.phone,
+        preferred_period: newWaitingPatient.period,
+        notify_desistance: newWaitingPatient.notifyDesistance
+      }).select().single()
+
+      if (error) throw error
+
+      toast({ title: "Paciente adicionado à fila!" })
+      setWaitingModalOpen(false)
+      setNewWaitingPatient({ name: '', phone: '', period: 'Qualquer horário', notifyDesistance: false })
+      
+      // Atualiza a lista local imediatamente adicionando o novo registro retornado pelo banco
+      if (insertedData) {
+        setWaitingList(prev => [...prev, insertedData])
+      }
+    } catch (e: any) {
+      console.error("Erro ao salvar na fila:", e)
+      toast({ variant: "destructive", title: "Erro", description: e.message })
+    } finally {
+      setAddingWaiting(false)
+    }
+  }
+
+  const handleDeleteFromWaitingList = async (id: string) => {
+    if (!window.confirm('Deseja remover este paciente da fila?')) return;
+
+    const supabase = createClient()
+    try {
+      const { error } = await supabase.from('waiting_list').delete().eq('id', id)
+      if (error) throw error
+      setWaitingList(prev => prev.filter(w => w.id !== id))
+      toast({ title: "Paciente removido da fila!" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message })
+    }
+  }
+
+  const handleDeleteEmotionAlert = async (id: string) => {
+    if (!window.confirm('Deseja remover este alerta?')) return;
+    const supabase = createClient()
+    try {
+      const { error } = await supabase.from('emotion_journal').delete().eq('id', id)
+      if (error) throw error
+      setAttentionList(prev => prev.filter(item => item.id !== id))
+      toast({ title: "Alerta removido com sucesso!" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message })
     }
   }
 
@@ -419,6 +494,9 @@ export default function PsychologistDashboard() {
          return dayA - dayB
       }) || []
       setBirthdays(bdays)
+
+      const { data: waitingData } = await supabase.from('waiting_list').select('*').eq('psychologist_id', targetUserId).order('created_at', { ascending: true })
+      setWaitingList(waitingData || [])
 
       } catch (err) {
         console.warn("Aviso ao carregar dashboard:", err)
@@ -706,6 +784,46 @@ export default function PsychologistDashboard() {
             </CardContent>
           </Card>
 
+          {/* CARD 5: Fila de Espera */}
+          <Card className="bg-white border-none shadow-md h-fit">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-slate-800"><ClipboardList className="h-5 w-5 text-indigo-500" /> Fila de Espera</CardTitle>
+                <CardDescription>Pacientes aguardando vaga.</CardDescription>
+              </div>
+              <Button size="icon" variant="ghost" className="h-8 w-8 text-indigo-600 hover:bg-indigo-50 -mt-4" onClick={() => setWaitingModalOpen(true)}>
+                <UserPlus className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3 mb-6">
+              {waitingList.length === 0 ? (
+                <div className="text-center py-4 text-slate-400 text-sm italic">Nenhum paciente na fila.</div>
+              ) : (
+                waitingList.map((w: any) => (
+                  <div key={w.id} className="flex items-center justify-between p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-700">{w.patient_name}</span>
+                      <span className="text-xs text-slate-500">{w.preferred_period}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {w.notify_desistance && (
+                        <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 text-[10px] uppercase">Encaixe</Badge>
+                      )}
+                      {w.phone && (
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:bg-green-50 hover:text-green-700" onClick={() => handleWhatsAppClick(w.phone, `Olá ${w.patient_name.split(' ')[0]}, surgiu uma vaga em nossa agenda. Gostaria de marcar uma sessão?`)}>
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-700" onClick={() => handleDeleteFromWaitingList(w.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
           {/* CARD 4: Alertas de Bem-estar (Movido para a direita) */}
           <Card className="bg-white border-none shadow-md">
             <CardHeader>
@@ -713,7 +831,7 @@ export default function PsychologistDashboard() {
               <CardDescription>Diário de emoções dos seus pacientes.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {attentionList.length === 0 ? <div className="text-center py-8 text-slate-500">Nenhum registro recente.</div> : attentionList.map((item) => <EmotionItem key={item.id} item={item} />)}
+            {attentionList.length === 0 ? <div className="text-center py-8 text-slate-500">Nenhum registro recente.</div> : attentionList.map((item) => <EmotionItem key={item.id} item={item} onDelete={handleDeleteEmotionAlert} />)}
             </CardContent>
           </Card>
         </div>
@@ -738,6 +856,56 @@ export default function PsychologistDashboard() {
           <DialogFooter><Button onClick={finalizePaymentConfirmation} disabled={processingPayment} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12">{processingPayment ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Confirmar Baixa</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={waitingModalOpen} onOpenChange={setWaitingModalOpen}>
+        <DialogContent aria-describedby={undefined} className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Adicionar à Fila de Espera</DialogTitle>
+            <DialogDescription>Cadastre um novo paciente que aguarda horário.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="w-name">Nome do Paciente *</Label>
+              <Input id="w-name" value={newWaitingPatient.name} onChange={e => setNewWaitingPatient({...newWaitingPatient, name: e.target.value})} placeholder="Nome completo" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="w-phone">WhatsApp</Label>
+              <Input id="w-phone" value={newWaitingPatient.phone} onChange={handleWaitingPhoneChange} placeholder="(00) 00000-0000" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="w-period">Período de Preferência</Label>
+              <select 
+                id="w-period"
+                value={newWaitingPatient.period} 
+                onChange={(e) => setNewWaitingPatient({...newWaitingPatient, period: e.target.value})}
+                className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+              >
+                <option value="Qualquer horário">Qualquer horário</option>
+                <option value="Manhã">Manhã</option>
+                <option value="Tarde">Tarde</option>
+                <option value="Noite">Noite</option>
+              </select>
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <input 
+                type="checkbox" 
+                id="w-notify" 
+                checked={newWaitingPatient.notifyDesistance}
+                onChange={(e) => setNewWaitingPatient({...newWaitingPatient, notifyDesistance: e.target.checked})}
+                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+              />
+              <Label htmlFor="w-notify" className="cursor-pointer text-sm">Aceita encaixes (Notificar desistências)</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWaitingModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleAddWaitingPatient} disabled={addingWaiting} className="bg-teal-600 hover:bg-teal-700 text-white">
+              {addingWaiting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+              Salvar na Fila
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -760,7 +928,7 @@ function StatCard({ title, value, icon, subtitle, isAlert = false }: any) {
   )
 }
 
-function EmotionItem({ item }: any) {
+function EmotionItem({ item, onDelete }: any) {
   const isCrisis = item.mood <= 2
   return (
     <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border shadow-sm ${isCrisis ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'}`}>
@@ -784,6 +952,9 @@ function EmotionItem({ item }: any) {
             <MessageCircle className="h-4 w-4" />
           </Button>
         )}
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-700" onClick={() => onDelete(item.id)}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   )
