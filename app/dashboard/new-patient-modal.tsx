@@ -154,7 +154,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full sm:w-auto bg-brand-primary hover:opacity-90 text-white shadow-sm">
+        <Button className="w-full sm:w-auto bg-[var(--primary-color)] text-white hover:bg-[var(--primary-color)] hover:text-white hover:brightness-90 transition-all shadow-sm border-0">
           <Plus className="mr-2 h-4 w-4" /> Novo Paciente
         </Button>
       </DialogTrigger>
@@ -274,7 +274,7 @@ export function NewPatientModal({ onSuccess }: NewPatientModalProps) {
               Cancelar
             </Button>
 
-            <Button type="submit" disabled={loading} className="bg-brand-primary hover:opacity-90 text-white font-black px-8 h-12 rounded-xl shadow-lg shadow-brand-primary/20">
+            <Button type="submit" disabled={loading} className="bg-[var(--primary-color)] text-white hover:bg-[var(--primary-color)] hover:text-white hover:brightness-90 transition-all font-black px-8 h-12 rounded-xl shadow-lg shadow-brand-primary/20 border-0">
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salvar Cadastro
             </Button>

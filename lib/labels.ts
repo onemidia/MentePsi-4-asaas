@@ -34,6 +34,17 @@ export function getLabels(label?: string): LabelVariations {
         },
       };
 
+    case 'aula': // 🟢 Nova opção adicionada para Pilates e Instrutores
+      return {
+        singular: 'Aula',
+        plural: 'Aulas',
+        artigo: 'a',
+        verbos: {
+          agendar: 'Agendar Aula',
+          realizar: 'Realizar Aula',
+        },
+      };
+
     case 'sessão':
     case 'sessao':
     default:

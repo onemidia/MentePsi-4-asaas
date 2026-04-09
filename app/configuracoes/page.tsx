@@ -402,7 +402,7 @@ export default function SettingsPage() {
           <h1 className="text-3xl font-bold text-brand-primary">Configurações</h1>
           <p className="text-slate-500">Gerencie seu perfil profissional, consultório e automações.</p>
         </div>
-        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto bg-brand-primary hover:opacity-90 text-white">
+        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto text-white hover:brightness-90 transition-all font-bold border-0 h-10 px-6 rounded-xl" style={{ backgroundColor: 'var(--primary-color)' }}>
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Salvar Alterações
         </Button>
@@ -410,12 +410,12 @@ export default function SettingsPage() {
 
       <Tabs defaultValue="perfil" className="w-full">
         <TabsList className="flex flex-wrap h-auto w-full justify-start gap-2 bg-slate-100 p-1 rounded-xl mb-8">
-          <TabsTrigger value="perfil" className="flex-1 min-w-[100px]">Perfil</TabsTrigger>
-          <TabsTrigger value="consultorio" className="flex-1 min-w-[100px]">Consultório</TabsTrigger>
-          <TabsTrigger value="pagamentos" className="flex-1 min-w-[100px]">Pagamentos</TabsTrigger>
-          <TabsTrigger value="lembretes" className="flex-1 min-w-[100px]">Lembretes</TabsTrigger>
-          <TabsTrigger value="plano" className="flex-1 min-w-[100px]">Plano</TabsTrigger>
-          <TabsTrigger value="equipe" className="flex-1 min-w-[100px]">Equipe</TabsTrigger>
+          <TabsTrigger value="perfil" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Perfil</TabsTrigger>
+          <TabsTrigger value="consultorio" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Consultório</TabsTrigger>
+          <TabsTrigger value="pagamentos" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Pagamentos</TabsTrigger>
+          <TabsTrigger value="lembretes" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Lembretes</TabsTrigger>
+          <TabsTrigger value="plano" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Plano</TabsTrigger>
+          <TabsTrigger value="equipe" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Equipe</TabsTrigger>
         </TabsList>
 
         <TabsContent value="perfil" className="mt-6">
@@ -455,7 +455,7 @@ export default function SettingsPage() {
                       <Label htmlFor="logo-upload" className="font-bold text-slate-700 text-sm">Logotipo da Clínica</Label>
                       <p className="text-[11px] text-slate-500 leading-tight">Recomendado: 150x150px (PNG ou JPG). Será exibido no cabeçalho de recibos e documentos.</p>
                       <div className="pt-1">
-                        <Input id="logo-upload" type="file" accept="image/*" onChange={handleLogoUpload} className="text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand-secondary file:text-brand-primary hover:file:bg-brand-primary hover:file:text-white cursor-pointer h-auto py-0 w-full transition-colors" disabled={uploadingLogo} />
+                        <Input id="logo-upload" type="file" accept="image/*" onChange={handleLogoUpload} className="text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold cursor-pointer h-auto py-0 w-full transition-colors" style={{ color: 'var(--primary-color)' }} disabled={uploadingLogo} />
                       </div>
                     </div>
                   </div>
@@ -603,6 +603,7 @@ export default function SettingsPage() {
                       <SelectItem value="Sessão">Sessão</SelectItem>
                       <SelectItem value="Consulta">Consulta</SelectItem>
                       <SelectItem value="Atendimento">Atendimento</SelectItem>
+                      <SelectItem value="Aula">Aula</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -630,7 +631,7 @@ export default function SettingsPage() {
                     <h3 className="text-base font-bold text-slate-900">Exportação de Dados (LGPD)</h3>
                     <p className="text-sm text-slate-500">Faça o download de todos os seus pacientes, prontuários, financeiro e links de documentos em um formato <b>.zip</b> seguro.</p>
                   </div>
-                  <Button variant="outline" onClick={handleExportBackup} disabled={exporting} className="bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 w-full sm:w-auto shrink-0">
+                  <Button variant="outline" onClick={handleExportBackup} disabled={exporting} className="bg-white hover:bg-slate-50 w-full sm:w-auto shrink-0 transition-colors" style={{ color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}>
                     {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                     Gerar Backup Completo
                   </Button>
@@ -832,7 +833,7 @@ export default function SettingsPage() {
                   </div>
                   <Button 
                     onClick={() => window.location.href = '/planos'} 
-                    className="bg-brand-primary hover:opacity-90 text-white"
+                    className="text-white hover:brightness-90 transition-all font-bold border-0 h-11 px-8 rounded-xl" style={{ backgroundColor: 'var(--primary-color)' }}
                   >
                     Ir para Pagamento
                   </Button>
@@ -922,7 +923,8 @@ export default function SettingsPage() {
 
                       <DialogFooter className="flex-col sm:flex-col gap-2 sm:space-x-0">
                         <Button 
-                          className="w-full bg-brand-primary hover:opacity-90 text-white font-bold h-12 shadow-md"
+                          className="w-full text-white hover:brightness-90 transition-all font-bold h-12 shadow-md border-0"
+                          style={{ backgroundColor: 'var(--primary-color)' }}
                           onClick={() => setIsCancelModalOpen(false)}
                         >
                           Mudei de ideia, manter minha assinatura

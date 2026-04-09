@@ -745,10 +745,10 @@ function PatientPortalContent() {
                 <div>
                   <p className="text-sm font-black text-slate-900">{new Date(apt.start_time).toLocaleDateString('pt-BR')}</p>
                   <p className="text-[10px] text-slate-500 font-bold uppercase">{new Date(apt.start_time).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p>
-                  <div className="flex gap-2 mt-1"><Badge variant="outline" className={`text-[10px] font-bold ${displayStatus === 'Realizada' ? 'text-brand-primary border-brand-primary/30 bg-brand-secondary' : displayStatus === 'Cancelado' ? 'text-red-600 border-red-200' : 'text-slate-400 border-slate-200'}`}>{displayStatus.toUpperCase()}</Badge></div>
+                  <div className="flex gap-2 mt-1"><Badge variant="outline" className={`text-[10px] font-bold ${displayStatus === 'Realizada' ? 'text-emerald-600 border-emerald-200' : displayStatus === 'Cancelado' ? 'text-red-600 border-red-200' : 'text-slate-400 border-slate-200'}`}>{displayStatus.toUpperCase()}</Badge></div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  {isPaid ? <Badge className="bg-brand-secondary text-brand-primary border-none font-bold px-3 py-1">PAGO</Badge> : displayStatus === 'Realizada' && <Badge variant="outline" className="text-red-500 border-red-100 font-bold text-[10px] bg-red-50">AGUARDANDO PAGAMENTO</Badge>}
+                  {isPaid ? <Badge className="bg-emerald-50 text-emerald-600 border-none font-bold px-3 py-1">PAGO</Badge> : displayStatus === 'Realizada' && <Badge variant="outline" className="text-red-500 border-red-100 font-bold text-[10px] bg-red-50">AGUARDANDO PAGAMENTO</Badge>}
                 </div>
               </CardContent>
             </Card>
@@ -757,9 +757,9 @@ function PatientPortalContent() {
           {/* CONTROLES DE PAGINAÇÃO */}
           {filteredAppointments.length > 0 && (
             <div className="flex items-center justify-between pt-4 px-2">
-              <Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="text-slate-500 hover:text-brand-primary hover:bg-brand-secondary h-8 text-xs font-bold rounded-xl"><ChevronLeft className="h-4 w-4 mr-1"/> Anterior</Button>
+              <Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="text-slate-500 hover:text-teal-600 hover:bg-teal-50 h-8 text-xs font-bold rounded-xl"><ChevronLeft className="h-4 w-4 mr-1"/> Anterior</Button>
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Página {currentPage} de {totalPages}</span>
-              <Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="text-slate-500 hover:text-brand-primary hover:bg-brand-secondary h-8 text-xs font-bold rounded-xl">Próximo <ChevronRight className="h-4 w-4 ml-1"/></Button>
+              <Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="text-slate-500 hover:text-teal-600 hover:bg-teal-50 h-8 text-xs font-bold rounded-xl">Próximo <ChevronRight className="h-4 w-4 ml-1"/></Button>
             </div>
           )}
         </TabsContent>

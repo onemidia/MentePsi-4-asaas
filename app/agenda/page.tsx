@@ -96,7 +96,7 @@ function AgendaContent() {
         title: Array.isArray(apt.patients) ? apt.patients[0]?.full_name : (apt.patients as any)?.full_name || 'Paciente',
         start: apt.start_time,
         end: apt.end_time,
-        backgroundColor: apt.status === 'Cancelado' ? '#ef4444' : 'var(--primary-color, #0d9488)',
+        backgroundColor: apt.status === 'Cancelado' ? '#fef2f2' : 'var(--secondary-color, #f0fdfa)',
         borderColor: apt.status === 'Cancelado' ? '#ef4444' : 'var(--primary-color, #0d9488)',
         extendedProps: { 
           status: apt.status,
@@ -401,8 +401,8 @@ function AgendaContent() {
         
         .fc-button { border-radius: 9999px !important; text-transform: capitalize !important; font-weight: 700 !important; font-size: 0.75rem !important; padding: 0.3rem 1rem !important; border: none !important; box-shadow: none !important; }
         .fc-button-primary { background-color: #f1f5f9 !important; color: #64748b !important; }
-        .fc-button-primary:hover { background-color: #e2e8f0 !important; color: #1e293b !important; }
-        .fc-button-active { background-color: var(--primary-color, #0d9488) !important; color: white !important; }
+        .fc-button-primary:hover { filter: brightness(0.9); }
+        .fc-button-active { background-color: var(--primary-color) !important; color: white !important; }
 
         .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 900 !important; color: #1e293b; text-align: center; }
         .fc-prev-button, .fc-next-button { width: 36px !important; height: 36px !important; padding: 0 !important; display: flex; align-items: center; justify-content: center; background-color: transparent !important; color: #64748b !important; }
@@ -410,10 +410,9 @@ function AgendaContent() {
         .fc-icon { font-size: 1.2em; }
         .fc-header-toolbar { display: none !important; }
         .fc-view-harness { background-color: white; min-height: 100vh; }
-        /* Oculta colunas padrão da lista para usar layout customizado */
         .fc-list-event-time, .fc-list-event-graphic { display: none; }
-        /* Eventos com margem para não colar */
-        .fc-timegrid-event { margin: 1px 2px !important; border-radius: 6px !important; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+        .fc-timegrid-event, .fc-daygrid-event { border-width: 0 0 0 4px !important; border-radius: 6px !important; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); color: #1e293b !important; margin: 1px 2px !important; }
+        .fc-timegrid-event:hover, .fc-daygrid-event:hover { filter: brightness(0.95); }
       `}</style>
 
       <div className="hidden md:flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl shadow-md border border-slate-200 gap-4">
@@ -421,12 +420,12 @@ function AgendaContent() {
           <div className="bg-brand-secondary p-2 rounded-lg text-brand-primary"><CalendarIcon className="h-6 w-6" /></div>
           <div><h1 className="text-xl font-black text-slate-800">Agenda Clínica</h1></div>
         </div>
-        <Button className="bg-brand-primary rounded-2xl h-12 shadow-lg shadow-brand-primary/20 text-white font-bold px-6" onClick={() => setOpen(true)}>
+        <Button className="bg-[var(--primary-color)] hover:bg-[var(--primary-color)] text-white hover:text-white hover:brightness-90 transition-all rounded-2xl h-12 shadow-lg shadow-brand-primary/20 font-bold px-6 border-0" onClick={() => setOpen(true)}>
            <Plus className="mr-2 h-4 w-4" /> Novo Agendamento
         </Button>
       </div>
 
-      <Button className="md:hidden fixed bottom-6 right-6 z-50 rounded-full w-14 h-14 shadow-2xl bg-brand-primary hover:opacity-90 p-0 flex items-center justify-center" onClick={() => setOpen(true)}>
+      <Button className="md:hidden fixed bottom-6 right-6 z-50 rounded-full w-14 h-14 shadow-2xl bg-[var(--primary-color)] hover:bg-[var(--primary-color)] text-white hover:text-white hover:brightness-90 transition-all p-0 flex items-center justify-center border-0" onClick={() => setOpen(true)}>
          <Plus className="h-8 w-8 text-white" />
       </Button>
 
@@ -537,7 +536,7 @@ function AgendaContent() {
               <Input value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-primary/20 h-11 shadow-sm" />
             </div>
 
-            <Button className="w-full bg-brand-primary hover:opacity-90 text-white font-black h-12 shadow-lg shadow-brand-primary/20" onClick={handleSchedule} disabled={loading}>
+          <Button className="w-full bg-[var(--primary-color)] hover:bg-[var(--primary-color)] text-white hover:text-white hover:brightness-90 transition-all font-black h-12 shadow-lg shadow-brand-primary/20" onClick={handleSchedule} disabled={loading}>
               {loading ? <Loader2 className="animate-spin" /> : "Confirmar Agendamento"}
             </Button>
           </div>
@@ -598,7 +597,7 @@ function AgendaContent() {
         slotMinTime="01:00:00"
         slotMaxTime="23:59:00"
         scrollTime="08:00:00"
-        eventClassNames="rounded-lg border-l-4 border-0 shadow-sm mb-1 px-3 py-2 font-medium text-slate-700 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+        eventClassNames="mb-1 px-2 py-1 font-medium cursor-pointer transition-all"
         eventContent={(arg) => (
           <div className="flex items-center w-full">
             <b className="text-slate-900 mr-3 text-xs">{arg.timeText}</b>
@@ -650,7 +649,7 @@ function AgendaContent() {
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button variant="outline" onClick={() => setIsEditing(false)} className="flex-1">Cancelar</Button>
-                  <Button onClick={handleUpdateAppointment} disabled={loading} className="flex-1 bg-brand-primary hover:opacity-90 text-white">
+                  <Button onClick={handleUpdateAppointment} disabled={loading} className="flex-1 bg-[var(--primary-color)] text-white hover:brightness-90 transition-all">
                     {loading ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />} Salvar
                   </Button>
                 </div>
@@ -667,7 +666,7 @@ function AgendaContent() {
                   )}
                 </div>
 
-                <Button onClick={handleEditClick} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 mt-4">
+                <Button onClick={handleEditClick} className="w-full bg-blue-600 hover:brightness-90 transition-all text-white font-bold h-10 mt-4">
                     <Edit3 className="mr-2 h-4 w-4" /> Reagendar / Editar
                 </Button>
 

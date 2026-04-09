@@ -61,7 +61,7 @@ export function SubscriptionRequiredOverlay() {
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3 pb-8 px-8">
-          <Button className="w-full h-14 text-lg font-black bg-brand-primary hover:opacity-90 text-white shadow-lg shadow-brand-primary/20 transition-all hover:scale-[1.02]" asChild>
+          <Button className="w-full h-14 text-lg font-black bg-brand-primary text-white hover:brightness-90 transition-all shadow-lg shadow-brand-primary/20" asChild>
             <a href={checkoutUrl}>
               <CreditCard className="mr-2 h-5 w-5" /> ATIVAR PLANO PROFISSIONAL
             </a>

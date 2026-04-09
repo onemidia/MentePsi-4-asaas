@@ -155,7 +155,7 @@ export default function PatientsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <Button variant="outline" asChild className="w-full sm:w-auto border-brand-primary text-brand-primary hover:bg-brand-secondary font-semibold">
+          <Button variant="default" asChild className="w-full sm:w-auto bg-[var(--primary-color)] text-white hover:bg-[var(--primary-color)] hover:text-white hover:brightness-90 transition-all font-semibold border-0">
             <Link href="/agenda?new=true">
               <Calendar className="mr-2 h-4 w-4" />
               AGENDAR CONSULTA
@@ -215,7 +215,7 @@ export default function PatientsPage() {
                 </TableRow>
               ) : (
                 filteredPatients.slice(currentPage * 10, (currentPage + 1) * 10).map((patient) => (
-                  <TableRow key={patient.id}>
+                  <TableRow key={patient.id} className="hover:bg-[var(--secondary-color)]/60 transition-colors">
                     <TableCell className="font-medium">
                       <div className="flex flex-col">
                         <span>{patient.full_name}</span>
@@ -224,7 +224,7 @@ export default function PatientsPage() {
                     </TableCell>
 
                     <TableCell>
-                      <Button variant="default" size="sm" className="bg-brand-primary hover:opacity-90 text-white font-bold h-8 shadow-sm" asChild>
+                      <Button variant="default" size="sm" className="bg-[var(--primary-color)] text-white hover:bg-[var(--primary-color)] hover:text-white hover:brightness-90 transition-all font-bold h-8 shadow-sm border-0" asChild>
                         <Link href={`/pacientes/${patient.id}`}>
                           <FileText className="h-4 w-4 mr-2" /> Ficha
                         </Link>
@@ -276,11 +276,11 @@ export default function PatientsPage() {
 
           {/* Controles de Paginação */}
           <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4">
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="w-full sm:w-auto hover:text-[var(--primary-color)] hover:border-[var(--primary-color)] transition-colors">
               <ChevronLeft className="h-4 w-4 mr-2" /> Anterior
             </Button>
             <span className="text-xs text-slate-500 font-medium">Página {currentPage + 1} de {Math.max(1, Math.ceil(filteredPatients.length / 10))}</span>
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={(currentPage + 1) * 10 >= filteredPatients.length} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={(currentPage + 1) * 10 >= filteredPatients.length} className="w-full sm:w-auto hover:text-[var(--primary-color)] hover:border-[var(--primary-color)] transition-colors">
               Próximo <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           </div>

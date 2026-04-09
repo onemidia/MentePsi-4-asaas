@@ -50,7 +50,7 @@ export function TrialBanner({
       className={`w-full p-4 flex flex-col gap-3 text-white shadow-md transition-all duration-500 ${
         isUrgent
           ? 'bg-red-600'
-          : 'bg-gradient-to-r from-brand-primary to-emerald-500'
+          : 'bg-brand-primary'
       }`}
     >
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -83,8 +83,8 @@ export function TrialBanner({
         <Button
           variant="secondary"
           size="sm"
-          className={`font-semibold shadow-lg hover:bg-white/90 border-0 whitespace-nowrap text-brand-primary ${
-            isUrgent ? 'text-red-600 animate-pulse' : 'text-teal-900'
+          className={`font-semibold shadow-lg hover:bg-white/90 border-0 whitespace-nowrap ${
+            isUrgent ? 'text-red-600 animate-pulse' : 'text-brand-primary'
           }`}
           onClick={handleUpgrade}
         >

@@ -103,7 +103,7 @@ export function TeamManagement() {
             <Label htmlFor="email">E-mail do Assistente</Label>
             <Input id="email" type="email" placeholder="email@exemplo.com" value={assistantEmail} onChange={(e) => setAssistantEmail(e.target.value)} />
           </div>
-          <Button onClick={handleSendInvite} disabled={saving} className="bg-brand-primary hover:opacity-90 text-white">
+          <Button onClick={handleSendInvite} disabled={saving} className="w-full sm:w-auto text-white hover:brightness-90 transition-all font-bold border-0 h-10 px-6 rounded-xl" style={{ backgroundColor: 'var(--primary-color)' }}>
             {saving ? <Loader2 className="animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
             Enviar Convite
           </Button>

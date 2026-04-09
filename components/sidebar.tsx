@@ -295,7 +295,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
               className={cn(
                 "flex items-center gap-4 rounded-xl px-4 py-4 text-base font-medium transition-all duration-200 active:scale-[0.98]",
                 "md:gap-3 md:rounded-2xl md:px-3 md:py-3 md:text-sm",
-                isActive ? "bg-brand-secondary text-brand-primary shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                isActive ? "bg-brand-secondary text-brand-primary shadow-sm" : "text-slate-700 hover:bg-slate-100 hover:text-brand-primary"
               )}
             >
               <item.icon className={cn("h-6 w-6 md:h-5 md:w-5", isActive ? "text-brand-primary" : "text-slate-400")} />

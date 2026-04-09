@@ -1211,7 +1211,7 @@ export default function FinanceiroPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-black text-slate-800 tracking-tight">Financeiro</h1>
-            {refreshing && <Loader2 className="animate-spin text-teal-600 h-5 w-5" />}
+            {refreshing && <Loader2 className="animate-spin text-brand-primary h-5 w-5" />}
           </div>
           <p className="text-slate-500 font-medium text-sm">Gestão por período e lançamentos inteligentes.</p>
         </div>
@@ -1248,7 +1248,7 @@ export default function FinanceiroPage() {
           </Button>
           
           {mainTab === 'receitas' ? (
-            <Button className="w-full sm:w-auto bg-brand-primary hover:opacity-90 font-bold shadow-sm hover:shadow-md text-white rounded-2xl h-10" onClick={() => setNewTransactionOpen(true)}>
+            <Button className="w-full sm:w-auto text-white hover:brightness-90 transition-all font-bold shadow-sm rounded-2xl h-10 border-0" style={{ backgroundColor: 'var(--primary-color)' }} onClick={() => setNewTransactionOpen(true)}>
               <Plus className="mr-2 h-4 w-4"/> Lançar Recebimento
             </Button>
           ) : (
@@ -1261,8 +1261,8 @@ export default function FinanceiroPage() {
 
       <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
         <TabsList className="mb-6 bg-slate-200/50 rounded-xl p-1 w-full max-w-sm">
-          <TabsTrigger value="receitas" className="flex-1 rounded-lg font-bold">Receitas</TabsTrigger>
-          <TabsTrigger value="despesas" className="flex-1 rounded-lg font-bold">Despesas</TabsTrigger>
+          <TabsTrigger value="receitas" className="flex-1 rounded-lg font-bold data-[state=active]:bg-[var(--primary-color)] data-[state=active]:text-white">Receitas</TabsTrigger>
+          <TabsTrigger value="despesas" className="flex-1 rounded-lg font-bold data-[state=active]:bg-[var(--primary-color)] data-[state=active]:text-white">Despesas</TabsTrigger>
         </TabsList>
         
         <TabsContent value="receitas" className="space-y-6">
@@ -1308,22 +1308,26 @@ export default function FinanceiroPage() {
         </CardHeader>
         <CardContent className="p-0">
           <Tabs defaultValue="todos" onValueChange={setCurrentTab}>
-            <TabsList className="m-4 bg-slate-100 w-auto flex-wrap h-auto rounded-xl"><TabsTrigger value="todos" className="flex-1 rounded-lg">Todos</TabsTrigger><TabsTrigger value="pendentes" className="flex-1 rounded-lg">Pendentes</TabsTrigger><TabsTrigger value="pagos" className="flex-1 rounded-lg">Pagos</TabsTrigger></TabsList>
+            <TabsList className="m-4 bg-slate-100 w-auto flex-wrap h-auto rounded-xl">
+              <TabsTrigger value="todos" className="flex-1 rounded-lg data-[state=active]:bg-[var(--primary-color)] data-[state=active]:text-white">Todos</TabsTrigger>
+              <TabsTrigger value="pendentes" className="flex-1 rounded-lg data-[state=active]:bg-[var(--primary-color)] data-[state=active]:text-white">Pendentes</TabsTrigger>
+              <TabsTrigger value="pagos" className="flex-1 rounded-lg data-[state=active]:bg-[var(--primary-color)] data-[state=active]:text-white">Pagos</TabsTrigger>
+            </TabsList>
             <div className="overflow-x-auto w-full">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black tracking-widest border-y">
-                  <tr><th className="p-4 w-[50px]"><input type="checkbox" onChange={toggleAll} checked={filteredAppointments.length > 0 && selectedItems.size === filteredAppointments.length} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" /></th><th className="p-4 text-left">Data</th><th className="p-4 text-left">Paciente</th><th className="p-4 text-left">Valor</th><th className="p-4 text-left hidden md:table-cell">Pendente</th><th className="p-4 text-left hidden md:table-cell">Status</th><th className="p-4 text-right">Ação</th></tr>
+                  <tr><th className="p-4 w-[50px]"><input type="checkbox" onChange={toggleAll} checked={filteredAppointments.length > 0 && selectedItems.size === filteredAppointments.length} className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary" /></th><th className="p-4 text-left">Data</th><th className="p-4 text-left">Paciente</th><th className="p-4 text-left">Valor</th><th className="p-4 text-left hidden md:table-cell">Pendente</th><th className="p-4 text-left hidden md:table-cell">Status</th><th className="p-4 text-right">Ação</th></tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
-                  {loading ? (<tr><td colSpan={7} className="p-10 text-center"><Loader2 className="animate-spin mx-auto text-teal-600"/></td></tr>) : filteredAppointments?.slice(pageLancamentos * 10, (pageLancamentos + 1) * 10).map(apt => {
+                  {loading ? (<tr><td colSpan={7} className="p-10 text-center"><Loader2 className="animate-spin mx-auto text-brand-primary"/></td></tr>) : filteredAppointments?.slice(pageLancamentos * 10, (pageLancamentos + 1) * 10).map(apt => {
                     const pendente = Number(apt.price) - Number(apt.amount_paid || 0);
                     const isPaid = apt.payment_status === 'Pago' || apt.payment_status === 'paid';
                     const isOverdue = !isPaid && new Date(apt.start_time) < new Date();
                     
                     
                     return (
-                      <tr key={apt.id} className={`hover:bg-slate-50/50 transition-colors ${isOverdue && currentTab === 'pendentes' ? 'bg-red-50/40' : ''}`}>
-                        <td className="p-4"><input type="checkbox" checked={selectedItems.has(apt.id)} onChange={() => toggleSelection(apt.id)} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" /></td>
+                      <tr key={apt.id} className={`hover:bg-brand-secondary/40 transition-colors ${isOverdue && currentTab === 'pendentes' ? 'bg-red-50/40' : ''}`}>
+                        <td className="p-4"><input type="checkbox" checked={selectedItems.has(apt.id)} onChange={() => toggleSelection(apt.id)} className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary" /></td>
                         <td className={`p-4 ${isOverdue && currentTab === 'pendentes' ? 'text-red-700 font-bold' : 'text-slate-600'}`}>
                           <div className="flex items-center gap-1.5">
                             {format(new Date(apt.start_time), "dd/MM/yyyy HH:mm")}
@@ -1337,7 +1341,7 @@ export default function FinanceiroPage() {
                         <td className="p-4 text-right flex justify-end gap-2">
                           <Button size="icon" variant="ghost" className="text-slate-400 hover:text-brand-primary" onClick={() => handleGenerateReceipt(apt)}><ReceiptText size={16}/></Button>
                           {!isPaid && (
-                            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white rounded-lg" onClick={() => {
+                            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-0 text-white hover:brightness-90 rounded-lg transition-all" style={{ backgroundColor: 'var(--primary-color)' }} onClick={() => {
                               setSelectedApt(apt);
                               setPaymentAmount((Number(apt.price) - Number(apt.amount_paid || 0)).toFixed(2).replace('.', ','));
                               setPaymentModalOpen(true);
@@ -1427,7 +1431,7 @@ export default function FinanceiroPage() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredTransactions?.slice(pageHistorico * 10, (pageHistorico + 1) * 10).map(t => (
-                  <tr key={t.id} className={`hover:bg-slate-50/50 ${t.status === 'pending_review' ? 'bg-amber-50' : ''}`}>
+                  <tr key={t.id} className={`hover:bg-brand-secondary/40 transition-colors ${t.status === 'pending_review' ? 'bg-amber-50' : ''}`}>
                     <td className="p-4"><input type="checkbox" checked={selectedTransactionIds.has(t.id)} onChange={() => toggleTransactionSelection(t.id)} className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary" /></td>
                     <td className="p-4 text-slate-600">{format(new Date(t.created_at), "dd/MM/yyyy HH:mm")}</td>
                     <td className="p-4 font-medium text-slate-700">{t.description}</td>
@@ -1509,7 +1513,7 @@ export default function FinanceiroPage() {
                   {paginatedExpenses.length === 0 ? (
                     <tr><td colSpan={5} className="p-10 text-center text-slate-400 italic font-medium">Nenhuma despesa encontrada para este período.</td></tr>
                   ) : paginatedExpenses.map(exp => (
-                    <tr key={exp.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={exp.id} className="hover:bg-brand-secondary/40 transition-colors">
                       <td className="p-4 text-slate-600">{format(parseISO(exp.date), "dd/MM/yyyy")}</td>
                       <td className="p-4 font-bold text-slate-700">{exp.description}</td>
                       <td className="p-4"><Badge variant="outline">{exp.category}</Badge></td>
@@ -1552,7 +1556,7 @@ export default function FinanceiroPage() {
                   {(isProcessingPayment || refreshing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   [USAR CRÉDITO] - Saldo: {formatBRL(Number(selectedApt?.patients?.credit_balance || 0))}
                 </Button>
-                <Button disabled={isProcessingPayment || refreshing} className="w-full bg-brand-primary hover:opacity-90 text-white font-bold h-10 text-xs rounded-xl" onClick={() => {
+                <Button disabled={isProcessingPayment || refreshing} className="w-full text-white hover:brightness-90 transition-all font-bold h-10 text-xs rounded-xl border-0" style={{ backgroundColor: 'var(--primary-color)' }} onClick={() => {
                    const amount = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
                    handleProcessTransaction(selectedApt.patient_id, amount, selectedApt.id)
                 }}>
@@ -1561,7 +1565,7 @@ export default function FinanceiroPage() {
                 </Button>
               </div>
             ) : (
-              <Button disabled={isProcessingPayment || refreshing} className="w-full bg-brand-primary hover:opacity-90 text-white font-bold h-12 rounded-2xl" onClick={() => {
+              <Button disabled={isProcessingPayment || refreshing} className="w-full text-white hover:brightness-90 transition-all font-bold h-12 rounded-2xl border-0" style={{ backgroundColor: 'var(--primary-color)' }} onClick={() => {
                  const amount = parseFloat(paymentAmount.replace(/\./g, '').replace(',', '.'))
                  handleProcessTransaction(selectedApt.patient_id, amount, selectedApt.id)
               }}>
@@ -1632,7 +1636,7 @@ export default function FinanceiroPage() {
               </select>
             </div>
             <div className="space-y-2"><Label className="font-bold text-brand-primary">Valor Recebido (R$)</Label><Input value={transactionValue} onChange={e => handleCurrencyInput(e.target.value, setTransactionValue)} className="text-2xl font-black h-14 rounded-xl border-slate-300" /></div>
-            <Button disabled={isProcessingPayment || refreshing} className="w-full bg-brand-primary hover:opacity-90 text-white font-bold h-14 rounded-2xl" onClick={() => handleProcessTransaction(selectedPatient, parseFloat(transactionValue.replace(/\./g, '').replace(',', '.')))}>
+            <Button disabled={isProcessingPayment || refreshing} className="w-full text-white hover:brightness-90 transition-all font-bold h-14 rounded-2xl border-0" style={{ backgroundColor: 'var(--primary-color)' }} onClick={() => handleProcessTransaction(selectedPatient, parseFloat(transactionValue.replace(/\./g, '').replace(',', '.')))}>
               {(isProcessingPayment || refreshing) ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processando...</> : "Abater Dívidas"}
             </Button>
           </div>
@@ -1683,7 +1687,7 @@ export default function FinanceiroPage() {
 
 function StatCard({ title, value, icon, color, subtitle }: any) {
   const colorMap: any = { 
-    teal: 'text-brand-primary bg-brand-secondary border-brand-primary/30', 
+    teal: 'text-[var(--primary-color)] bg-[var(--secondary-color)] border-[var(--primary-color)]/30', 
     amber: 'text-amber-600 bg-amber-50 border-amber-200', 
     blue: 'text-blue-600 bg-blue-50 border-blue-200', 
     red: 'text-red-600 bg-red-50 border-red-200',

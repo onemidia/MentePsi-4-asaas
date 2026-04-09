@@ -668,7 +668,7 @@ export default function PsychologistDashboard() {
               }
 
               return (
-                <div key={item.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 gap-3">
+                <div key={item.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-brand-secondary/30 hover:bg-brand-secondary/60 transition-colors rounded-lg border border-brand-primary/10 gap-3">
                   <div className="flex items-center gap-3">
                     <div className="flex flex-col items-center bg-white px-2 py-1 rounded border min-w-[50px]">
                       <span className="text-[10px] font-bold text-brand-primary leading-none mb-0.5">{item.formattedDate}</span>
@@ -907,7 +907,7 @@ export default function PsychologistDashboard() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setWaitingModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleAddWaitingPatient} disabled={addingWaiting} className="bg-brand-primary hover:opacity-90 text-white">
+            <Button onClick={handleAddWaitingPatient} disabled={addingWaiting} className="bg-brand-primary text-white hover:brightness-90 transition-all">
               {addingWaiting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
               Salvar na Fila
             </Button>

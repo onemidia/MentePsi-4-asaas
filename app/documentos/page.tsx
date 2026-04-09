@@ -243,7 +243,7 @@ export default function DocumentsPage() {
         <NewDocumentModal 
           onDocumentCreated={fetchDocuments} 
           trigger={
-            <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-sm">
+            <Button className="w-full sm:w-auto text-white hover:brightness-90 transition-all font-bold shadow-sm border-0" style={{ backgroundColor: 'var(--primary-color)' }}>
               <Plus className="mr-2 h-4 w-4" /> Novo Documento
             </Button>
           }
@@ -255,18 +255,18 @@ export default function DocumentsPage() {
           <CardTitle className="text-lg mb-2">Filtros de Busca</CardTitle>
           <div className="flex flex-col md:flex-row items-center gap-4 w-full">
             {/* FILTRO DE DATA PADRONIZADO */}
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 gap-2 shadow-sm w-full md:w-auto">
+            <div className="flex items-center bg-white border border-slate-200 focus-within:border-[var(--primary-color)] focus-within:ring-1 focus-within:ring-[var(--primary-color)] rounded-xl px-3 gap-2 shadow-sm w-full md:w-auto transition-all">
               <Input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent px-1" />
               <span className="text-slate-300">|</span>
               <Input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent px-1" />
             </div>
 
             {/* BARRA DE PESQUISA ALINHADA */}
-            <div className="w-full md:flex-1 relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <div className="w-full md:flex-1 relative group">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-[var(--primary-color)] transition-colors" />
               <Input 
                 placeholder="Buscar documento ou paciente..." 
-                className="pl-9 w-full bg-white border-slate-300 rounded-xl h-9"
+                className="pl-9 w-full bg-white border-slate-300 focus-visible:ring-[var(--primary-color)] focus-visible:border-[var(--primary-color)] rounded-xl h-9 transition-all"
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               />
@@ -276,7 +276,7 @@ export default function DocumentsPage() {
         <CardContent className="pt-6">
           {loading ? (
             <div className="flex flex-col items-center py-10 gap-3 text-slate-400">
-              <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+              <Loader2 className="h-8 w-8 animate-spin text-[var(--primary-color)]" />
               <p>Sincronizando arquivos oficiais...</p>
             </div>
           ) : reports.length === 0 ? (
@@ -290,7 +290,7 @@ export default function DocumentsPage() {
               {reports.map(report => (
                 <div key={report.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:shadow-md transition-all bg-white group gap-4 w-full overflow-hidden">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="h-10 w-10 bg-teal-50 rounded-lg flex items-center justify-center text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-colors shrink-0">
+                    <div className="h-10 w-10 bg-[var(--secondary-color)] rounded-lg flex items-center justify-center text-[var(--primary-color)] group-hover:bg-[var(--primary-color)] group-hover:text-white transition-colors shrink-0">
                       <FileText className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
@@ -311,7 +311,7 @@ export default function DocumentsPage() {
                     <Button variant="outline" size="sm" onClick={() => handleWhatsApp(report)} className="shrink-0 text-green-600 hover:bg-green-50 border-slate-200 h-8 w-8 p-0" title="Enviar no WhatsApp">
                       <MessageCircle className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handlePrint(report)} className="shrink-0 hover:bg-teal-50 border-slate-200 text-slate-600 h-8 w-8 p-0 sm:w-auto sm:px-3">
+                    <Button variant="ghost" size="sm" onClick={() => handlePrint(report)} className="shrink-0 border-0 h-8 w-8 p-0 sm:w-auto sm:px-3 hover:brightness-95" style={{ backgroundColor: 'var(--secondary-color)', color: 'var(--primary-color)' }}>
                       <Printer className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Imprimir</span>
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => handleDelete(report.id)} className="shrink-0 text-red-500 hover:bg-red-50 border-slate-200 h-8 w-8 p-0" title="Excluir">

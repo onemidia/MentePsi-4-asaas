@@ -174,7 +174,7 @@ export default function PortalManagementPage() {
                 <TableRow><TableCell colSpan={4} className="text-center py-10 text-slate-500">Nenhum paciente encontrado.</TableCell></TableRow>
               ) : (
                 filteredPatients?.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage).map((p) => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className="hover:bg-brand-secondary/40 transition-colors">
                     <TableCell className="font-medium">{p.full_name}</TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">

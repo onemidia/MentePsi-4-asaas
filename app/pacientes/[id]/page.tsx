@@ -1094,12 +1094,12 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
           <Button variant="ghost" onClick={() => router.back()} className="rounded-2xl h-10 w-10 p-0"><ArrowLeft size={20} className="text-slate-600"/></Button>
           <div>
             <h1 className="text-2xl font-black text-slate-800 tracking-tight">Ficha Clínica Digital</h1>
-            <p className="text-sm font-medium text-slate-500">Paciente: <span className="text-teal-600 font-bold uppercase">{paciente.full_name}</span></p>
+            <p className="text-sm font-medium text-slate-500">Paciente: <span className="text-brand-primary font-bold uppercase">{paciente.full_name}</span></p>
           </div>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           <Button variant="outline" onClick={() => router.back()} className="flex-1 md:flex-none rounded-2xl h-10 font-bold border-slate-300 text-slate-600">Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white font-bold flex-1 md:flex-none rounded-2xl h-10 shadow-sm hover:shadow-md">
+          <Button onClick={handleSave} disabled={saving} className="bg-[var(--primary-color)] text-white hover:brightness-90 transition-all font-bold flex-1 md:flex-none rounded-2xl h-10 shadow-sm hover:shadow-md border-0">
             {saving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
             Salvar Alterações
           </Button>
@@ -1113,20 +1113,20 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
         {/* 💉 Card de Haver Corrigido */}
         <CardStat title={`${labels.plural} em Haver`} value={stats.credit} icon={<Clock />} color="blue" />
         <Card className="flex flex-col justify-center p-4 space-y-3 bg-white shadow-md border border-slate-200 rounded-[32px]">
-           <div className="flex justify-between items-center"><span className="text-sm flex items-center gap-2 font-medium"><CheckCircle size={14} className="text-green-600"/> Realizadas</span><Badge className="bg-green-100 text-green-700 border-none">{stats.done}</Badge></div>
+           <div className="flex justify-between items-center"><span className="text-sm flex items-center gap-2 font-medium"><CheckCircle size={14} className="text-[var(--primary-color)]"/> Realizadas</span><Badge className="bg-[var(--secondary-color)] text-[var(--primary-color)] border-none">{stats.done}</Badge></div>
            <div className="flex justify-between items-center"><span className="text-sm flex items-center gap-2 font-medium"><CalendarIcon size={14} className="text-emerald-600"/> Agendadas</span><Badge variant="outline" className="border-blue-200 text-blue-600">{stats.scheduled}</Badge></div>
            <div className="flex justify-between items-center"><span className="text-sm flex items-center gap-2 font-medium"><XCircle size={14} className="text-red-600"/> Desmarcadas</span><Badge variant="outline" className="border-red-200 text-red-600">{stats.cancelled}</Badge></div>
         </Card>
       </div>
 
       {/* NAVEGAÇÃO MANUAL */}
-      <div className="w-full flex flex-wrap gap-2 h-auto relative mb-8 pb-4">
+      <div className="w-full flex flex-wrap gap-2 h-auto relative mb-8 p-2 bg-brand-secondary/60 rounded-2xl shadow-inner">
           {[
             { val: "pessoal", icon: <User className="w-3 h-3 mr-1"/>, label: "Pessoal" },
             { val: "sessoes", icon: <CalendarIcon className="w-3 h-3 mr-1"/>, label: labels.plural },
             { val: "financeiro", icon: <CreditCard className="w-3 h-3 mr-1"/>, label: "Financeiro" },
-            { val: "evolucoes", icon: <FileText className="w-3 h-3 mr-1"/>, label: "Evoluções", color: "text-teal-700 bg-teal-50 border-teal-100" },
-            { val: "portal", icon: <Smartphone className="w-3 h-3 mr-1"/>, label: "Portal", color: "text-blue-700 bg-blue-50 border-blue-100" },
+            { val: "evolucoes", icon: <FileText className="w-3 h-3 mr-1"/>, label: "Evoluções", color: "text-brand-primary bg-brand-secondary border-brand-primary/30" },
+            { val: "portal", icon: <Smartphone className="w-3 h-3 mr-1"/>, label: "Portal", color: "text-brand-primary bg-brand-secondary border-brand-primary/30" },
             { val: "emocoes", icon: <Activity className="w-3 h-3 mr-1"/>, label: "Emoções" },
             { val: "documentos", icon: <FileText className="w-3 h-3 mr-1"/>, label: "Docs" },
             { val: "metas", icon: <Target className="w-3 h-3 mr-1"/>, label: "Metas" },
@@ -1138,7 +1138,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               key={tab.val}
               variant={activeTab === tab.val ? 'default' : 'outline'}
               onClick={() => setActiveTab(tab.val)}
-              className={`h-10 text-xs px-4 rounded-2xl font-bold shadow-sm transition-all ${activeTab === tab.val ? 'bg-teal-600 hover:bg-teal-700 text-white shadow-md' : 'text-slate-600 bg-white border-slate-300 hover:bg-slate-50'}`}
+              className={`h-10 text-xs px-4 rounded-xl font-bold shadow-sm transition-all ${activeTab === tab.val ? 'bg-[var(--primary-color)] text-white hover:brightness-90 shadow-md border-0' : 'text-slate-600 bg-white/70 border-transparent hover:bg-white hover:text-brand-primary'}`}
             >
               {tab.icon} {tab.label}
             </Button>
@@ -1150,14 +1150,14 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
         <div className="w-full block clear-both animate-in fade-in">
           <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-4 md:p-8 space-y-8">
             <div className="space-y-4">
-              <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2 w-full block clear-both pt-4 mb-6"><User size={16}/> Identificação</h3>
+              <h3 className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2 w-full block clear-both pt-4 mb-6"><User size={16}/> Identificação</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Nome Completo *</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.full_name || ''} onChange={e => setPaciente({...paciente, full_name: e.target.value})} /></div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">CPF</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.cpf || ''} onChange={handleCPFChange} placeholder="000.000.000-00" maxLength={14} /></div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">RG</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.rg || ''} onChange={e => setPaciente({...paciente, rg: e.target.value})} /></div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Data de Nascimento</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" type="date" value={paciente.birth_date || ''} onChange={e => setPaciente({...paciente, birth_date: e.target.value})} /></div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Gênero</Label>
-                  <select value={paciente.gender || ''} onChange={e => setPaciente({...paciente, gender: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                  <select value={paciente.gender || ''} onChange={e => setPaciente({...paciente, gender: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer">
                     <option value="" disabled>Selecione</option>
                     <option value="feminino">Feminino</option>
                     <option value="masculino">Masculino</option>
@@ -1165,7 +1165,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </select>
                 </div>
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Estado Civil</Label>
-                  <select value={paciente.marital_status || ''} onChange={e => setPaciente({...paciente, marital_status: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                  <select value={paciente.marital_status || ''} onChange={e => setPaciente({...paciente, marital_status: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer">
                     <option value="" disabled>Selecione</option>
                     <option value="solteiro">Solteiro</option>
                     <option value="casado">Casado</option>
@@ -1186,7 +1186,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 
                 {/* NOVOS CAMPOS: STATUS E FINANCEIRO */}
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Status do Paciente</Label>
-                  <select value={paciente.status || 'Ativo'} onChange={e => setPaciente({...paciente, status: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                  <select value={paciente.status || 'Ativo'} onChange={e => setPaciente({...paciente, status: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer">
                     <option value="Ativo">Ativo</option>
                     <option value="Inativo">Inativo</option>
                   </select>
@@ -1197,7 +1197,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
 
               {/* NOVA SEÇÃO: CONTATO E LOCALIZAÇÃO */}
               <div className="space-y-4 border-t border-slate-200 pt-6">
-                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2 mb-6"><MapPin size={16}/> Contato e Localização</h3>
+                <h3 className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2 mb-6"><MapPin size={16}/> Contato e Localização</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Telefone / WhatsApp</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.phone || ''} onChange={handlePhoneChange} placeholder="(00) 00000-0000 ou +1..." /></div>
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">CEP</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.cep || ''} onChange={e => setPaciente({...paciente, cep: e.target.value})} /></div>
@@ -1219,14 +1219,14 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
         <div className="w-full block clear-both animate-in fade-in">
           <Card className="border border-slate-200 shadow-md overflow-hidden rounded-[24px] bg-white">
             <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 border-b border-slate-200 p-6 gap-4">
-              <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">HISTÓRICO DE {labels.plural.toUpperCase()}</CardTitle>
+              <CardTitle className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2">HISTÓRICO DE {labels.plural.toUpperCase()}</CardTitle>
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 gap-2 shadow-sm">
                   <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
                   <span className="text-slate-300">|</span>
                   <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 border-none focus-visible:ring-0 text-xs w-[120px] bg-transparent" />
                 </div>
-                <select value={sessaoFilter} onChange={e => setSessaoFilter(e.target.value)} className="flex h-9 w-40 items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                <select value={sessaoFilter} onChange={e => setSessaoFilter(e.target.value)} className="flex h-9 w-40 items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer">
                   <option value="Todas">Exibir Todas</option>
                   <option value="Agendado">Agendadas</option>
                   <option value="Realizada">Realizadas</option>
@@ -1242,10 +1242,10 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 const isPaid = Math.round(Number(apt.amount_paid || 0) * 100) >= Math.round(Number(apt.price || 0) * 100);
                 const remaining = Math.max(0, Number(apt.price || 0) - Number(apt.amount_paid || 0));
                 return (
-                  <div key={apt.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-slate-50 transition-all border-b last:border-0">
+                  <div key={apt.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-brand-secondary/50 transition-all border-b border-brand-primary/10 last:border-0">
                     <div className="flex items-center gap-4">
                       <div className="flex flex-col items-center bg-white px-3 py-1 rounded-xl border min-w-[65px] shadow-sm text-center">
-                        <span className="text-[10px] font-black text-teal-600 uppercase">{aptTime.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                        <span className="text-[10px] font-black text-brand-primary uppercase">{aptTime.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
                         <span className="text-xs font-bold text-slate-700">{aptTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <div>
@@ -1267,7 +1267,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                         </div>
                       </div>
                     </div>
-                    <select value={displayStatus || ''} onChange={(e) => updateAppointmentStatus(apt.id, e.target.value)} className={`w-full sm:w-[140px] h-8 text-[10px] font-bold rounded-lg border-none focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer ${displayStatus === 'Realizada' ? 'text-emerald-600 bg-emerald-50' : displayStatus === 'Cancelado' ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'}`}>
+                    <select value={displayStatus || ''} onChange={(e) => updateAppointmentStatus(apt.id, e.target.value)} className={`w-full sm:w-[140px] h-8 text-[10px] font-bold rounded-lg border-none focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer ${displayStatus === 'Realizada' ? 'text-emerald-600 bg-emerald-50' : displayStatus === 'Cancelado' ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'}`}>
                       <option value="Agendado">Agendado</option>
                       <option value="Realizada">Realizada</option>
                       <option value="Cancelado">Cancelado</option>
@@ -1307,19 +1307,19 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
             <>
               <Card className="border border-slate-200 shadow-md rounded-[24px] overflow-hidden bg-white">
                 <CardHeader className="bg-slate-50 border-b border-slate-200 p-6">
-                  <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2"><Plus size={16} className="text-teal-600"/> Registrar Evolução Clínica</CardTitle>
+                  <CardTitle className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2"><Plus size={16} className="text-brand-primary"/> Registrar Evolução Clínica</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6 space-y-4">
                   {/* NOVA BARRA DE FERRAMENTAS (NO TOPO) */}
-                  <div className="flex flex-col sm:flex-row items-center justify-between bg-teal-50/50 p-3 rounded-xl border border-teal-200 gap-4 mb-2">
-                    <Label className="text-[11px] font-bold text-teal-700 uppercase tracking-tight flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-center justify-between bg-brand-secondary/50 p-3 rounded-xl border border-brand-primary/30 gap-4 mb-2">
+                    <Label className="text-[11px] font-bold text-brand-primary uppercase tracking-tight flex items-center gap-2">
                       <Sparkles size={14} /> Ferramentas de Registro
                     </Label>
                     <div className="flex flex-wrap gap-2 w-full sm:w-auto mt-2">
                       {/* 1. BOTÃO DITAR (Microfone) */}
                       <Button 
                         onClick={handleToggleRecording} 
-                        className={`flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] border-none ${isListening ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
+                        className={`flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] border-none ${isListening ? 'bg-red-600 text-white hover:brightness-90' : 'bg-[var(--primary-color)] text-white hover:brightness-90'}`}
                       >
                         {isListening ? (
                           <><span className="relative flex h-2 w-2 mr-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span></span> Gravando...</>
@@ -1332,7 +1332,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                       <Button 
                         onClick={() => handleRefineEvolution('simples')} 
                         disabled={isGeneratingEvolution || !newEvolution.trim()}
-                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed bg-amber-500 hover:bg-amber-600 text-white border-none"
+                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed bg-amber-500 text-white hover:brightness-90 border-none"
                       >
                         {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                         Resumo Simples
@@ -1342,7 +1342,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                       <Button 
                         onClick={() => handleRefineEvolution('inteligente')} 
                         disabled={isGeneratingEvolution || !newEvolution.trim()}
-                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed bg-indigo-500 hover:bg-indigo-600 text-white border-none"
+                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed bg-indigo-500 text-white hover:brightness-90 border-none"
                       >
                         {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
                         Texto Profissional
@@ -1352,7 +1352,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                       <Button 
                         onClick={() => handleRefineEvolution('soap')} 
                         disabled={isGeneratingEvolution || !newEvolution.trim()}
-                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 text-white border-none"
+                        className="flex-1 sm:flex-none font-bold transition-all shadow-md rounded-xl h-9 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 text-white hover:brightness-90 border-none"
                       >
                         {isGeneratingEvolution ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <FileText className="mr-2 h-4 w-4" />}
                         Gerar S.O.A.P
@@ -1371,7 +1371,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </div>
                   
                   {/* BOTÃO SALVAR */}
-                  <Button onClick={handleSaveEvolution} disabled={saving || !newEvolution.trim() || isGeneratingEvolution} className="w-full h-12 text-[12px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-teal-600 hover:bg-teal-700 text-white mt-2">
+                  <Button onClick={handleSaveEvolution} disabled={saving || !newEvolution.trim() || isGeneratingEvolution} className="w-full h-12 text-[12px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-[var(--primary-color)] text-white hover:brightness-90 mt-2 border-0">
                     {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-5 w-5" />} Salvar Evolução
                   </Button>
                 </CardContent>
@@ -1389,7 +1389,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input 
                         placeholder="Buscar palavra ou nome..." 
-                        className="pl-9 h-9 text-xs bg-white border-slate-200 rounded-xl w-full sm:w-56 focus-visible:ring-teal-500 shadow-sm"
+                        className="pl-9 h-9 text-xs bg-white border-slate-200 rounded-xl w-full sm:w-56 focus-visible:ring-brand-primary shadow-sm"
                         value={evoSearch}
                         onChange={(e) => setEvoSearch(e.target.value)}
                       />
@@ -1414,7 +1414,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </div>
                 </div>
                 {evolutions.map((evo) => (
-                  <Card key={evo.id} className="border border-slate-200 shadow-md rounded-[24px] border-l-4 border-l-teal-500 bg-white">
+                  <Card key={evo.id} className="border border-slate-200 shadow-md rounded-[24px] border-l-4 border-l-brand-primary bg-white">
                     <div className="bg-slate-50 px-4 md:px-6 py-3 border-b border-slate-200 text-[10px] font-bold text-slate-500 flex justify-between">
                       <span><CalendarIcon size={12} className="inline mr-1"/> {new Date(evo.created_at).toLocaleString('pt-BR')}</span>
                     </div>
@@ -1472,8 +1472,8 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               {/* --- NOVO: CONFIGURAÇÃO DA SALA ONLINE --- */}
               <Card className="border border-slate-200 shadow-md bg-white rounded-[24px] mb-6">
                 <CardHeader className="bg-slate-50 border-b border-slate-200 p-4 md:p-6">
-                  <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">
-                    <Video size={16} className="text-teal-600" /> Sala de Atendimento Online
+                  <CardTitle className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2">
+                    <Video size={16} className="text-brand-primary" /> Sala de Atendimento Online
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6">
@@ -1485,7 +1485,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                         <Input value={paciente.meeting_link || ''} onChange={e => setPaciente({...paciente, meeting_link: e.target.value})} placeholder="Ex: https://meet.google.com/xyz-abc-foo" className="pl-9 bg-white border-slate-300 rounded-xl" />
                       </div>
                     </div>
-                    <Button onClick={handleSave} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-sm rounded-xl h-10 shrink-0">
+                    <Button onClick={handleSave} disabled={saving} className="bg-[var(--primary-color)] text-white hover:brightness-90 transition-all font-bold shadow-sm rounded-xl h-10 shrink-0 border-0">
                       {saving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4 mr-2" />}
                       Salvar Link
                     </Button>
@@ -1493,11 +1493,11 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                 </CardContent>
               </Card>
 
-              <Card className="border border-blue-200 bg-blue-50/30 rounded-[24px] shadow-md">
-                <CardHeader className="pb-2 p-4 md:p-6"><CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2"><MessageSquarePlus size={16} className="text-teal-600" /> Pauta do Paciente</CardTitle></CardHeader>
+              <Card className="border border-brand-primary/30 bg-brand-secondary/30 rounded-[24px] shadow-md">
+                <CardHeader className="pb-2 p-4 md:p-6"><CardTitle className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2"><MessageSquarePlus size={16} className="text-brand-primary" /> Pauta do Paciente</CardTitle></CardHeader>
                 <CardContent className="p-4 md:p-6 pt-0">
                   <div className="bg-white p-4 rounded-2xl border border-blue-200 italic text-slate-600 shadow-sm">"{sessionAgenda}"</div>
-                <Button variant="ghost" size="sm" disabled={saving} className="mt-3 text-teal-600 hover:bg-teal-50 font-bold" onClick={handleArchiveAgenda}>
+                <Button variant="ghost" size="sm" disabled={saving} className="mt-3 text-brand-primary hover:bg-brand-secondary font-bold" onClick={handleArchiveAgenda}>
                     {saving ? <Loader2 className="animate-spin h-3 w-3 mr-2"/> : null}
                     Marcar como lida e Arquivar
                   </Button>
@@ -1506,7 +1506,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               
               {/* HISTÓRICO DE PAUTAS ARQUIVADAS (LIDAS) */}
               <details className="group mt-6 border-t border-slate-200 pt-6">
-                <summary className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center justify-between cursor-pointer hover:text-teal-600 transition-colors list-none select-none outline-none">
+                <summary className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center justify-between cursor-pointer hover:text-brand-primary transition-colors list-none select-none outline-none">
                   <div className="flex items-center gap-2"><Clock size={16} /> Histórico de Pautas Lidas</div>
                   <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full group-open:hidden border border-slate-200">Clique para expandir</span>
                 </summary>
@@ -1519,7 +1519,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                          <div className="flex justify-between items-center mb-2 border-b border-slate-200 pb-2">
                            <div className="flex items-center gap-2">
                              <CheckCircle2 size={16} className="text-emerald-500" />
-                             <span className="text-[10px] font-bold text-teal-600 uppercase">
+                             <span className="text-[10px] font-bold text-brand-primary uppercase">
                                Arquivado em {new Date(evo.created_at).toLocaleDateString('pt-BR')}
                              </span>
                            </div>
@@ -1543,15 +1543,15 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
 
               {/* --- SEÇÃO 1: MATERIAIS ENVIADOS (VERDE/TEAL) --- */}
               <Card className="border border-slate-200 shadow-md bg-white rounded-[24px] overflow-hidden mt-6">
-                <CardHeader className="bg-teal-50/50 pb-4 p-4 md:p-6">
-                  <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">
+                <CardHeader className="bg-brand-secondary/50 pb-4 p-4 md:p-6">
+                  <CardTitle className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2">
                     <Upload size={16} /> Compartilhar Materiais Terapêuticos
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6 space-y-4">
                   <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50 hover:bg-slate-100 transition-colors">
                     <input id="material-upload" type="file" className="hidden" onChange={handleFileUpload} />
-                    <Button variant="outline" onClick={() => document.getElementById('material-upload')?.click()} disabled={uploading} className="border-teal-200 text-teal-700 hover:bg-teal-50 font-bold rounded-xl h-10 shadow-sm">
+                    <Button variant="outline" onClick={() => document.getElementById('material-upload')?.click()} disabled={uploading} className="border-brand-primary/30 text-brand-primary hover:bg-brand-secondary font-bold rounded-xl h-10 shadow-sm">
                       {uploading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Upload className="mr-2 h-4 w-4" />}
                       {uploading ? "Enviando arquivo..." : "Selecionar PDF ou Imagem"}
                     </Button>
@@ -1561,11 +1561,11 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   <div className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200">
                     <Input placeholder="Título do Link" className="h-9 text-xs bg-white border border-slate-300 rounded-xl" value={materialTitle} onChange={e => setMaterialTitle(e.target.value)} />
                     <Input placeholder="https://..." className="h-9 text-xs bg-white border border-slate-300 rounded-xl" value={materialUrl} onChange={e => setMaterialUrl(e.target.value)} />
-                    <Button size="sm" className="h-9 w-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white p-0" onClick={handleAddMaterial}><Plus size={16}/></Button>
+                    <Button size="sm" className="h-9 w-9 rounded-xl bg-[var(--primary-color)] text-white hover:brightness-90 transition-all p-0 border-0" onClick={handleAddMaterial}><Plus size={16}/></Button>
                   </div>
 
                   <details className="group mt-6 border-t border-slate-200 pt-4">
-                    <summary className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between cursor-pointer hover:text-teal-600 list-none select-none outline-none">
+                    <summary className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between cursor-pointer hover:text-brand-primary list-none select-none outline-none">
                       Ver Materiais Enviados ({materials.length})
                       <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full group-open:hidden border border-slate-200">Expandir</span>
                     </summary>
@@ -1583,14 +1583,14 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
 
               {/* --- SEÇÃO 2: ARQUIVOS RECEBIDOS (AZUL) --- */}
               <Card className="border border-slate-200 shadow-md bg-white rounded-[24px] overflow-hidden mt-6">
-                <CardHeader className="bg-blue-50/50 pb-4 p-4 md:p-6">
-                  <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">
+                <CardHeader className="bg-brand-secondary/50 pb-4 p-4 md:p-6">
+                  <CardTitle className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2">
                     <Download size={16} /> Comprovantes e Arquivos do Paciente
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6">
                   <details className="group">
-                    <summary className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between cursor-pointer hover:text-teal-600 list-none select-none outline-none">
+                    <summary className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between cursor-pointer hover:text-brand-primary list-none select-none outline-none">
                       Ver Arquivos Recebidos ({receivedFiles.length})
                       <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full group-open:hidden border border-slate-200">Expandir</span>
                     </summary>
@@ -1644,7 +1644,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
         <div className="w-full block clear-both animate-in fade-in">
             <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white">
               <CardHeader className="bg-slate-50 border-b border-slate-200 p-6 rounded-t-[24px]">
-                <CardTitle className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2">
+                <CardTitle className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2">
                   <Activity size={16} /> Diário de Emoções do Paciente
                 </CardTitle>
               </CardHeader>
@@ -1656,7 +1656,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     {/* Relato do Paciente */}
                     <div className="flex gap-4 items-start">
                       <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100">
-                        <MoodIcon className="h-8 w-8 text-teal-600 shrink-0" />
+                        <MoodIcon className="h-8 w-8 text-brand-primary shrink-0" />
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-sm text-slate-800">{new Date(e.created_at).toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short' })}</p>
@@ -1666,41 +1666,41 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                     
                     {/* Resposta do Psicólogo */}
                     {e.psychologist_reply ? (
-                      <div className="mt-2 ml-2 sm:ml-16 bg-teal-50 border border-teal-100 p-4 rounded-2xl flex items-start gap-3 relative">
-                        <div className="absolute -left-3 top-4 w-3 h-px bg-teal-200 hidden sm:block"></div>
-                        <CheckCircle2 className="h-5 w-5 text-teal-600 shrink-0 mt-0.5" />
+                      <div className="mt-2 ml-2 sm:ml-16 bg-brand-secondary border border-brand-primary/30 p-4 rounded-2xl flex items-start gap-3 relative">
+                        <div className="absolute -left-3 top-4 w-3 h-px bg-brand-primary/30 hidden sm:block"></div>
+                        <CheckCircle2 className="h-5 w-5 text-brand-primary shrink-0 mt-0.5" />
                         <div className="w-full">
                           <div className="flex justify-between items-center mb-1">
-                            <p className="text-[10px] font-black text-teal-700 uppercase tracking-widest">Seu Acolhimento</p>
+                            <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Seu Acolhimento</p>
                             {!e.reply_read ? (
                               <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[9px] shadow-sm"><Activity className="w-3 h-3 mr-1 animate-pulse"/> Não lido</Badge>
                             ) : (
                               <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none text-[9px] shadow-sm"><CheckCircle2 className="w-3 h-3 mr-1"/> Lido</Badge>
                             )}
                           </div>
-                          <p className="text-sm text-teal-900 leading-relaxed whitespace-pre-wrap">{e.psychologist_reply}</p>
+                          <p className="text-sm text-brand-primary leading-relaxed whitespace-pre-wrap">{e.psychologist_reply}</p>
                         </div>
                       </div>
                     ) : (
                       <div className="mt-2 ml-2 sm:ml-16">
                         {replyingEmotionId === e.id ? (
-                          <div className="space-y-3 animate-in fade-in slide-in-from-top-2 bg-white p-4 rounded-2xl border border-teal-200 shadow-sm">
-                            <Label className="text-[10px] font-black text-teal-600 uppercase tracking-widest">Escrever Acolhimento</Label>
+                          <div className="space-y-3 animate-in fade-in slide-in-from-top-2 bg-white p-4 rounded-2xl border border-brand-primary/30 shadow-sm">
+                            <Label className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Escrever Acolhimento</Label>
                             <Textarea 
                               placeholder="Escreva uma mensagem de apoio ou orientação para o paciente..." 
-                              className="text-sm min-h-[100px] border-slate-200 focus-visible:ring-teal-500 bg-slate-50"
+                              className="text-sm min-h-[100px] border-slate-200 focus-visible:ring-brand-primary bg-slate-50"
                               value={emotionReplyText}
                               onChange={(e) => setEmotionReplyText(e.target.value)}
                             />
                             <div className="flex flex-col sm:flex-row justify-end gap-2">
                               <Button variant="ghost" size="sm" onClick={() => setReplyingEmotionId(null)} className="h-10 text-xs font-bold text-slate-500 rounded-xl">Cancelar</Button>
-                              <Button size="sm" onClick={() => handleReplyEmotion(e.id)} disabled={saving} className="h-10 text-xs bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-sm">
+                              <Button size="sm" onClick={() => handleReplyEmotion(e.id)} disabled={saving} className="h-10 text-xs bg-[var(--primary-color)] text-white hover:brightness-90 transition-all font-bold rounded-xl shadow-sm border-0">
                                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MessageSquarePlus className="h-4 w-4 mr-2" />} Enviar ao Portal
                               </Button>
                             </div>
                           </div>
                         ) : (
-                          <Button variant="outline" size="sm" onClick={() => { setReplyingEmotionId(e.id); setEmotionReplyText(""); }} className="h-9 text-xs font-bold text-teal-600 border-teal-200 hover:bg-teal-50 rounded-xl shadow-sm">
+                          <Button variant="outline" size="sm" onClick={() => { setReplyingEmotionId(e.id); setEmotionReplyText(""); }} className="h-9 text-xs font-bold text-brand-primary border-brand-primary/30 hover:bg-brand-secondary rounded-xl shadow-sm">
                             <MessageSquarePlus className="h-4 w-4 mr-2" /> Responder Paciente
                           </Button>
                         )}
@@ -1722,12 +1722,12 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
             <Card className="border border-slate-200 shadow-md rounded-[24px] bg-white"><CardContent className="p-6 md:p-10 border-2 border-dashed rounded-3xl text-center space-y-4 border-slate-200">
               <FileText className="h-12 w-12 mx-auto text-slate-200" />
               <div className="space-y-2">
-                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center justify-center gap-2 mb-2">Documentos e Contratos</h3>
+                <h3 className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center justify-center gap-2 mb-2">Documentos e Contratos</h3>
                 <p className="text-xs text-slate-400">Gere documentos legais ou visualize assinaturas do paciente.</p>
               </div>
               
               <div className="flex flex-col sm:flex-row justify-center gap-3">
-                <Button onClick={handleOpenLgpdEditor} className="w-full sm:w-auto h-auto min-h-[36px] py-2 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-teal-600 hover:bg-teal-700 text-white whitespace-normal text-center">Gerar e Editar Termo LGPD</Button>
+                <Button onClick={handleOpenLgpdEditor} className="w-full sm:w-auto h-auto min-h-[36px] py-2 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider transition-all shadow-sm bg-[var(--primary-color)] text-white hover:brightness-90 whitespace-normal text-center border-0">Gerar e Editar Termo LGPD</Button>
                 <div className="relative w-full sm:w-auto">
                   <Button variant="outline" className="w-full h-auto min-h-[36px] py-2 text-[10px] font-black uppercase rounded-xl px-4 tracking-wider border-slate-300 text-slate-600 hover:bg-slate-50 whitespace-normal text-center" onClick={() => document.getElementById('doc-upload')?.click()}>
                     <Upload className="mr-2 h-3 w-3 shrink-0" /> Upload Manual
@@ -1772,7 +1772,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                         <button
                           key={status}
                           onClick={() => setMetaFilter(status)}
-                          className={`rounded-full h-8 px-4 text-[10px] font-bold uppercase border transition-all ${metaFilter === status ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'}`}
+                          className={`rounded-full h-8 px-4 text-[10px] font-bold uppercase border transition-all ${metaFilter === status ? 'bg-brand-secondary text-brand-primary border-brand-primary/30' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'}`}
                         >
                           {status}
                         </button>
@@ -1780,7 +1780,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                   </div>
                   <Dialog open={newGoalOpen} onOpenChange={setNewGoalOpen}>
                     <DialogTrigger asChild>
-                      <Button className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white font-black text-xs uppercase tracking-widest h-12 px-6 rounded-2xl shadow-lg shadow-teal-100 flex items-center justify-center gap-2">
+                      <Button className="w-full sm:w-auto bg-[var(--primary-color)] text-white hover:brightness-90 transition-all font-black text-xs uppercase tracking-widest h-12 px-6 rounded-2xl shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2 border-0">
                           <Plus size={16} /> NOVA META
                       </Button>
                     </DialogTrigger>
@@ -1793,7 +1793,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                         <div className="space-y-2"><Label>Título da Meta</Label><Input value={newGoal.title} onChange={e => setNewGoal({...newGoal, title: e.target.value})} placeholder="Ex: Melhorar qualidade do sono" className="border-slate-300" /></div>
                         <div className="space-y-2"><Label>Descrição / Estratégia</Label><Textarea value={newGoal.description} onChange={e => setNewGoal({...newGoal, description: e.target.value})} placeholder="Detalhes de como alcançar..." className="border-slate-300" /></div>
                         <div className="space-y-2"><Label>Prazo (Opcional)</Label><Input type="date" value={newGoal.deadline} onChange={e => setNewGoal({...newGoal, deadline: e.target.value})} className="border-slate-300" /></div>
-                        <Button onClick={handleSaveMeta} disabled={saving} className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 rounded-xl">{saving ? <Loader2 className="animate-spin"/> : "Salvar Meta"}</Button>
+                        <Button onClick={handleSaveMeta} disabled={saving} className="w-full bg-[var(--primary-color)] text-white hover:brightness-90 transition-all font-bold h-12 rounded-xl border-0">{saving ? <Loader2 className="animate-spin"/> : "Salvar Meta"}</Button>
                       </div>
                     </DialogContent>
                   </Dialog>
@@ -1815,7 +1815,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                               {goal.deadline && <p className="text-[10px] text-slate-400 font-medium mt-1">Prazo: {new Date(goal.deadline).toLocaleDateString('pt-BR')}</p>}
                             </div>
                           </div>
-                          <select value={goal.status} onChange={(e) => handleUpdateMetaStatus(goal.id, e.target.value)} className={`h-7 w-[110px] text-[10px] font-bold rounded-lg border-none focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer ${goal.status === 'Concluída' ? 'bg-emerald-50 text-emerald-700' : goal.status === 'Suspensa' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
+                          <select value={goal.status} onChange={(e) => handleUpdateMetaStatus(goal.id, e.target.value)} className={`h-7 w-[110px] text-[10px] font-bold rounded-lg border-none focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer ${goal.status === 'Concluída' ? 'bg-emerald-50 text-emerald-700' : goal.status === 'Suspensa' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
                             <option value="Ativa">Ativa</option>
                             <option value="Concluída">Concluída</option>
                             <option value="Suspensa">Suspensa</option>
@@ -1843,7 +1843,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Email de Contato</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.email || ''} onChange={e => setPaciente({...paciente, email: e.target.value})} /></div>
             </div>
             <div className="space-y-4 border-t border-slate-200 pt-6">
-              <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest flex items-center gap-2 mb-6"><MapPin size={16}/> Endereço Completo</h3>
+              <h3 className="text-sm font-black text-brand-primary uppercase tracking-widest flex items-center gap-2 mb-6"><MapPin size={16}/> Endereço Completo</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">CEP</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.cep || ''} onChange={e => setPaciente({...paciente, cep: e.target.value})} /></div>
                 <div className="md:col-span-2 space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Logradouro</Label><Input className="text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.address || ''} onChange={e => setPaciente({...paciente, address: e.target.value})} /></div>
@@ -1862,7 +1862,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
               
               {/* Bloco 1: Histórico Clínico & Psiquiátrico */}
               <div className="bg-slate-50 p-4 rounded-[24px] border border-slate-200">
-                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Histórico Clínico</h3>
+                <h3 className="text-sm font-black text-brand-primary uppercase tracking-widest mb-6">Histórico Clínico</h3>
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Histórico Psiquiátrico</Label><Textarea className="min-h-[100px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.psychiatric_history || ''} onChange={e => setPaciente({...paciente, psychiatric_history: e.target.value})} /></div>
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Histórico Familiar</Label><Textarea className="min-h-[100px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.family_history || ''} onChange={e => setPaciente({...paciente, family_history: e.target.value})} /></div>
@@ -1872,11 +1872,11 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
 
               {/* Bloco 2: Histórico Terapêutico */}
               <div className="bg-slate-50 p-4 rounded-[24px] border border-slate-200">
-                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Histórico Terapêutico</h3>
+                <h3 className="text-sm font-black text-brand-primary uppercase tracking-widest mb-6">Histórico Terapêutico</h3>
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Já realizou terapias anteriores?</Label>
-                    <select value={paciente.previous_therapy || 'Não'} onChange={e => setPaciente({...paciente, previous_therapy: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                    <select value={paciente.previous_therapy || 'Não'} onChange={e => setPaciente({...paciente, previous_therapy: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer">
                       <option value="Sim">Sim</option>
                       <option value="Não">Não</option>
                     </select>
@@ -1889,7 +1889,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
 
               {/* Bloco 3: Segurança & Farmacologia */}
               <div className="bg-slate-50 p-4 rounded-[24px] border border-slate-200">
-                <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Medicamentos e Alergias</h3>
+                <h3 className="text-sm font-black text-brand-primary uppercase tracking-widest mb-6">Medicamentos e Alergias</h3>
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Uso de Medicamentos Contínuos</Label><Textarea className="min-h-[100px] text-sm text-slate-700 bg-white border-slate-300 rounded-xl" value={paciente.medications || ''} onChange={e => setPaciente({...paciente, medications: e.target.value})} /></div>
                   <div className="space-y-2"><Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Alergias</Label><Input className="text-sm text-red-700 bg-red-50 border-red-200 rounded-xl focus-visible:ring-red-200 placeholder:text-red-300" placeholder="Nenhuma conhecida" value={paciente.allergies || ''} onChange={e => setPaciente({...paciente, allergies: e.target.value})} /></div>
@@ -1902,7 +1902,7 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
                         checked={paciente.has_insurance} 
                         onChange={(e) => setPaciente({...paciente, has_insurance: e.target.checked})} 
                       />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary"></div>
                     </label>
                   </div>
                 </div>
@@ -1920,11 +1920,11 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
             
             {/* SEÇÃO LEAD / ORIGEM */}
             <div>
-              <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Origem e Captação</h3>
+              <h3 className="text-sm font-black text-brand-primary uppercase tracking-widest mb-6">Origem e Captação</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Como conheceu a clínica?</Label>
-                  <select value={paciente.lead_source || ''} onChange={e => setPaciente({...paciente, lead_source: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                  <select value={paciente.lead_source || ''} onChange={e => setPaciente({...paciente, lead_source: e.target.value})} className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer">
                     <option value="" disabled>Selecione</option>
                     <option value="Indicação">Indicação</option>
                     <option value="Google">Google</option>
@@ -1942,11 +1942,11 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
 
             {/* SEÇÃO NOTAS */}
             <div className="border-t border-slate-200 pt-6">
-              <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest mb-6">Notas Gerais</h3>
+              <h3 className="text-sm font-black text-brand-primary uppercase tracking-widest mb-6">Notas Gerais</h3>
               <div className="space-y-2">
                 <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mb-1.5">Observações Gerais</Label>
                 <Textarea 
-                  className="min-h-[200px] rounded-2xl border-slate-300 focus:ring-teal-500 text-sm text-slate-700" 
+                  className="min-h-[200px] rounded-2xl border-slate-300 focus:ring-brand-primary text-sm text-slate-700" 
                   value={paciente.general_observations || ''} 
                   onChange={e => setPaciente({...paciente, general_observations: e.target.value})} 
                 />
@@ -1999,19 +1999,19 @@ ${prof?.city || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.
       <Dialog open={lgpdModalOpen} onOpenChange={setLgpdModalOpen}>
         <DialogContent aria-describedby={undefined} className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-[32px]">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black text-teal-600">Revisar e Editar Contrato</DialogTitle>
+            <DialogTitle className="text-xl font-black text-brand-primary">Revisar e Editar Contrato</DialogTitle>
             <DialogDescription className="sr-only">Edite o termo de consentimento.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-xs text-slate-500 font-medium">Altere o texto abaixo conforme necessário para este paciente específico. Ao salvar, ele será enviado para o Portal do Paciente para assinatura.</p>
             <Textarea 
-              className="min-h-[50vh] font-serif text-sm leading-relaxed p-4 border-slate-300 rounded-2xl focus:ring-teal-500" 
+              className="min-h-[50vh] font-serif text-sm leading-relaxed p-4 border-slate-300 rounded-2xl focus:ring-brand-primary" 
               value={lgpdContent} 
               onChange={e => setLgpdContent(e.target.value)} 
             />
             <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
               <Button variant="outline" onClick={() => setLgpdModalOpen(false)} className="rounded-xl border-slate-300">Cancelar</Button>
-              <Button onClick={handleSaveLGPD} disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-md">
+              <Button onClick={handleSaveLGPD} disabled={saving} className="bg-[var(--primary-color)] text-white hover:brightness-90 transition-all font-bold rounded-xl shadow-md border-0">
                 {saving ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : <Save className="mr-2 h-4 w-4" />}
                 Salvar e Enviar para Assinatura
               </Button>
@@ -2028,14 +2028,14 @@ function CardStat({ title, value, icon, color }: any) {
   const colors: any = { 
     red: 'bg-red-50 text-red-600 border-red-200', 
     emerald: 'bg-emerald-50 text-emerald-600 border-emerald-200', 
-    blue: 'bg-blue-50 text-teal-600 border-blue-200' // 💉 Visu de sucesso para crédito
+    blue: 'bg-brand-secondary text-brand-primary border-brand-primary/30' // 💉 Visu de sucesso para crédito
   }
   return (
     <Card className="p-6 border border-slate-200 shadow-md bg-white rounded-[24px] transition-all hover:shadow-lg">
       <div className="flex justify-between items-start">
         <div>
           <p className="text-[10px] uppercase text-slate-400 font-black tracking-widest">{title}</p>
-          <h3 className={`text-2xl font-black mt-1 ${color === 'blue' && value > 0 ? 'text-teal-600' : 'text-slate-800'}`}>
+          <h3 className={`text-2xl font-black mt-1 ${color === 'blue' && value > 0 ? 'text-brand-primary' : 'text-slate-800'}`}>
             {Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </h3>
         </div>

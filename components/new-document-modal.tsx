@@ -526,7 +526,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {trigger || <Button className="bg-teal-600 hover:bg-teal-700 text-white font-bold"><Plus className="mr-2 h-4 w-4" /> Novo Documento</Button>}
+        {trigger || <Button className="text-white hover:brightness-90 transition-all font-bold border-0" style={{ backgroundColor: 'var(--primary-color)' }}><Plus className="mr-2 h-4 w-4" /> Novo Documento</Button>}
       </DialogTrigger>
       <DialogContent aria-describedby={undefined} className="w-[95vw] sm:max-w-[800px] h-auto max-h-[95vh] bg-white dark:bg-slate-900 flex flex-col">
         <DialogHeader>
@@ -599,7 +599,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
                   variant="outline" 
                   size="sm" 
                   onClick={toggleRecording} 
-                  className={`w-full sm:w-auto font-bold transition-all ${isRecording ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-white hover:bg-teal-50 text-teal-600 border-teal-200'}`}
+                  className={`w-full sm:w-auto font-bold transition-all ${isRecording ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-white hover:bg-brand-secondary text-brand-primary border-brand-primary/30'}`}
                 >
                   <Mic className="mr-2 h-3 w-3" />
                   {isRecording ? "Gravando..." : "Ditar"}
@@ -610,7 +610,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
                   size="sm" 
                   onClick={handleGenerateFromEvolutions} 
                   disabled={generating || !formData.patient_id}
-                  className="w-full sm:w-auto bg-white hover:bg-blue-50 text-blue-600 border-blue-200 font-bold transition-all"
+                  className="w-full sm:w-auto bg-white hover:bg-brand-secondary text-brand-primary border-brand-primary/30 font-bold transition-all"
                 >
                   {generating ? <Loader2 className="animate-spin mr-2 h-3 w-3" /> : <History className="mr-2 h-3 w-3" />}
                   Gerar a partir das Evoluções
@@ -632,7 +632,7 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
                   size="sm" 
                   onClick={handleRefineWithAI} 
                   disabled={generating || !formData.content}
-                  className="w-full sm:w-auto bg-white hover:bg-amber-50 text-amber-600 border-amber-200 font-bold transition-all"
+                  className="w-full sm:w-auto bg-white hover:bg-brand-secondary text-brand-primary border-brand-primary/30 font-bold transition-all"
                 >
                   {generating ? <Loader2 className="animate-spin mr-2 h-3 w-3" /> : <FileText className="mr-2 h-3 w-3" />}
                   Refinar Termos Oficiais
@@ -676,7 +676,8 @@ export function NewDocumentModal({ preSelectedPatientId, onDocumentCreated, trig
           <Button 
             onClick={handleSubmit} 
             disabled={loading} 
-            className="w-full bg-brand-primary hover:opacity-90 text-white font-black h-12 shadow-lg shadow-brand-primary/20 !opacity-100"
+            className="w-full text-white hover:brightness-90 transition-all font-black h-12 shadow-lg shadow-brand-primary/20 border-0 !opacity-100"
+            style={{ backgroundColor: 'var(--primary-color)' }}
           >
             {loading ? (
               <Loader2 className="animate-spin mr-2 h-4 w-4" />
