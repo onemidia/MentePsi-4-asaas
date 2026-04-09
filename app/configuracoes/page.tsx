@@ -384,6 +384,18 @@ export default function SettingsPage() {
 
   if (!isMounted) return null;
 
+  // Trava visual: Só exibe a página quando o banco de dados entregar tudo
+  if (loading) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin" style={{ color: 'var(--primary-color)' }} />
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Carregando seu consultório...</p>
+        </div>
+      </div>
+    );
+  }
+
   const registryLabel = ['psiquiatra', 'ortopedista', 'medico'].includes(profile.occupation_type || '') ? 'CRM' :
     ['fisioterapeuta', 'terapeuta_ocupacional'].includes(profile.occupation_type || '') ? 'CREFITO' :
     profile.occupation_type === 'odontologista' ? 'CRO' :
