@@ -31,14 +31,7 @@ import { useToast } from "@/hooks/use-toast"
 import { format, isAfter, isBefore, startOfDay, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { getLabels } from '@/lib/labels'
-
-const THEMES = [
-  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
-  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
-  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
-  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
-  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
-];
+import { THEMES } from '@/src/constants/themes'
 
 const handleWhatsAppClick = (phone: string, message: string = '') => {
   if (!phone) return;

@@ -16,14 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-
-const THEMES = [
-  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
-  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
-  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
-  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
-  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
-];
+import { THEMES } from '@/src/constants/themes'
 
 // 1. Componente que contém toda a lógica da agenda
 function AgendaContent() {
@@ -77,17 +70,34 @@ function AgendaContent() {
     let isAssistant = false
 
     // Só busca na clinic_team se NÃO for super admin e o e-mail existir
-    if (!isSuperAdmin && email) {
-       const { data: teamMember } = await supabase
+    if (!isSuperAdmin && email && email.includes('@')) {
+       // 1. Primeiro, buscamos a lista de equipe sem filtros que podem quebrar
+       const { data: teamList, error: teamError } = await supabase
          .from('clinic_team')
-         .select('psychologist_id')
-         .eq('email', email)
+         .select('*')
          .eq('status', 'active')
-         .maybeSingle()
+         
+       if (teamError) {
+         console.warn("Aviso: Erro ao acessar tabela de equipe:", teamError.message);
+       }
        
-       if (teamMember) {
-         targetUserId = teamMember.psychologist_id
-         isAssistant = true
+       // 2. Filtramos o e-mail via JavaScript para não depender do nome da coluna no banco
+       if (teamList && email) {
+         const normalizedUserEmail = email.trim().toLowerCase();
+         
+         // Procura na lista qualquer coluna que contenha o e-mail
+         const teamMember = teamList.find((member: any) => 
+           Object.values(member).some(value => 
+             typeof value === 'string' && value.toLowerCase() === normalizedUserEmail
+           )
+         );
+
+         if (teamMember) {
+           // Identifica qual coluna guarda o ID do psicólogo (tenta vários nomes comuns)
+           targetUserId = teamMember.psychologist_id || teamMember.admin_id || teamMember.user_id || teamMember.created_by || teamMember.owner_id;
+           isAssistant = true;
+           console.log("MentePsi: Acesso Assistente Detectado.");
+         }
        }
     }
 
@@ -265,17 +275,34 @@ function AgendaContent() {
     let isAssistant = false
 
     // Só busca na clinic_team se NÃO for super admin e o e-mail existir
-    if (!isSuperAdmin && email) {
-       const { data: teamMember } = await supabase
+    if (!isSuperAdmin && email && email.includes('@')) {
+       // 1. Primeiro, buscamos a lista de equipe sem filtros que podem quebrar
+       const { data: teamList, error: teamError } = await supabase
          .from('clinic_team')
-         .select('psychologist_id')
-         .eq('email', email)
+         .select('*')
          .eq('status', 'active')
-         .maybeSingle()
+         
+       if (teamError) {
+         console.warn("Aviso: Erro ao acessar tabela de equipe:", teamError.message);
+       }
        
-       if (teamMember) {
-         targetUserId = teamMember.psychologist_id
-         isAssistant = true
+       // 2. Filtramos o e-mail via JavaScript para não depender do nome da coluna no banco
+       if (teamList && email) {
+         const normalizedUserEmail = email.trim().toLowerCase();
+         
+         // Procura na lista qualquer coluna que contenha o e-mail
+         const teamMember = teamList.find((member: any) => 
+           Object.values(member).some(value => 
+             typeof value === 'string' && value.toLowerCase() === normalizedUserEmail
+           )
+         );
+
+         if (teamMember) {
+           // Identifica qual coluna guarda o ID do psicólogo (tenta vários nomes comuns)
+           targetUserId = teamMember.psychologist_id || teamMember.admin_id || teamMember.user_id || teamMember.created_by || teamMember.owner_id;
+           isAssistant = true;
+           console.log("MentePsi: Acesso Assistente Detectado.");
+         }
        }
     }
 

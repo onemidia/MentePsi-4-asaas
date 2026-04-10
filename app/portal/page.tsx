@@ -9,14 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
 import { Label } from "@/components/ui/label"
-
-const THEMES = [
-  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
-  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
-  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
-  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
-  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
-];
+import { THEMES } from '@/src/constants/themes'
 
 export default function PortalManagementPage() {
   const [patients, setPatients] = useState<any[]>([])

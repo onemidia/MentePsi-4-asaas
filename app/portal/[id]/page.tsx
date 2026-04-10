@@ -23,20 +23,13 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { THEMES } from '@/src/constants/themes'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 })
-
-const THEMES = [
-  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
-  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
-  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
-  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
-  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
-];
 
 function PatientPortalContent() {
   const params = useParams()
@@ -502,7 +495,8 @@ function PatientPortalContent() {
             <p className="font-bold text-amber-900 text-lg mb-4">Confirmamos sua presença na sessão de hoje?</p>
             <div className="flex flex-col sm:flex-row gap-3 w-full">
               <Button 
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold h-12 rounded-xl shadow-md border-0" 
+                className="flex-1 text-white font-bold h-12 rounded-xl shadow-md border-0 hover:brightness-90 transition-all" 
+                style={{ backgroundColor: 'var(--primary-color)' }}
                 onClick={() => handleConfirmAppointment('Confirmado')}
               >
                 Sim, Confirmar
@@ -554,7 +548,7 @@ function PatientPortalContent() {
                   )}
                 </div>
                 {meetingStatus && (
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-center w-full">
+                  <div className="border border-slate-200 p-3 rounded-xl text-center w-full" style={{ backgroundColor: 'var(--secondary-color)' }}>
                     <p className="text-xs font-bold text-slate-800 uppercase tracking-wide mb-1">Tempo Restante</p>
                     <p className="text-2xl font-black font-mono" style={{ color: 'var(--primary-color)' }}>{formatCountdown(meetingStatus.diffMs)}</p>
                     <p className="text-[10px] mt-1 font-medium" style={{ color: 'var(--primary-color)' }}>{meetingStatus.start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</p>
@@ -579,7 +573,7 @@ function PatientPortalContent() {
         </CardHeader>
         <CardContent>
           {lgpdSigned ? (
-            <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-xl border border-green-100 text-sm">
+            <div className="flex items-center gap-2 p-3 rounded-xl border text-sm" style={{ color: 'var(--primary-color)', backgroundColor: 'var(--secondary-color)', borderColor: 'var(--primary-color)' }}>
               <CheckCircle className="h-4 w-4" /> <span className="font-bold">Termo e Contrato Assinados</span>
             </div>
           ) : pendingDoc ? (
@@ -642,7 +636,9 @@ function PatientPortalContent() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="bg-emerald-50 border-none rounded-[32px] py-8 text-center animate-in zoom-in duration-300"><CardContent><CheckCircle className="mx-auto text-emerald-600 mb-2" size={32}/><p className="font-black text-emerald-900 text-lg">Registro Enviado!</p></CardContent></Card>
+              <Card className="border-none rounded-[32px] py-8 text-center animate-in zoom-in duration-300" style={{ backgroundColor: 'var(--secondary-color)' }}>
+                <CardContent><CheckCircle className="mx-auto mb-2" size={32} style={{ color: 'var(--primary-color)' }}/><p className="font-black text-lg" style={{ color: 'var(--primary-color)' }}>Registro Enviado!</p></CardContent>
+              </Card>
             )
           )}
 
@@ -748,10 +744,12 @@ function PatientPortalContent() {
                 <div>
                   <p className="text-sm font-black text-slate-900">{new Date(apt.start_time).toLocaleDateString('pt-BR')}</p>
                   <p className="text-[10px] text-slate-500 font-bold uppercase">{new Date(apt.start_time).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p>
-                  <div className="flex gap-2 mt-1"><Badge variant="outline" className={`text-[10px] font-bold ${displayStatus === 'Realizada' ? 'text-emerald-600 border-emerald-200' : displayStatus === 'Cancelado' ? 'text-red-600 border-red-200' : 'text-slate-400 border-slate-200'}`}>{displayStatus.toUpperCase()}</Badge></div>
+              <div className="flex gap-2 mt-1">
+                <Badge variant="outline" className={`text-[10px] font-bold ${displayStatus === 'Cancelado' ? 'text-red-600 border-red-200' : 'text-slate-400 border-slate-200'}`} style={displayStatus === 'Realizada' ? { color: 'var(--primary-color)', borderColor: 'var(--primary-color)' } : {}}>{displayStatus.toUpperCase()}</Badge>
+              </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  {isPaid ? <Badge className="bg-emerald-50 text-emerald-600 border-none font-bold px-3 py-1">PAGO</Badge> : displayStatus === 'Realizada' && <Badge variant="outline" className="text-red-500 border-red-100 font-bold text-[10px] bg-red-50">AGUARDANDO PAGAMENTO</Badge>}
+              {isPaid ? <Badge className="border-none font-bold px-3 py-1" style={{ backgroundColor: 'var(--secondary-color)', color: 'var(--primary-color)' }}>PAGO</Badge> : displayStatus === 'Realizada' && <Badge variant="outline" className="text-red-500 border-red-100 font-bold text-[10px] bg-red-50">AGUARDANDO PAGAMENTO</Badge>}
                 </div>
               </CardContent>
             </Card>
@@ -846,7 +844,9 @@ function PatientPortalContent() {
                       </Button>
 
                       <div className="relative flex items-center py-1"><div className="flex-grow border-t border-slate-200"></div><span className="flex-shrink-0 mx-2 text-slate-300 text-[10px] uppercase font-bold">OU</span><div className="flex-grow border-t border-slate-200"></div></div>
-                      <Button variant="outline" className="w-full border-green-200 bg-green-50 hover:bg-green-100 text-green-700 font-bold h-12 shadow-sm border-0" onClick={handleSendReceiptWhatsApp}><MessageCircle className="mr-2 h-5 w-5" /> Avisar no WhatsApp</Button>
+                      <Button variant="outline" className="w-full font-bold h-12 shadow-sm border hover:brightness-95 transition-all" style={{ color: 'var(--primary-color)', backgroundColor: 'var(--secondary-color)', borderColor: 'var(--primary-color)' }} onClick={handleSendReceiptWhatsApp}>
+                        <MessageCircle className="mr-2 h-5 w-5" /> Avisar no WhatsApp
+                      </Button>
                     </div>
                 </div>
             </div>

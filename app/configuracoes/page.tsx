@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Loader2, Save, Image as ImageIcon, AlertTriangle, Download, CheckCircle2 } from 'lucide-react'
+import { THEMES } from '@/src/constants/themes'
 
 // ⚡ PERFORMANCE: Carrega o componente de equipe apenas se necessário (Code Splitting)
 const TeamManagement = dynamic(() => import('@/components/TeamManagement').then(mod => mod.TeamManagement), { loading: () => <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-brand-primary" /></div> })
@@ -92,14 +93,6 @@ const initialProfileState: Partial<ProfileData> = {
   appointment_label: 'Sessão',
   theme_name: ''
 };
-
-const THEMES = [
-  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
-  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
-  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
-  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
-  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
-];
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState(initialProfileState);

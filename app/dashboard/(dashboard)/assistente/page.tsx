@@ -10,14 +10,7 @@ import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-
-const THEMES = [
-  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
-  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
-  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
-  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
-  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
-];
+import { THEMES } from '@/src/constants/themes'
 
 export default function AssistantDashboardPage() {
   const [appointments, setAppointments] = useState<any[]>([])
@@ -41,20 +34,40 @@ export default function AssistantDashboardPage() {
       let targetPsychologistId = user.id
 
       if (!isSuperAdmin) {
-        // Verifica se é membro da equipe
-        const { data: teamMember } = await supabase
-          .from('clinic_team')
-          .select('id, name, psychologist_id')
-          .eq('email', email)
-          .eq('status', 'active')
-          .maybeSingle()
+        if (email && email.includes('@')) {
+          // 1. Primeiro, buscamos a lista de equipe sem filtros que podem quebrar
+          const { data: teamList, error: teamError } = await supabase
+            .from('clinic_team')
+            .select('*')
+            .eq('status', 'active')
 
-        if (!teamMember) {
+          if (teamError) {
+            console.warn("Aviso: Erro ao acessar tabela de equipe:", teamError.message);
+          }
+
+          let teamMember = null;
+          
+          // 2. Filtramos o e-mail via JavaScript para não depender do nome da coluna no banco
+          if (teamList && email) {
+            const normalizedUserEmail = email.trim().toLowerCase();
+            teamMember = teamList.find((member: any) => 
+              Object.values(member).some(value => 
+                typeof value === 'string' && value.toLowerCase() === normalizedUserEmail
+              )
+            );
+          }
+
+          if (!teamMember) {
+            router.push('/dashboard')
+            return
+          }
+          setUserName(teamMember.name || teamMember.full_name || "Assistente")
+          targetPsychologistId = teamMember.psychologist_id || teamMember.admin_id || teamMember.user_id || teamMember.created_by || teamMember.owner_id;
+          console.log("MentePsi: Acesso Assistente Detectado.");
+        } else {
           router.push('/dashboard')
           return
         }
-        setUserName(teamMember.name)
-        targetPsychologistId = teamMember.psychologist_id
       } else {
         setUserName("Administrador")
       }
