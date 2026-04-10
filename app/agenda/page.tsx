@@ -293,16 +293,12 @@ function AgendaContent() {
     const numericPrice = parseFloat(String(formData.price).replace(/\./g, '').replace(',', '.')) || 0
     const daysToAdd = formData.recurrence === 'Semanal' ? 7 : 
                       formData.recurrence === 'Quinzenal' ? 14 : 
-                      formData.recurrence === 'Mensal' ? 30 : 0;
+                      formData.recurrence === 'Mensal' ? 28 : 0;
     const loopCount = formData.recurrence === 'Nenhuma' ? 1 : formData.repeat_count;
 
     for (let i = 0; i < loopCount; i++) {
       const currentStart = new Date(startDate)
-      if (formData.recurrence === 'Mensal') {
-        currentStart.setMonth(startDate.getMonth() + i)
-      } else {
-        currentStart.setDate(startDate.getDate() + (i * daysToAdd))
-      }
+      currentStart.setDate(startDate.getDate() + (i * daysToAdd))
       
       const start = currentStart.toISOString()
       const end = new Date(currentStart.getTime() + (parseInt(formData.duration) || 50) * 60000).toISOString()
