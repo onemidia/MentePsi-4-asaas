@@ -32,6 +32,14 @@ import { format, isAfter, isBefore, startOfDay, startOfMonth, endOfMonth, parseI
 import { ptBR } from 'date-fns/locale'
 import { getLabels } from '@/lib/labels'
 
+const THEMES = [
+  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
+  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
+  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
+  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
+  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
+];
+
 const handleWhatsAppClick = (phone: string, message: string = '') => {
   if (!phone) return;
   const cleanPhone = phone.replace(/\D/g, '');
@@ -108,6 +116,7 @@ export default function FinanceiroPage() {
   const [professionalData, setProfessionalData] = useState<any>(null)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [lastPaymentTime, setLastPaymentTime] = useState<number>(0)
+  const [isThemeLoaded, setIsThemeLoaded] = useState(false)
 
   const supabase = createClient()
   const searchParams = useSearchParams()
@@ -246,13 +255,24 @@ export default function FinanceiroPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (user?.id) {
           const { data } = await supabase.from('professional_profile')
-            .select('full_name, crp, city, clinic_name, address, specialty, appointment_label')
+            .select('full_name, crp, city, clinic_name, address, specialty, appointment_label, theme_name')
             .eq('user_id', user.id)
             .maybeSingle()
-          setProfessionalData(data)
+          
+          if (data) {
+            setProfessionalData(data)
+            const themeName = data.theme_name || 'padrao';
+            const activeTheme = THEMES.find(t => t.id === themeName) || THEMES[0];
+            if (typeof document !== 'undefined') {
+              document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+              document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+            }
+          }
         }
       } catch (e) {
         console.warn("Aviso ao buscar perfil profissional:", e)
+      } finally {
+        setIsThemeLoaded(true)
       }
     }
     fetchProf()
@@ -1202,7 +1222,16 @@ export default function FinanceiroPage() {
     }
   }
 
-  if (!isMounted) return null
+  if (!isMounted || !isThemeLoaded) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin" style={{ color: 'var(--primary-color, #94a3b8)' }} />
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Carregando Financeiro...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6 bg-slate-100 min-h-[100dvh]">

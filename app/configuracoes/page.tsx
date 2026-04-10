@@ -90,7 +90,7 @@ const initialProfileState: Partial<ProfileData> = {
   estado_civil: '',
   occupation_type: 'psicologo',
   appointment_label: 'Sessão',
-  theme_name: 'padrao'
+  theme_name: ''
 };
 
 const THEMES = [
@@ -118,9 +118,11 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      const activeTheme = THEMES.find(t => t.id === profile.theme_name) || THEMES[0];
-      document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
-      document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+      if (profile.theme_name) {
+        const activeTheme = THEMES.find(t => t.id === profile.theme_name) || THEMES[0];
+        document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+        document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+      }
     }
   }, [profile.theme_name])
 
@@ -137,6 +139,21 @@ export default function SettingsPage() {
         }
 
         const userId = user.id;
+
+        // ANTECIPAÇÃO DO TEMA
+        const { data: themeData } = await supabase
+          .from('professional_profile')
+          .select('theme_name')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (themeData?.theme_name) {
+          const activeTheme = THEMES.find(t => t.id === themeData.theme_name) || THEMES[0];
+          if (typeof document !== 'undefined') {
+            document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+            document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+          }
+        }
 
         // 1. Busca os dados profissionais com tratamento de erro isolado
         const { data: profData, error: profError } = await supabase

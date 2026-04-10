@@ -10,6 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast"
 import { Label } from "@/components/ui/label"
 
+const THEMES = [
+  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
+  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
+  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
+  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
+  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
+];
+
 export default function PortalManagementPage() {
   const [patients, setPatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,14 +41,25 @@ export default function PortalManagementPage() {
 
       // Busca usando os nomes REAIS das colunas: 'phone' em vez de 'whatsapp'
       // 2. Aplica o filtro obrigatório pelo ID do psicólogo
-      const { data: pData } = await supabase.from('patients').select('id, full_name, phone, created_at').eq('psychologist_id', user.id)
-      const { data: sData } = await supabase.from('portal_settings').select('*').eq('psychologist_id', user.id)
+      const [pRes, sRes, profThemeRes] = await Promise.all([
+        supabase.from('patients').select('id, full_name, phone, created_at').eq('psychologist_id', user.id),
+        supabase.from('portal_settings').select('*').eq('psychologist_id', user.id),
+        supabase.from('professional_profile').select('theme_name').eq('user_id', user.id).maybeSingle()
+      ])
 
-      if (pData) {
-        const normalized = pData.map(p => ({
+      const fetchedTheme = profThemeRes.data?.theme_name || 'padrao';
+      const activeTheme = THEMES.find(t => t.id === fetchedTheme) || THEMES[0];
+
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+        document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+      }
+
+      if (pRes.data) {
+        const normalized = pRes.data.map(p => ({
           ...p,
           // 🔧 MELHORIA: Retorna objeto vazio se não houver config, facilitando a criação
-          portal_settings: sData?.find(s => s.patient_id === p.id) || { active: false, journal: false, financials: false, materials: false, documents: false }
+          portal_settings: sRes.data?.find(s => s.patient_id === p.id) || { active: false, journal: false, financials: false, materials: false, documents: false }
         }))
         setPatients(normalized)
       }
@@ -107,6 +126,18 @@ export default function PortalManagementPage() {
 
   if (!isMounted) return null
 
+  // TRAVA DE RENDERIZAÇÃO: Evita que a página seja renderizada com botões e switches sem cor
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin" style={{ color: 'var(--primary-color, #94a3b8)' }} />
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Carregando Portal...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 space-y-6 bg-slate-100 min-h-[100dvh]">
       <div className="flex items-center gap-3">
@@ -168,9 +199,7 @@ export default function PortalManagementPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-10"><Loader2 className="animate-spin inline mr-2"/> Carregando...</TableCell></TableRow>
-              ) : filteredPatients.length === 0 ? (
+              {filteredPatients.length === 0 ? (
                 <TableRow><TableCell colSpan={4} className="text-center py-10 text-slate-500">Nenhum paciente encontrado.</TableCell></TableRow>
               ) : (
                 filteredPatients?.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage).map((p) => (
@@ -178,7 +207,7 @@ export default function PortalManagementPage() {
                     <TableCell className="font-medium">{p.full_name}</TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
-                        {updatingId === p.id ? <Loader2 className="h-5 w-5 animate-spin text-brand-primary"/> : (
+                        {updatingId === p.id ? <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--primary-color)' }}/> : (
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input 
                               type="checkbox" 
@@ -186,7 +215,7 @@ export default function PortalManagementPage() {
                               checked={p.portal_settings?.active} 
                               onChange={(e) => updatePortalConfig(p.id, 'active', e.target.checked)} 
                             />
-                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary"></div>
+                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--primary-color)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary-color)]"></div>
                           </label>
                         )}
                       </div>
@@ -201,7 +230,7 @@ export default function PortalManagementPage() {
                             onChange={(e) => updatePortalConfig(p.id, 'journal', e.target.checked)} 
                             disabled={!p.portal_settings?.active || updatingId === p.id}
                           />
-                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--primary-color)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary-color)] peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
                         </label>
                       </div>
                     </TableCell>
@@ -215,7 +244,7 @@ export default function PortalManagementPage() {
                             onChange={(e) => updatePortalConfig(p.id, 'financials', e.target.checked)} 
                             disabled={!p.portal_settings?.active || updatingId === p.id}
                           />
-                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--primary-color)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary-color)] peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
                         </label>
                       </div>
                     </TableCell>
@@ -229,7 +258,7 @@ export default function PortalManagementPage() {
                             onChange={(e) => updatePortalConfig(p.id, 'materials', e.target.checked)} 
                             disabled={!p.portal_settings?.active || updatingId === p.id}
                           />
-                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--primary-color)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary-color)] peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
                         </label>
                       </div>
                     </TableCell>
@@ -243,7 +272,7 @@ export default function PortalManagementPage() {
                             onChange={(e) => updatePortalConfig(p.id, 'documents', e.target.checked)} 
                             disabled={!p.portal_settings?.active || updatingId === p.id}
                           />
-                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--primary-color)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary-color)] peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
                         </label>
                       </div>
                     </TableCell>

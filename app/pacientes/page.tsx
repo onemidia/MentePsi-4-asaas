@@ -38,6 +38,14 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 
+const THEMES = [
+  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
+  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
+  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
+  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
+  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
+];
+
 export default function PatientsPage() {
 
   const [patients, setPatients] = useState<any[]>([])
@@ -62,14 +70,23 @@ export default function PatientsPage() {
         return
       }
 
-      const { data } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('psychologist_id', user.id)
-        .order('full_name', { ascending: true })
+      // Busca Paralela: Carrega os pacientes E o tema do profissional ao mesmo tempo
+      const [patientsRes, profRes] = await Promise.all([
+        supabase.from('patients').select('*').eq('psychologist_id', user.id).order('full_name', { ascending: true }),
+        supabase.from('professional_profile').select('theme_name').eq('user_id', user.id).maybeSingle()
+      ])
 
-      if (data) {
-        setPatients(data)
+      if (profRes.data) {
+        const themeName = profRes.data.theme_name || 'padrao';
+        const activeTheme = THEMES.find(t => t.id === themeName) || THEMES[0];
+        if (typeof document !== 'undefined') {
+          document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+          document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+        }
+      }
+
+      if (patientsRes.data) {
+        setPatients(patientsRes.data)
       }
       } catch (error) {
         console.error("Erro na busca de pacientes:", error)
@@ -146,6 +163,18 @@ export default function PatientsPage() {
     }
   }
 
+  // TRAVA DE RENDERIZAÇÃO: Evita que a página seja renderizada com botões sem cor
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin" style={{ color: 'var(--primary-color, #94a3b8)' }} />
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Carregando Pacientes...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-8 bg-slate-100 min-h-[100dvh]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -205,11 +234,7 @@ export default function PatientsPage() {
             </TableHeader>
 
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24">Carregando...</TableCell>
-                </TableRow>
-              ) : filteredPatients.length === 0 ? (
+              {filteredPatients.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center h-24 text-slate-500">Nenhum paciente encontrado.</TableCell>
                 </TableRow>

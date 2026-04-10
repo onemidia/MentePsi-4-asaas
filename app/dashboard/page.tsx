@@ -372,7 +372,7 @@ export default function PsychologistDashboard() {
       setUser(user)
 
       const { data: profileData } = await supabase.from('professional_profile')
-        .select('full_name, role, birthday_message_template, reminder_template, appointment_label, occupation_type, genero')
+        .select('full_name, role, birthday_message_template, reminder_template, appointment_label, occupation_type, genero, theme_name')
         .eq('user_id', targetUserId)
         .maybeSingle()
       const { data: subData } = await supabase.from('subscriptions').select('status, plan_id').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).maybeSingle()
@@ -382,6 +382,15 @@ export default function PsychologistDashboard() {
         subscription_status: subData?.status || 'trialing',
         plan_type: 'professional'
       })
+
+      // APLICAÇÃO DO TEMA DINÂMICO
+      const fetchedTheme = profileData?.theme_name || 'padrao';
+      const activeTheme = THEMES.find(t => t.id === fetchedTheme) || THEMES[0];
+
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+        document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+      }
       
       const sixMonthsAgo = subMonths(new Date(), 5)
       const startChart = startOfMonth(sixMonthsAgo).toISOString()
@@ -732,11 +741,12 @@ export default function PsychologistDashboard() {
                     <Button 
                       size="sm" 
                       variant="outline" 
-                      className={`h-8 text-[10px] font-bold px-2 ${
-                        item.reminderSent 
-                          ? 'border-emerald-300 text-emerald-800 bg-emerald-100 hover:bg-emerald-200' 
-                          : 'border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
-                      }`}
+                      className="h-8 text-[10px] font-bold px-2 transition-all hover:brightness-95"
+                      style={{
+                        borderColor: 'var(--primary-color)',
+                        color: item.reminderSent ? 'var(--primary-color)' : '#fff',
+                        backgroundColor: item.reminderSent ? 'var(--secondary-color)' : 'var(--primary-color)'
+                      }}
                       onClick={() => handleSendReminder(item)}
                     >
                       <MessageCircle className="h-3 w-3 mr-1" fill={item.reminderSent ? "currentColor" : "none"} />

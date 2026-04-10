@@ -3,6 +3,14 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { SubscriptionRequiredOverlay } from '@/components/subscription-required-overlay'
 
+const THEMES = [
+  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
+  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
+  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
+  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
+  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
+];
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
   
@@ -40,6 +48,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     return <>{children}</>; // Imunidade total contra bloqueios de assinatura
   }
 
+  // BUSCA DO TEMA DO USUÁRIO
+  const { data: profile } = await supabase
+    .from('professional_profile')
+    .select('theme_name')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  const activeTheme = THEMES.find(t => t.id === profile?.theme_name) || THEMES[0];
+
   // 🟢 BLINDAGEM: Imunidade para Equipe/Assistentes (Acesso liberado sem checar assinatura)
   // const { data: teamMember } = await supabase
   //   .from('clinic_team')
@@ -74,6 +91,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <>
+      <style>{`
+        :root {
+          --primary-color: ${activeTheme.primary};
+          --secondary-color: ${activeTheme.secondary};
+        }
+      `}</style>
       {subscription?.status === 'overdue' && (
         <div className="bg-amber-100 border-b border-amber-200 p-3 text-amber-800 text-center text-sm font-medium">
           ⚠️ <strong>Atenção:</strong> Identificamos um atraso no seu pagamento. 

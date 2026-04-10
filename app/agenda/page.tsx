@@ -17,6 +17,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
+const THEMES = [
+  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
+  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
+  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
+  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
+  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
+];
+
 // 1. Componente que contém toda a lógica da agenda
 function AgendaContent() {
   const [events, setEvents] = useState<any[]>([])
@@ -87,7 +95,7 @@ function AgendaContent() {
       supabase.from('appointments').select('id, start_time, end_time, status, patient_id, modality, price, patients(full_name)').eq('psychologist_id', targetUserId),
       supabase.from('patients').select('id, full_name, session_value').eq('psychologist_id', targetUserId).order('full_name'),
       supabase.from('subscriptions').select('status').eq('user_id', targetUserId).order('created_at', { ascending: false }).limit(1).single(),
-      supabase.from('professional_profile').select('default_session_duration').eq('user_id', targetUserId).maybeSingle()
+      supabase.from('professional_profile').select('default_session_duration, theme_name').eq('user_id', targetUserId).maybeSingle()
     ])
     
     if (aptRes.data) {
@@ -108,8 +116,16 @@ function AgendaContent() {
     }
     if (patRes.data) setPatients(patRes.data)
 
-    if (profRes.data?.default_session_duration) {
-      setFormData(prev => ({ ...prev, duration: String(profRes.data.default_session_duration) }))
+    if (profRes.data) {
+      if (profRes.data.default_session_duration) {
+        setFormData(prev => ({ ...prev, duration: String(profRes.data.default_session_duration) }))
+      }
+      const themeName = profRes.data.theme_name || 'padrao';
+      const activeTheme = THEMES.find(t => t.id === themeName) || THEMES[0];
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+        document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
+      }
     }
     
     // Passe Livre para Admin e Assistente
@@ -382,6 +398,19 @@ function AgendaContent() {
   const handleViewChange = (view: string) => {
     const api = calendarRef.current?.getApi()
     api?.changeView(view)
+  }
+
+  // TRAVA DE RENDERIZAÇÃO: Evita que o FullCalendar seja desenhado com as cores em branco/padrão
+  // antes que as variáveis CSS do tema do psicólogo sejam aplicadas no :root
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-brand-primary" style={{ color: 'var(--primary-color, #94a3b8)' }} />
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Carregando Agenda...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

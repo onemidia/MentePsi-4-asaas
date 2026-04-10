@@ -11,6 +11,14 @@ import { Badge } from "@/components/ui/badge"
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
+const THEMES = [
+  { id: 'padrao', name: 'Padrão', primary: '#0d9488', secondary: '#f0fdfa' },
+  { id: 'oceano', name: 'Oceano', primary: '#1e40af', secondary: '#eff6ff' },
+  { id: 'natureza', name: 'Natureza', primary: '#166534', secondary: '#f0fdf4' },
+  { id: 'lavanda', name: 'Lavanda', primary: '#6b21a8', secondary: '#faf5ff' },
+  { id: 'grafite', name: 'Grafite', primary: '#334155', secondary: '#f8fafc' },
+];
+
 export default function AssistantDashboardPage() {
   const [appointments, setAppointments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,24 +38,40 @@ export default function AssistantDashboardPage() {
       // 1. Identificação e Permissão (Passe Livre para Admin)
       const email = user.email || ''
       const isSuperAdmin = ['mentepsiclinic@gmail.com', 'alvino@onemidia.tv.br'].includes(email)
+      let targetPsychologistId = user.id
 
       if (!isSuperAdmin) {
         // Verifica se é membro da equipe
         const { data: teamMember } = await supabase
           .from('clinic_team')
-          .select('id, name')
+          .select('id, name, psychologist_id')
           .eq('email', email)
           .eq('status', 'active')
           .maybeSingle()
 
         if (!teamMember) {
-          // Se não for equipe nem admin, tchau
           router.push('/dashboard')
           return
         }
         setUserName(teamMember.name)
+        targetPsychologistId = teamMember.psychologist_id
       } else {
         setUserName("Administrador")
+      }
+      
+      // Aplicação do Tema do Psicólogo para o Assistente
+      const { data: profTheme } = await supabase
+        .from('professional_profile')
+        .select('theme_name')
+        .eq('user_id', targetPsychologistId)
+        .maybeSingle();
+
+      const fetchedTheme = profTheme?.theme_name || 'padrao';
+      const activeTheme = THEMES.find(t => t.id === fetchedTheme) || THEMES[0];
+
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--primary-color', activeTheme.primary);
+        document.documentElement.style.setProperty('--secondary-color', activeTheme.secondary);
       }
 
       // 2. Buscar Agendamentos de Hoje
@@ -70,11 +94,8 @@ export default function AssistantDashboardPage() {
         .order('start_time', { ascending: true })
 
       // Se não for super admin, filtra pelo psicólogo do assistente
-      if (!isSuperAdmin) {
-        const { data: teamData } = await supabase.from('clinic_team').select('psychologist_id').eq('email', email).single()
-        if (teamData) {
-          query = query.eq('psychologist_id', teamData.psychologist_id)
-        }
+      if (!isSuperAdmin && targetPsychologistId) {
+        query = query.eq('psychologist_id', targetPsychologistId)
       }
 
       const { data: appts } = await query
@@ -146,7 +167,7 @@ export default function AssistantDashboardPage() {
   }
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-teal-600 h-8 w-8" /></div>
+    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8" style={{ color: 'var(--primary-color)' }} /></div>
   }
 
   return (
@@ -279,7 +300,7 @@ export default function AssistantDashboardPage() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="rounded-xl font-bold border-slate-200 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200" 
+                      className="rounded-xl font-bold border-slate-200 hover:text-[var(--primary-color)] hover:border-[var(--primary-color)] transition-all" 
                       onClick={() => router.push(`/pacientes/${apt.patient_id}`)}
                     >
                       Ver Ficha <ArrowRight className="ml-2 h-4 w-4" />
@@ -298,7 +319,8 @@ export default function AssistantDashboardPage() {
                     {apt.status !== 'Realizado' && (
                       <Button 
                         size="icon"
-                        className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white shadow-md shadow-teal-100"
+                        className="rounded-xl text-white shadow-md hover:brightness-90 transition-all border-0"
+                        style={{ backgroundColor: 'var(--primary-color)' }}
                         title="Confirmar Presença (Check-in)"
                         onClick={() => handleCheckIn(apt.id)}
                       >
