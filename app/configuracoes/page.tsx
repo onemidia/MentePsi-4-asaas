@@ -421,13 +421,23 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="perfil" className="w-full">
-        <TabsList className="flex flex-wrap h-auto w-full justify-start gap-2 bg-slate-100 p-1 rounded-xl mb-8">
-          <TabsTrigger value="perfil" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Perfil</TabsTrigger>
-          <TabsTrigger value="consultorio" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Consultório</TabsTrigger>
-          <TabsTrigger value="pagamentos" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Pagamentos</TabsTrigger>
-          <TabsTrigger value="lembretes" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Lembretes</TabsTrigger>
-          <TabsTrigger value="plano" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Plano</TabsTrigger>
-          <TabsTrigger value="equipe" className="flex-1 min-w-[100px] data-[state=active]:text-white border-0" style={{ backgroundColor: 'var(--primary-color)' }}>Equipe</TabsTrigger>
+        <TabsList className="flex flex-wrap h-auto w-full justify-start gap-3 mb-10 bg-transparent p-0 rounded-none">
+          {[
+            { value: 'perfil', label: 'Perfil' },
+            { value: 'consultorio', label: 'Consultório' },
+            { value: 'pagamentos', label: 'Pagamentos' },
+            { value: 'lembretes', label: 'Lembretes' },
+            { value: 'plano', label: 'Plano' },
+            { value: 'equipe', label: 'Equipe' }
+          ].map((tab) => (
+            <TabsTrigger 
+              key={tab.value}
+              value={tab.value} 
+              className="flex-1 min-w-[110px] rounded-full px-6 py-2.5 text-sm font-bold transition-all border-0 bg-slate-100 text-slate-700 hover:bg-slate-200 data-[state=active]:bg-[var(--primary-color)] data-[state=active]:text-white data-[state=active]:shadow-lg"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value="perfil" className="mt-6">
